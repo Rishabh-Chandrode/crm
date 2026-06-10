@@ -1,0 +1,10 @@
+packages:
+  - 'packages/*'
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+allowBuilds:
+  esbuild: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - nodemailer@8.0.11

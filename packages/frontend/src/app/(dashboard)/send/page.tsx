@@ -1,0 +1,420 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api';
+import { prospectFullName } from '@/lib/types';
+import type { EmailTemplate, Company, Prospect, TemplateVariable } from '@/lib/types';
+
+type Step = 'select' | 'customize' | 'preview' | 'result';
+
+interface SendResult {
+  sent: number;
+  failed: number;
+  total: number;
+  results: { email: string; status: string; error?: string }[];
+}
+
+function localDatetimeDefault(): string {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setSeconds(0, 0);
+  return d.toISOString().slice(0, 16);
+}
+
+export default function SendPage() {
+  const [step, setStep] = useState<Step>('select');
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedProspects, setSelectedProspects] = useState<string[]>([]);
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
+  const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
+  const [previewProspect, setPreviewProspect] = useState('');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<SendResult | null>(null);
+  const [error, setError] = useState('');
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState(localDatetimeDefault);
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduled, setScheduled] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const [tRes, cRes] = await Promise.all([api.templates.list(), api.companies.list()]);
+      setTemplates(tRes.data as EmailTemplate[]);
+      setCompanies(cRes.data as Company[]);
+    }
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCompany) { setProspects([]); return; }
+    api.prospects.list(selectedCompany).then((res) => {
+      setProspects(res.data as Prospect[]);
+      setSelectedProspects([]);
+    }).catch(console.error);
+  }, [selectedCompany]);
+
+  const template = templates.find((t) => t.id === selectedTemplate);
+  const customVars = template?.variables.filter((v) => v.source === 'custom') ?? [];
+
+  async function handlePreview() {
+    if (!selectedTemplate || !previewProspect) return;
+    setError('');
+    try {
+      const res = await api.email.preview(selectedTemplate, previewProspect, customValues);
+      setPreview({ subject: res.data.subject, html: res.data.html });
+      setStep('preview');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Preview failed');
+    }
+  }
+
+  async function handleSend() {
+    if (!selectedTemplate || !selectedCompany) return;
+    setError('');
+    setSending(true);
+    try {
+      const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
+      const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues);
+      setResult(res.data);
+      setStep('result');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Send failed');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleSchedule() {
+    if (!selectedTemplate || !selectedCompany) return;
+    setError('');
+    setScheduling(true);
+    try {
+      const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
+      await api.schedules.create({
+        templateId: selectedTemplate,
+        companyId: selectedCompany,
+        prospectIds: ids,
+        customValues,
+        scheduledFor: new Date(scheduleDateTime).toISOString(),
+      });
+      setShowSchedulePicker(false);
+      setScheduled(true);
+      setStep('result');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Scheduling failed');
+    } finally {
+      setScheduling(false);
+    }
+  }
+
+  function reset() {
+    setStep('select');
+    setSelectedTemplate('');
+    setSelectedCompany('');
+    setSelectedProspects([]);
+    setCustomValues({});
+    setPreview(null);
+    setPreviewProspect('');
+    setResult(null);
+    setError('');
+    setScheduled(false);
+    setShowSchedulePicker(false);
+    setScheduleDateTime(localDatetimeDefault());
+  }
+
+  function toggleProspect(id: string) {
+    setSelectedProspects((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  }
+
+  return (
+    <div className="p-8 max-w-3xl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900">Send Emails</h1>
+        <p className="text-slate-500 text-sm mt-1">Send personalized emails to prospects at a company</p>
+      </div>
+
+      {/* Steps indicator */}
+      <div className="flex items-center gap-2 mb-8">
+        {(['select', 'customize', 'preview', 'result'] as Step[]).map((s, i) => (
+          <div key={s} className="flex items-center gap-2">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step === s ? 'bg-indigo-600 text-white' : i < (['select', 'customize', 'preview', 'result'] as Step[]).indexOf(step) ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-500'}`}>
+              {i + 1}
+            </div>
+            {i < 3 && <div className="w-8 h-px bg-slate-200" />}
+          </div>
+        ))}
+        <span className="ml-2 text-sm text-slate-500 capitalize">{step}</span>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-6 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Step 1: Select */}
+      {step === 'select' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+          <div>
+            <label className="form-label">Email Template *</label>
+            <select className="form-input" value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value)}>
+              <option value="">Choose a template…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}{t.job_description ? ` — ${t.job_description}` : ''}</option>
+              ))}
+            </select>
+            {template && (
+              <p className="text-xs text-slate-400 mt-1">Subject: {template.subject}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="form-label">Target Company *</label>
+            <select className="form-input" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
+              <option value="">Choose a company…</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {prospects.length > 0 && (
+            <div>
+              <label className="form-label">Prospects to send to</label>
+              <p className="text-xs text-slate-400 mb-2">Leave all unchecked to send to everyone at this company ({prospects.length} prospects)</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-3">
+                {prospects.map((p) => (
+                  <label key={p.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded p-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedProspects.includes(p.id)}
+                      onChange={() => toggleProspect(p.id)}
+                      className="rounded border-slate-300 text-indigo-600"
+                    />
+                    <span className="text-sm text-slate-700">{prospectFullName(p)}</span>
+                    <span className="text-xs text-slate-400">{p.email}</span>
+                    {p.job_title && <span className="text-xs text-slate-400">· {p.job_title}</span>}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => setStep('customize')}
+              disabled={!selectedTemplate || !selectedCompany}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Customize */}
+      {step === 'customize' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+          <h3 className="font-semibold text-slate-800">Customize values</h3>
+
+          {customVars.length === 0 ? (
+            <p className="text-slate-500 text-sm">No custom variables required for this template. All values are pulled from prospect/company data.</p>
+          ) : (
+            <div className="space-y-4">
+              {customVars.map((v: TemplateVariable) => (
+                <div key={v.key}>
+                  <label className="form-label">{v.label || v.key}</label>
+                  <p className="text-xs text-slate-400 mb-1">Placeholder: <code className="font-mono bg-slate-100 px-1 rounded">{`{{${v.key}}}`}</code></p>
+                  <input
+                    className="form-input"
+                    value={customValues[v.key] ?? v.defaultValue ?? ''}
+                    onChange={(e) => setCustomValues((prev) => ({ ...prev, [v.key]: e.target.value }))}
+                    placeholder={v.defaultValue ?? `Enter ${v.label || v.key}…`}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {prospects.length > 0 && (
+            <div>
+              <label className="form-label">Preview for prospect</label>
+              <select className="form-input" value={previewProspect} onChange={(e) => setPreviewProspect(e.target.value)}>
+                <option value="">Choose a prospect to preview…</option>
+                {prospects.map((p) => (
+                  <option key={p.id} value={p.id}>{prospectFullName(p)} ({p.email})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex justify-between">
+            <button onClick={() => setStep('select')} className="text-slate-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors">← Back</button>
+            <div className="flex gap-3">
+              {previewProspect && (
+                <button
+                  onClick={() => void handlePreview()}
+                  className="border border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  Preview email
+                </button>
+              )}
+              <button
+                onClick={() => setShowSchedulePicker(true)}
+                className="border border-slate-300 hover:border-slate-400 text-slate-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Schedule
+              </button>
+              <button
+                onClick={() => void handleSend()}
+                disabled={sending}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              >
+                {sending ? 'Sending…' : `Send to ${selectedProspects.length > 0 ? selectedProspects.length : prospects.length} prospect${(selectedProspects.length || prospects.length) !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule date/time picker modal */}
+      {showSchedulePicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-1">Schedule send</h3>
+            <p className="text-slate-500 text-sm mb-5">
+              Emails will be sent to {selectedProspects.length > 0 ? selectedProspects.length : prospects.length} prospect{(selectedProspects.length || prospects.length) !== 1 ? 's' : ''} at the chosen time.
+            </p>
+            <label className="form-label">Date &amp; time</label>
+            <input
+              type="datetime-local"
+              className="form-input mb-5"
+              value={scheduleDateTime}
+              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              onChange={(e) => setScheduleDateTime(e.target.value)}
+            />
+            {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowSchedulePicker(false); setError(''); }}
+                className="text-slate-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleSchedule()}
+                disabled={scheduling}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              >
+                {scheduling ? 'Scheduling…' : 'Confirm schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Preview */}
+      {step === 'preview' && preview && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+          <h3 className="font-semibold text-slate-800">Email Preview</h3>
+          <div className="bg-slate-50 rounded-lg p-4">
+            <p className="text-xs text-slate-500 mb-1 font-medium">SUBJECT</p>
+            <p className="text-slate-800 font-medium">{preview.subject}</p>
+          </div>
+          <div className="bg-slate-50 rounded-lg p-4">
+            <p className="text-xs text-slate-500 mb-3 font-medium">BODY</p>
+            <div
+              className="text-slate-700 text-sm leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: preview.html }}
+            />
+          </div>
+          <div className="flex justify-between">
+            <button onClick={() => setStep('customize')} className="text-slate-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors">← Back</button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSchedulePicker(true)}
+                className="border border-slate-300 hover:border-slate-400 text-slate-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Schedule
+              </button>
+              <button
+                onClick={() => void handleSend()}
+                disabled={sending}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              >
+                {sending ? 'Sending…' : 'Confirm & Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Result */}
+      {step === 'result' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+          {scheduled ? (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800">Emails scheduled</h3>
+                  <p className="text-slate-500 text-sm">
+                    Will send on {new Date(scheduleDateTime).toLocaleString()} · view or cancel in <a href="/scheduled" className="text-indigo-600 hover:underline">Scheduled</a>
+                  </p>
+                </div>
+              </div>
+              <button onClick={reset} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium py-2.5 rounded-lg transition-colors">
+                Schedule another batch
+              </button>
+            </>
+          ) : result ? (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800">Send complete</h3>
+                  <p className="text-slate-500 text-sm">{result.sent} sent · {result.failed} failed · {result.total} total</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {result.results.map((r, i) => (
+                  <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${r.status === 'sent' ? 'bg-green-50' : 'bg-red-50'}`}>
+                    <span className={r.status === 'sent' ? 'text-green-700' : 'text-red-700'}>{r.email}</span>
+                    <div className="text-right">
+                      <span className={`font-medium ${r.status === 'sent' ? 'text-green-600' : 'text-red-600'}`}>{r.status}</span>
+                      {r.error && <p className="text-xs text-red-500">{r.error}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={reset} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium py-2.5 rounded-lg transition-colors">
+                Send another batch
+              </button>
+            </>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:3000/login)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(pnpm --filter @crm/backend add nodemailer)",
+      "Bash(pnpm --filter @crm/backend add -D @types/nodemailer)",
+      "Bash(ls /Users/lonewolf/Projects/personal/)"
+    ]
+  }
+}

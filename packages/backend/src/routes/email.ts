@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
 import { getEmailProvider } from '../services/email/index.js';
-import { resolveTemplate, plainTextToHtml } from '../services/templateEngine.js';
+import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from '../services/templateEngine.js';
 import { getAttachments } from '../services/attachmentHelper.js';
 import type { EmailTemplate, Prospect, Company, EmailSend } from '../types/index.js';
 
@@ -113,7 +113,7 @@ router.post('/send', async (req, res, next) => {
     const context = { prospect, company, custom: customValues };
     const resolvedSubject = resolveTemplate(template.subject, template.variables, context);
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
-    const html = plainTextToHtml(resolvedBody);
+    const html = wrapEmailHtml(plainTextToHtml(resolvedBody));
 
     const attachments = await getAttachments(documentIds);
 
@@ -204,7 +204,7 @@ router.post('/send-company', async (req, res, next) => {
         const context = { prospect, company, custom: customValues };
         const subject = resolveTemplate(template.subject, template.variables, context);
         const body = resolveTemplate(template.body, template.variables, context);
-        const html = plainTextToHtml(body);
+        const html = wrapEmailHtml(plainTextToHtml(body));
 
         const sendRecord = await pool.query<EmailSend>(
           `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)

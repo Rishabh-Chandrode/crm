@@ -55,6 +55,24 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+export function wrapEmailHtml(bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; font-size: 14px; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+    a { color: #0066cc; text-decoration: underline; }
+    p { margin: 0 0 8px 0; }
+  </style>
+</head>
+<body>
+${bodyHtml}
+</body>
+</html>`;
+}
+
 export function extractPlaceholders(text: string): string[] {
   const matches = [...text.matchAll(/\{\{([^}]+)\}\}/g)];
   return [...new Set(matches.map((m) => m[1] ?? '').filter(Boolean))];

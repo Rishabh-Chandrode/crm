@@ -203,8 +203,44 @@ export default function SendPage() {
           {prospects.length > 0 && (
             <div>
               <label className="form-label">Prospects to send to</label>
-              <p className="text-xs text-slate-400 mb-2">Leave all unchecked to send to everyone at this company ({prospects.length} prospects)</p>
-              <div className="space-y-2 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-3">
+              <p className="text-xs text-slate-400 mb-2">
+                {selectedProspects.length === 0
+                  ? `Sending to all ${prospects.length} prospects — or narrow by category below`
+                  : `${selectedProspects.length} of ${prospects.length} selected`}
+              </p>
+
+              {/* Quick-select by category */}
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                <button
+                  onClick={() => setSelectedProspects([])}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    selectedProspects.length === 0
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'border-slate-300 text-slate-500 hover:border-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  All ({prospects.length})
+                </button>
+                {([
+                  { cat: 'engineer', label: 'Engineers', style: 'border-blue-300 text-blue-700 hover:bg-blue-50' },
+                  { cat: 'hr',       label: 'HR',        style: 'border-purple-300 text-purple-700 hover:bg-purple-50' },
+                  { cat: 'other',    label: 'Other',     style: 'border-slate-300 text-slate-500 hover:border-slate-400 hover:text-slate-700' },
+                ] as const).map(({ cat, label, style }) => {
+                  const group = prospects.filter((p) => p.role_category === cat);
+                  if (!group.length) return null;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedProspects(group.map((p) => p.id))}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${style}`}
+                    >
+                      {label} ({group.length})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-3">
                 {prospects.map((p) => (
                   <label key={p.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded p-1">
                     <input
@@ -213,9 +249,17 @@ export default function SendPage() {
                       onChange={() => toggleProspect(p.id)}
                       className="rounded border-slate-300 text-indigo-600"
                     />
-                    <span className="text-sm text-slate-700">{prospectFullName(p)}</span>
-                    <span className="text-xs text-slate-400">{p.email}</span>
-                    {p.job_title && <span className="text-xs text-slate-400">· {p.job_title}</span>}
+                    <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">{prospectFullName(p)}</span>
+                    <span className="text-xs text-slate-400 hidden sm:inline">{p.email}</span>
+                    {p.role_category && (
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                        p.role_category === 'engineer' ? 'bg-blue-100 text-blue-700' :
+                        p.role_category === 'hr'       ? 'bg-purple-100 text-purple-700' :
+                                                         'bg-slate-100 text-slate-500'
+                      }`}>
+                        {p.role_category === 'engineer' ? 'Eng' : p.role_category === 'hr' ? 'HR' : 'Other'}
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>

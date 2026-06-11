@@ -53,7 +53,7 @@ router.post('/', upload.single('document'), async (req, res, next) => {
 
     const name = (req.body as { name?: string }).name?.trim();
     if (!name) {
-      fs.unlinkSync(req.file.path);
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
       res.status(400).json({ error: 'name is required' });
       return;
     }
@@ -83,7 +83,7 @@ router.delete('/:id', async (req, res, next) => {
       return;
     }
     const filePath = result.rows[0].path;
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    try { fs.unlinkSync(filePath); } catch { /* already gone — that's fine */ }
     res.json({ data: { id: req.params['id'] } });
   } catch (err) {
     next(err);

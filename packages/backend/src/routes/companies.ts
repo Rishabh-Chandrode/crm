@@ -47,7 +47,7 @@ router.get('/:id', async (req, res, next) => {
     const [companyRes, prospectsRes] = await Promise.all([
       pool.query<Company>('SELECT * FROM companies WHERE id = $1', [id]),
       pool.query(
-        'SELECT * FROM prospects WHERE company_id = $1 ORDER BY name ASC',
+        'SELECT * FROM prospects WHERE company_id = $1 ORDER BY first_name ASC, last_name ASC',
         [id]
       ),
     ]);

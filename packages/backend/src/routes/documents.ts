@@ -65,6 +65,9 @@ router.post('/', upload.single('document'), async (req, res, next) => {
 
     res.status(201).json({ data: result.rows[0] });
   } catch (err) {
+    if (req.file?.path) {
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+    }
     next(err);
   }
 });

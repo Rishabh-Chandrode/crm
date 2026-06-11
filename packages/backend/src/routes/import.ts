@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import XLSX from 'xlsx';
 import { pool } from '../db/index.js';
+import { inferRoleCategory } from '../services/roleCategory.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -208,8 +209,11 @@ router.post('/prospects', async (req, res, next) => {
             if (found.rows[0]) {
               companyId = found.rows[0].id;
             } else if (createMissingCompanies) {
+              // ON CONFLICT handles the race where two rows share the same company name
               const created = await pool.query<{ id: string }>(
-                'INSERT INTO companies (name) VALUES ($1) RETURNING id',
+                `INSERT INTO companies (name) VALUES ($1)
+                 ON CONFLICT (lower(name)) DO UPDATE SET updated_at = companies.updated_at
+                 RETURNING id`,
                 [companyName]
               );
               companyId = created.rows[0]!.id;
@@ -219,16 +223,18 @@ router.post('/prospects', async (req, res, next) => {
         }
 
         // ── Insert prospect ──────────────────────────────────────────────────
+        const jobTitle = col(row, mapping.job_title) || null;
         await pool.query(
           `INSERT INTO prospects
-             (company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+             (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             companyId,
             firstName,
             lastName,
             email,
-            col(row, mapping.job_title) || null,
+            jobTitle,
+            inferRoleCategory(jobTitle),
             col(row, mapping.linkedin_url) || null,
             col(row, mapping.phone) || null,
             col(row, mapping.notes) || null,
@@ -236,8 +242,11 @@ router.post('/prospects', async (req, res, next) => {
         );
         imported++;
       } catch (rowErr) {
-        const msg = rowErr instanceof Error ? rowErr.message : 'Unknown error';
-        errors.push({ row: rowNum, error: msg });
+        const code = (rowErr as { code?: string }).code;
+        const msg = code === '23505'
+          ? 'Email already exists — skipped'
+          : rowErr instanceof Error ? rowErr.message : 'Unknown error';
+        errors.push({ row: rowNum, email, error: msg });
         skipped++;
       }
     }

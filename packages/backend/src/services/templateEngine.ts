@@ -36,9 +36,14 @@ export function resolveTemplate(
 }
 
 export function plainTextToHtml(text: string): string {
+  const hasHtml = /<[a-zA-Z][^>]*>/.test(text);
   return text
     .split('\n')
-    .map((line) => `<p style="margin:0 0 8px 0">${line.trim() === '' ? '&nbsp;' : escapeHtml(line)}</p>`)
+    .map((line) => {
+      if (line.trim() === '') return '<p style="margin:0 0 8px 0">&nbsp;</p>';
+      const content = hasHtml ? line : escapeHtml(line);
+      return `<p style="margin:0 0 8px 0">${content}</p>`;
+    })
     .join('');
 }
 

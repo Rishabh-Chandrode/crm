@@ -33,6 +33,10 @@ router.post('/', async (req, res, next) => {
     );
     res.status(201).json({ data: result.rows[0] });
   } catch (err) {
+    if ((err as { code?: string }).code === '23505') {
+      res.status(409).json({ error: 'A company with this name already exists' });
+      return;
+    }
     next(err);
   }
 });
@@ -87,6 +91,10 @@ router.patch('/:id', async (req, res, next) => {
     }
     res.json({ data: result.rows[0] });
   } catch (err) {
+    if ((err as { code?: string }).code === '23505') {
+      res.status(409).json({ error: 'A company with this name already exists' });
+      return;
+    }
     next(err);
   }
 });

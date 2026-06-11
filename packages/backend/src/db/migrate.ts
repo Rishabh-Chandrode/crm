@@ -13,17 +13,18 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 
 CREATE TABLE IF NOT EXISTS prospects (
-  id           UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id   UUID         REFERENCES companies(id) ON DELETE SET NULL,
-  first_name   VARCHAR(255) NOT NULL,
-  last_name    VARCHAR(255),
-  email        VARCHAR(255) NOT NULL,
-  job_title    VARCHAR(255),
-  linkedin_url VARCHAR(500),
-  phone        VARCHAR(50),
-  notes        TEXT,
-  created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id    UUID         REFERENCES companies(id) ON DELETE SET NULL,
+  first_name    VARCHAR(255) NOT NULL,
+  last_name     VARCHAR(255),
+  email         VARCHAR(255) NOT NULL,
+  job_title     VARCHAR(255),
+  role_category VARCHAR(50),
+  linkedin_url  VARCHAR(500),
+  phone         VARCHAR(50),
+  notes         TEXT,
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS email_templates (
@@ -161,9 +162,14 @@ END $$;
 DELETE FROM settings WHERE key IN ('resume_filename', 'resume_path', 'resume_uploaded_at');
 `;
 
+const MIGRATE_ROLE_CATEGORY = `
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS role_category VARCHAR(50);
+`;
+
 export async function migrate(): Promise<void> {
   await pool.query(SCHEMA);
   await pool.query(MIGRATE_PROSPECT_NAME);
   await pool.query(MIGRATE_TO_DOCUMENTS);
+  await pool.query(MIGRATE_ROLE_CATEGORY);
   console.log('Database migration completed successfully');
 }

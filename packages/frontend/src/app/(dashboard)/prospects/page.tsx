@@ -12,6 +12,7 @@ interface ProspectFormData {
   last_name: string;
   email: string;
   job_title: string;
+  role_category: string;
   phone: string;
   linkedin_url: string;
   notes: string;
@@ -23,9 +24,29 @@ const EMPTY: ProspectFormData = {
   last_name: '',
   email: '',
   job_title: '',
+  role_category: '',
   phone: '',
   linkedin_url: '',
   notes: '',
+};
+
+const HR_RE =
+  /\b(hr|human\s+resource|recruit|talent(\s+(acquisition|partner|lead|manager|sourcer|ops))?|people\s+(ops|operations|partner)|staffing|headhunter)\b/i;
+const ENGINEER_RE =
+  /\b(sde|swe|software|developer|programmer|engineer|architect|backend|front[\s-]?end|full[\s-]?stack|devops|sre|platform|infrastructure|ios|android|mobile|data\s+scientist|data\s+engineer|machine\s+learning|ml\s+engineer|ai\s+engineer|tech\s+lead|technical\s+lead|engineering\s+manager|cto|vp\s+(of\s+)?engineering)\b/i;
+
+function inferCategory(title: string): string {
+  if (!title.trim()) return '';
+  if (HR_RE.test(title)) return 'hr';
+  if (ENGINEER_RE.test(title)) return 'engineer';
+  return 'other';
+}
+
+const CATEGORY_LABELS: Record<string, string> = { engineer: 'Engineer', hr: 'HR', other: 'Other' };
+const CATEGORY_STYLES: Record<string, string> = {
+  engineer: 'bg-blue-100 text-blue-700',
+  hr: 'bg-purple-100 text-purple-700',
+  other: 'bg-slate-100 text-slate-500',
 };
 
 export default function ProspectsPage() {
@@ -67,6 +88,7 @@ export default function ProspectsPage() {
       last_name: p.last_name ?? '',
       email: p.email,
       job_title: p.job_title ?? '',
+      role_category: p.role_category ?? '',
       phone: p.phone ?? '',
       linkedin_url: p.linkedin_url ?? '',
       notes: p.notes ?? '',
@@ -85,6 +107,7 @@ export default function ProspectsPage() {
         last_name: form.last_name.trim() || null,
         email: form.email.trim(),
         job_title: form.job_title.trim() || null,
+        role_category: form.role_category || null,
         phone: form.phone.trim() || null,
         linkedin_url: form.linkedin_url.trim() || null,
         notes: form.notes.trim() || null,
@@ -110,7 +133,11 @@ export default function ProspectsPage() {
   }
 
   const f = (key: keyof ProspectFormData, value: string) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === 'job_title') next.role_category = inferCategory(value);
+      return next;
+    });
 
   return (
     <div className="p-8">
@@ -166,6 +193,7 @@ export default function ProspectsPage() {
                 <th className="text-left px-4 py-3 text-slate-500 font-medium">Name</th>
                 <th className="text-left px-4 py-3 text-slate-500 font-medium">Email</th>
                 <th className="text-left px-4 py-3 text-slate-500 font-medium">Title</th>
+                <th className="text-left px-4 py-3 text-slate-500 font-medium">Category</th>
                 <th className="text-left px-4 py-3 text-slate-500 font-medium">Company</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -179,6 +207,15 @@ export default function ProspectsPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600">{p.email}</td>
                   <td className="px-4 py-3 text-slate-600">{p.job_title ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    {p.role_category ? (
+                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[p.role_category] ?? 'bg-slate-100 text-slate-500'}`}>
+                        {CATEGORY_LABELS[p.role_category] ?? p.role_category}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{p.company_name ?? '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
@@ -275,6 +312,20 @@ export default function ProspectsPage() {
                     placeholder="HR Manager"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="form-label">Role Category <span className="text-slate-400 font-normal">(auto-detected from title)</span></label>
+                <select
+                  className="form-input"
+                  value={form.role_category}
+                  onChange={(e) => f('role_category', e.target.value)}
+                >
+                  <option value="">— not set —</option>
+                  <option value="engineer">Engineer</option>
+                  <option value="hr">HR / Recruiter</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

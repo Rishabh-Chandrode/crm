@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
+import { inferRoleCategory } from '../services/roleCategory.js';
 import type { Prospect } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -34,19 +35,24 @@ router.post('/', async (req, res, next) => {
   try {
     const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes } =
       req.body as Partial<Prospect>;
+    const role_category: string | null =
+      (req.body as { role_category?: string | null }).role_category !== undefined
+        ? ((req.body as { role_category?: string | null }).role_category || null)
+        : inferRoleCategory(job_title);
 
     if (!first_name?.trim()) { res.status(400).json({ error: 'first_name is required' }); return; }
     if (!email?.trim()) { res.status(400).json({ error: 'email is required' }); return; }
 
     const result = await pool.query<Prospect>(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [
         company_id ?? null,
         first_name.trim(),
         last_name?.trim() ?? null,
         email.trim().toLowerCase(),
         job_title ?? null,
+        role_category,
         linkedin_url ?? null,
         phone ?? null,
         notes ?? null,
@@ -105,9 +111,9 @@ router.post('/quick-add', async (req, res, next) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, linkedin_url)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, linkedin_url ?? null]
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null]
     );
 
     res.status(201).json({ data: result.rows[0] });
@@ -141,6 +147,7 @@ router.patch('/:id', async (req, res, next) => {
     const { id } = req.params;
     const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes } =
       req.body as Partial<Prospect>;
+    const bodyRoleCategory = (req.body as { role_category?: string | null }).role_category;
 
     const fields: string[] = [];
     const values: unknown[] = [];
@@ -158,6 +165,11 @@ router.patch('/:id', async (req, res, next) => {
     if (linkedin_url !== undefined) add('linkedin_url', linkedin_url);
     if (phone !== undefined)        add('phone',        phone);
     if (notes !== undefined)        add('notes',        notes);
+    if (bodyRoleCategory !== undefined) {
+      add('role_category', bodyRoleCategory || null);
+    } else if (job_title !== undefined) {
+      add('role_category', inferRoleCategory(job_title));
+    }
 
     if (fields.length === 0) {
       res.status(400).json({ error: 'No fields to update' });

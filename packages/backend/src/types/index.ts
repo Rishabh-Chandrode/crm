@@ -14,6 +14,7 @@ export interface Prospect {
   last_name: string | null;
   email: string;
   job_title: string | null;
+  role_category: string | null;
   linkedin_url: string | null;
   phone: string | null;
   notes: string | null;

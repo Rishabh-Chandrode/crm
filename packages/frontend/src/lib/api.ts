@@ -118,16 +118,17 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ templateId, prospectId, customValues }),
       }),
-    send: (templateId: string, prospectId: string, customValues?: Record<string, string>) =>
+    send: (templateId: string, prospectId: string, customValues?: Record<string, string>, attachResume?: boolean) =>
       request<{ data: { id: string; status: string } }>('/email/send', {
         method: 'POST',
-        body: JSON.stringify({ templateId, prospectId, customValues }),
+        body: JSON.stringify({ templateId, prospectId, customValues, attachResume }),
       }),
     sendCompany: (
       templateId: string,
       companyId: string,
       prospectIds?: string[],
-      customValues?: Record<string, string>
+      customValues?: Record<string, string>,
+      attachResume?: boolean
     ) =>
       request<{
         data: {
@@ -138,7 +139,7 @@ export const api = {
         };
       }>('/email/send-company', {
         method: 'POST',
-        body: JSON.stringify({ templateId, companyId, prospectIds, customValues }),
+        body: JSON.stringify({ templateId, companyId, prospectIds, customValues, attachResume }),
       }),
     history: (limit = 50, offset = 0) =>
       request<{ data: import('./types').EmailSend[]; total: number }>(
@@ -155,6 +156,7 @@ export const api = {
       prospectIds?: string[];
       customValues?: Record<string, string>;
       scheduledFor: string;
+      attachResume?: boolean;
     }) =>
       request<{ data: import('./types').EmailSchedule }>('/schedules', {
         method: 'POST',
@@ -164,6 +166,32 @@ export const api = {
       request<{ data: import('./types').EmailSchedule }>(`/schedules/${id}`, {
         method: 'DELETE',
       }),
+  },
+
+  settings: {
+    getResume: () =>
+      request<{ data: import('./types').ResumeInfo }>('/settings/resume'),
+    uploadResume: async (file: File): Promise<{ data: import('./types').ResumeInfo }> => {
+      const token = getToken();
+      const form = new FormData();
+      form.append('resume', file);
+      const res = await fetch(`${BASE_URL}/api/settings/resume`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      const json = (await res.json()) as unknown;
+      if (!res.ok) {
+        const msg =
+          typeof json === 'object' && json !== null && 'error' in json
+            ? String((json as { error: unknown }).error)
+            : `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      return json as { data: import('./types').ResumeInfo };
+    },
+    deleteResume: () =>
+      request<{ data: { exists: boolean } }>('/settings/resume', { method: 'DELETE' }),
   },
 
   import: {

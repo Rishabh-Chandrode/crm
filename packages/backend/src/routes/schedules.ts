@@ -28,12 +28,14 @@ router.post('/', async (req, res, next) => {
       prospectIds = [],
       customValues = {},
       scheduledFor,
+      attachResume = false,
     } = req.body as {
       templateId: string;
       companyId: string;
       prospectIds?: string[];
       customValues?: Record<string, string>;
       scheduledFor: string;
+      attachResume?: boolean;
     };
 
     if (!templateId || !companyId || !scheduledFor) {
@@ -64,10 +66,10 @@ router.post('/', async (req, res, next) => {
 
     const result = await pool.query(
       `INSERT INTO email_schedules
-         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects, attach_resume)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects]
+      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects, attachResume]
     );
 
     res.status(201).json({ data: result.rows[0] });

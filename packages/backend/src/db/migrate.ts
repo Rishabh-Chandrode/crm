@@ -63,9 +63,15 @@ CREATE TABLE IF NOT EXISTS email_schedules (
   total_prospects INT          NOT NULL DEFAULT 0,
   sent_count      INT          NOT NULL DEFAULT 0,
   failed_count    INT          NOT NULL DEFAULT 0,
+  attach_resume   BOOLEAN      NOT NULL DEFAULT FALSE,
   error_message   TEXT,
   created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   sent_at         TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key   VARCHAR(100) PRIMARY KEY,
+  value TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_prospects_company_id       ON prospects(company_id);
@@ -77,10 +83,6 @@ CREATE INDEX IF NOT EXISTS idx_email_schedules_status     ON email_schedules(sta
 CREATE INDEX IF NOT EXISTS idx_email_schedules_scheduled  ON email_schedules(scheduled_for);
 `;
 
-/**
- * If an older version of the DB has a single `name` column on prospects,
- * split it into first_name / last_name automatically.
- */
 const MIGRATE_PROSPECT_NAME = `
 DO $$
 BEGIN
@@ -109,8 +111,21 @@ BEGIN
 END $$;
 `;
 
+const MIGRATE_SCHEDULE_ATTACH_RESUME = `
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'email_schedules' AND column_name = 'attach_resume'
+  ) THEN
+    ALTER TABLE email_schedules ADD COLUMN attach_resume BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+END $$;
+`;
+
 export async function migrate(): Promise<void> {
   await pool.query(SCHEMA);
   await pool.query(MIGRATE_PROSPECT_NAME);
+  await pool.query(MIGRATE_SCHEDULE_ATTACH_RESUME);
   console.log('Database migration completed successfully');
 }

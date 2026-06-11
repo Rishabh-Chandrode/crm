@@ -87,6 +87,12 @@ export interface EmailSchedule {
   template?: { name: string };
 }
 
+export interface ResumeInfo {
+  exists: boolean;
+  filename: string | null;
+  uploadedAt: string | null;
+}
+
 export const PROSPECT_FIELDS: { value: string; label: string }[] = [
   { value: 'first_name', label: 'First Name' },
   { value: 'last_name', label: 'Last Name' },

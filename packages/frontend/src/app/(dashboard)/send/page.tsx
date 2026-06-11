@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
-import type { EmailTemplate, Company, Prospect, TemplateVariable } from '@/lib/types';
+import type { EmailTemplate, Company, Prospect, ResumeInfo, TemplateVariable } from '@/lib/types';
 
 type Step = 'select' | 'customize' | 'preview' | 'result';
 
@@ -38,6 +38,9 @@ export default function SendPage() {
   const [scheduleDateTime, setScheduleDateTime] = useState(localDatetimeDefault);
   const [scheduling, setScheduling] = useState(false);
   const [scheduled, setScheduled] = useState(false);
+  const [resume, setResume] = useState<ResumeInfo | null>(null);
+  const [attachResume, setAttachResume] = useState(false);
+  const hasLoadedResume = useRef(false);
 
   useEffect(() => {
     async function load() {
@@ -46,6 +49,17 @@ export default function SendPage() {
       setCompanies(cRes.data as Company[]);
     }
     void load();
+  }, []);
+
+  useEffect(() => {
+    if (hasLoadedResume.current) return;
+    hasLoadedResume.current = true;
+    api.settings.getResume()
+      .then((r) => {
+        setResume(r.data);
+        if (r.data.exists) setAttachResume(true);
+      })
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -77,7 +91,7 @@ export default function SendPage() {
     setSending(true);
     try {
       const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
-      const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues);
+      const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, attachResume);
       setResult(res.data);
       setStep('result');
     } catch (err) {
@@ -99,6 +113,7 @@ export default function SendPage() {
         prospectIds: ids,
         customValues,
         scheduledFor: new Date(scheduleDateTime).toISOString(),
+        attachResume,
       });
       setShowSchedulePicker(false);
       setScheduled(true);
@@ -251,6 +266,23 @@ export default function SendPage() {
                 ))}
               </select>
             </div>
+          )}
+
+          {resume?.exists && (
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={attachResume}
+                onChange={(e) => setAttachResume(e.target.checked)}
+                className="rounded border-slate-300 text-indigo-600 w-4 h-4"
+              />
+              <span className="text-sm text-slate-700">
+                Attach resume
+                {resume.filename && (
+                  <span className="text-slate-400 ml-1">({resume.filename})</span>
+                )}
+              </span>
+            </label>
           )}
 
           <div className="flex justify-between">

@@ -370,9 +370,16 @@ export default function SendPage() {
           </div>
           <div className="bg-slate-50 rounded-lg p-4">
             <p className="text-xs text-slate-500 mb-3 font-medium">BODY</p>
-            <div
-              className="text-slate-700 text-sm leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: preview.html }}
+            <iframe
+              srcDoc={preview.html}
+              sandbox="allow-same-origin allow-popups"
+              title="Email preview"
+              className="w-full rounded bg-white border-0"
+              style={{ minHeight: '200px' }}
+              onLoad={(e) => {
+                const doc = e.currentTarget.contentDocument;
+                if (doc) e.currentTarget.style.height = `${doc.body.scrollHeight + 32}px`;
+              }}
             />
           </div>
 

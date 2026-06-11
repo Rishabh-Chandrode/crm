@@ -71,7 +71,7 @@ router.post('/preview', async (req, res, next) => {
       data: {
         subject: resolvedSubject,
         body: resolvedBody,
-        html: plainTextToHtml(resolvedBody),
+        html: wrapEmailHtml(plainTextToHtml(resolvedBody)),
       },
     });
   } catch (err) {

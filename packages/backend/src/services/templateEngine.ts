@@ -55,7 +55,10 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function wrapEmailHtml(bodyHtml: string): string {
+export function wrapEmailHtml(bodyHtml: string, trackingPixelUrl?: string): string {
+  const pixel = trackingPixelUrl
+    ? `\n<img src="${trackingPixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0" />`
+    : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -68,7 +71,7 @@ export function wrapEmailHtml(bodyHtml: string): string {
   </style>
 </head>
 <body>
-${bodyHtml}
+${bodyHtml}${pixel}
 </body>
 </html>`;
 }

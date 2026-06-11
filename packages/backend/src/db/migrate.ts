@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS email_sends (
   resend_id     VARCHAR(255),
   sent_at       TIMESTAMPTZ,
   error_message TEXT,
+  opened_at     TIMESTAMPTZ,
+  open_count    INT          NOT NULL DEFAULT 0,
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
@@ -188,5 +190,9 @@ export async function migrate(): Promise<void> {
   await pool.query(MIGRATE_TO_DOCUMENTS);
   await pool.query(MIGRATE_ROLE_CATEGORY);
   await pool.query(MIGRATE_ROLE_CATEGORY_BACKFILL);
+  await pool.query(`
+    ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS opened_at  TIMESTAMPTZ;
+    ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS open_count INT NOT NULL DEFAULT 0;
+  `);
   console.log('Database migration completed successfully');
 }

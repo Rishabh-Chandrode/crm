@@ -2,6 +2,11 @@ import cron from 'node-cron';
 import { pool } from '../db/index.js';
 import { getEmailProvider } from './email/index.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from './templateEngine.js';
+
+function pixelUrl(sendId: string): string {
+  const base = (process.env['TRACKING_BASE_URL'] ?? 'http://localhost:3001').replace(/\/$/, '');
+  return `${base}/api/track/open/${sendId}.gif`;
+}
 import { getAttachments } from './attachmentHelper.js';
 import type { EmailTemplate, Prospect, Company } from '../types/index.js';
 
@@ -75,7 +80,6 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
       const ctx = { prospect, company, custom: schedule.custom_values };
       const subject = resolveTemplate(template.subject, template.variables, ctx);
       const body = resolveTemplate(template.body, template.variables, ctx);
-      const html = wrapEmailHtml(plainTextToHtml(body));
 
       const sendRecord = await pool.query<{ id: string }>(
         `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
@@ -83,6 +87,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
         [template.id, prospect.id, company?.id ?? null, subject, body]
       );
       const sendId = sendRecord.rows[0]!.id;
+      const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
 
       try {
         const result = await provider.send({

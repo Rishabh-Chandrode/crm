@@ -62,6 +62,8 @@ export interface EmailSend {
   resend_id: string | null;
   sent_at: string | null;
   error_message: string | null;
+  opened_at: string | null;
+  open_count: number;
   created_at: string;
   prospect?: { first_name: string; last_name: string | null; email: string };
   company?: { name: string };

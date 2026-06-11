@@ -7,6 +7,11 @@ import type { EmailTemplate, Prospect, Company, EmailSend } from '../types/index
 
 const router: ReturnType<typeof Router> = Router();
 
+function pixelUrl(sendId: string): string {
+  const base = (process.env['TRACKING_BASE_URL'] ?? 'http://localhost:3001').replace(/\/$/, '');
+  return `${base}/api/track/open/${sendId}.gif`;
+}
+
 router.get('/history', async (req, res, next) => {
   try {
     const { limit = '50', offset = '0' } = req.query as Record<string, string>;
@@ -113,7 +118,6 @@ router.post('/send', async (req, res, next) => {
     const context = { prospect, company, custom: customValues };
     const resolvedSubject = resolveTemplate(template.subject, template.variables, context);
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
-    const html = wrapEmailHtml(plainTextToHtml(resolvedBody));
 
     const attachments = await getAttachments(documentIds);
 
@@ -123,6 +127,7 @@ router.post('/send', async (req, res, next) => {
       [template.id, prospect.id, prospect.company_id, resolvedSubject, resolvedBody]
     );
     const sendId = sendRecord.rows[0]!.id;
+    const html = wrapEmailHtml(plainTextToHtml(resolvedBody), pixelUrl(sendId));
 
     try {
       const provider = getEmailProvider();
@@ -204,7 +209,6 @@ router.post('/send-company', async (req, res, next) => {
         const context = { prospect, company, custom: customValues };
         const subject = resolveTemplate(template.subject, template.variables, context);
         const body = resolveTemplate(template.body, template.variables, context);
-        const html = wrapEmailHtml(plainTextToHtml(body));
 
         const sendRecord = await pool.query<EmailSend>(
           `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
@@ -212,6 +216,7 @@ router.post('/send-company', async (req, res, next) => {
           [template.id, prospect.id, company.id, subject, body]
         );
         const sendId = sendRecord.rows[0]!.id;
+        const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
 
         try {
           const result = await provider.send({

@@ -8,11 +8,13 @@ import importRouter from './import.js';
 import schedulesRouter from './schedules.js';
 import settingsRouter from './settings.js';
 import documentsRouter from './documents.js';
+import trackRouter from './track.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router: ReturnType<typeof Router> = Router();
 
 router.use('/auth', authRouter);
+router.use('/track', trackRouter); // public — email clients don't send auth headers
 
 router.use('/companies',  authMiddleware, companiesRouter);
 router.use('/prospects',  authMiddleware, prospectsRouter);

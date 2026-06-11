@@ -11,6 +11,18 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
 };
 
+function formatOpenedAt(dateStr: string): string {
+  const d = new Date(dateStr);
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return mins <= 1 ? 'just now' : `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export default function HistoryPage() {
   const [sends, setSends] = useState<EmailSend[]>([]);
   const [total, setTotal] = useState(0);
@@ -56,6 +68,7 @@ export default function HistoryPage() {
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Template</th>
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Subject</th>
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Status</th>
+                  <th className="text-left px-4 py-3 text-slate-500 font-medium">Opened</th>
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Sent at</th>
                 </tr>
               </thead>
@@ -78,6 +91,24 @@ export default function HistoryPage() {
                         <p className="text-red-500 text-xs mt-0.5 max-w-[200px] truncate" title={s.error_message}>
                           {s.error_message}
                         </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {s.opened_at ? (
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          <span className="text-xs text-green-700 font-medium">{formatOpenedAt(s.opened_at)}</span>
+                          {s.open_count > 1 && (
+                            <span className="text-xs text-slate-400">×{s.open_count}</span>
+                          )}
+                        </div>
+                      ) : s.status === 'sent' ? (
+                        <span className="text-xs text-slate-300">not opened</span>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-400 text-xs">

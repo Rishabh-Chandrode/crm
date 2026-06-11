@@ -87,7 +87,7 @@ export interface EmailSchedule {
   template?: { name: string };
 }
 
-export interface Resume {
+export interface Document {
   id: string;
   name: string;
   filename: string;

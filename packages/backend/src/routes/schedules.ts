@@ -3,7 +3,7 @@ import { pool } from '../db/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', async (_req, res, next) => {
   try {
     const result = await pool.query(
       `SELECT es.*,
@@ -28,14 +28,14 @@ router.post('/', async (req, res, next) => {
       prospectIds = [],
       customValues = {},
       scheduledFor,
-      resumeId = null,
+      documentIds = [],
     } = req.body as {
       templateId: string;
       companyId: string;
       prospectIds?: string[];
       customValues?: Record<string, string>;
       scheduledFor: string;
-      resumeId?: string | null;
+      documentIds?: string[];
     };
 
     if (!templateId || !companyId || !scheduledFor) {
@@ -66,10 +66,10 @@ router.post('/', async (req, res, next) => {
 
     const result = await pool.query(
       `INSERT INTO email_schedules
-         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects, resume_id)
+         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects, document_ids)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects, resumeId || null]
+      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects, documentIds]
     );
 
     res.status(201).json({ data: result.rows[0] });

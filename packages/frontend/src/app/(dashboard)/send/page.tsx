@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
-import type { EmailTemplate, Company, Prospect, Resume, TemplateVariable } from '@/lib/types';
+import type { Document, EmailTemplate, Company, Prospect, TemplateVariable } from '@/lib/types';
 
 type Step = 'select' | 'customize' | 'preview' | 'result';
 
@@ -38,9 +38,9 @@ export default function SendPage() {
   const [scheduleDateTime, setScheduleDateTime] = useState(localDatetimeDefault);
   const [scheduling, setScheduling] = useState(false);
   const [scheduled, setScheduled] = useState(false);
-  const [resumes, setResumes] = useState<Resume[]>([]);
-  const [resumeId, setResumeId] = useState('');
-  const hasLoadedResumes = useRef(false);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const hasLoadedDocs = useRef(false);
 
   useEffect(() => {
     async function load() {
@@ -52,9 +52,9 @@ export default function SendPage() {
   }, []);
 
   useEffect(() => {
-    if (hasLoadedResumes.current) return;
-    hasLoadedResumes.current = true;
-    api.resumes.list().then((r) => setResumes(r.data)).catch(console.error);
+    if (hasLoadedDocs.current) return;
+    hasLoadedDocs.current = true;
+    api.documents.list().then((r) => setDocuments(r.data)).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function SendPage() {
     setSending(true);
     try {
       const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
-      const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, resumeId || null);
+      const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, selectedDocumentIds);
       setResult(res.data);
       setStep('result');
     } catch (err) {
@@ -108,7 +108,7 @@ export default function SendPage() {
         prospectIds: ids,
         customValues,
         scheduledFor: new Date(scheduleDateTime).toISOString(),
-        resumeId: resumeId || null,
+        documentIds: selectedDocumentIds,
       });
       setShowSchedulePicker(false);
       setScheduled(true);
@@ -133,11 +133,18 @@ export default function SendPage() {
     setScheduled(false);
     setShowSchedulePicker(false);
     setScheduleDateTime(localDatetimeDefault());
+    setSelectedDocumentIds([]);
   }
 
   function toggleProspect(id: string) {
     setSelectedProspects((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  }
+
+  function toggleDocument(id: string) {
+    setSelectedDocumentIds((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
     );
   }
 
@@ -263,19 +270,25 @@ export default function SendPage() {
             </div>
           )}
 
-          {resumes.length > 0 && (
+          {documents.length > 0 && (
             <div>
-              <label className="form-label">Attach resume</label>
-              <select
-                className="form-input"
-                value={resumeId}
-                onChange={(e) => setResumeId(e.target.value)}
-              >
-                <option value="">No attachment</option>
-                {resumes.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+              <label className="form-label">Attach documents <span className="text-slate-400 font-normal">(optional)</span></label>
+              <div className="space-y-1.5 border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto">
+                {documents.map((doc) => (
+                  <label key={doc.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedDocumentIds.includes(doc.id)}
+                      onChange={() => toggleDocument(doc.id)}
+                      className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <span className="text-sm text-slate-700">{doc.name}</span>
+                      <span className="text-xs text-slate-400 ml-2">{doc.filename}</span>
+                    </div>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
           )}
 
@@ -362,6 +375,26 @@ export default function SendPage() {
               dangerouslySetInnerHTML={{ __html: preview.html }}
             />
           </div>
+
+          {selectedDocumentIds.length > 0 && (
+            <div className="bg-slate-50 rounded-lg p-4">
+              <p className="text-xs text-slate-500 mb-3 font-medium">ATTACHMENTS</p>
+              <div className="space-y-1.5">
+                {documents
+                  .filter((d) => selectedDocumentIds.includes(d.id))
+                  .map((d) => (
+                    <div key={d.id} className="flex items-center gap-2 text-sm text-slate-700">
+                      <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      <span className="font-medium">{d.name}</span>
+                      <span className="text-slate-400">({d.filename})</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between">
             <button onClick={() => setStep('customize')} className="text-slate-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors">← Back</button>
             <div className="flex gap-3">

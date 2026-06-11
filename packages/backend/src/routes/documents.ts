@@ -36,7 +36,7 @@ const router: ReturnType<typeof Router> = Router();
 router.get('/', async (_req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, filename, size, created_at FROM resumes ORDER BY created_at DESC`
+      `SELECT id, name, filename, size, created_at FROM documents ORDER BY created_at DESC`
     );
     res.json({ data: result.rows });
   } catch (err) {
@@ -44,7 +44,7 @@ router.get('/', async (_req, res, next) => {
   }
 });
 
-router.post('/', upload.single('resume'), async (req, res, next) => {
+router.post('/', upload.single('document'), async (req, res, next) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'No file uploaded' });
@@ -59,7 +59,7 @@ router.post('/', upload.single('resume'), async (req, res, next) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO resumes (name, filename, path, size) VALUES ($1, $2, $3, $4) RETURNING id, name, filename, size, created_at`,
+      `INSERT INTO documents (name, filename, path, size) VALUES ($1, $2, $3, $4) RETURNING id, name, filename, size, created_at`,
       [name, req.file.originalname, req.file.path, req.file.size]
     );
 
@@ -72,11 +72,11 @@ router.post('/', upload.single('resume'), async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const result = await pool.query<{ path: string }>(
-      `DELETE FROM resumes WHERE id = $1 RETURNING path`,
+      `DELETE FROM documents WHERE id = $1 RETURNING path`,
       [req.params['id']]
     );
     if (!result.rows[0]) {
-      res.status(404).json({ error: 'Resume not found' });
+      res.status(404).json({ error: 'Document not found' });
       return;
     }
     const filePath = result.rows[0].path;

@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS email_sends (
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS resumes (
+CREATE TABLE IF NOT EXISTS documents (
   id          UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
   name        VARCHAR(255) NOT NULL,
   filename    VARCHAR(255) NOT NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS email_schedules (
   total_prospects INT          NOT NULL DEFAULT 0,
   sent_count      INT          NOT NULL DEFAULT 0,
   failed_count    INT          NOT NULL DEFAULT 0,
-  resume_id       UUID         REFERENCES resumes(id) ON DELETE SET NULL,
+  document_ids    UUID[]       NOT NULL DEFAULT '{}',
   error_message   TEXT,
   created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   sent_at         TIMESTAMPTZ
@@ -120,17 +120,34 @@ BEGIN
 END $$;
 `;
 
-/* Replaces the old attach_resume BOOLEAN with a FK to the resumes table.
-   Also cleans up the single-resume key-value entries from the settings table. */
-const MIGRATE_SCHEDULE_RESUME_ID = `
+/* Renames the resumes table to documents and migrates email_schedules
+   from a single resume_id FK to a document_ids UUID[] array. */
+const MIGRATE_TO_DOCUMENTS = `
 DO $$
 BEGIN
+  -- Rename resumes → documents for existing DBs
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'resumes' AND table_schema = 'public')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'documents' AND table_schema = 'public')
+  THEN
+    ALTER TABLE resumes RENAME TO documents;
+  END IF;
+
+  -- Add document_ids column if missing
   IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'email_schedules' AND column_name = 'document_ids'
+  ) THEN
+    ALTER TABLE email_schedules ADD COLUMN document_ids UUID[] NOT NULL DEFAULT '{}';
+    -- Migrate old single resume_id into the new array
+    UPDATE email_schedules SET document_ids = ARRAY[resume_id] WHERE resume_id IS NOT NULL;
+  END IF;
+
+  -- Drop old columns if present
+  IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'email_schedules' AND column_name = 'resume_id'
   ) THEN
-    ALTER TABLE email_schedules
-      ADD COLUMN resume_id UUID REFERENCES resumes(id) ON DELETE SET NULL;
+    ALTER TABLE email_schedules DROP COLUMN resume_id;
   END IF;
 
   IF EXISTS (
@@ -147,6 +164,6 @@ DELETE FROM settings WHERE key IN ('resume_filename', 'resume_path', 'resume_upl
 export async function migrate(): Promise<void> {
   await pool.query(SCHEMA);
   await pool.query(MIGRATE_PROSPECT_NAME);
-  await pool.query(MIGRATE_SCHEDULE_RESUME_ID);
+  await pool.query(MIGRATE_TO_DOCUMENTS);
   console.log('Database migration completed successfully');
 }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/index.js';
 import { getEmailProvider } from '../services/email/index.js';
 import { resolveTemplate, plainTextToHtml } from '../services/templateEngine.js';
-import { getResumeAttachment } from '../services/resumeHelper.js';
+import { getAttachments } from '../services/attachmentHelper.js';
 import type { EmailTemplate, Prospect, Company, EmailSend } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -81,11 +81,11 @@ router.post('/preview', async (req, res, next) => {
 
 router.post('/send', async (req, res, next) => {
   try {
-    const { templateId, prospectId, customValues = {}, resumeId = null } = req.body as {
+    const { templateId, prospectId, customValues = {}, documentIds = [] } = req.body as {
       templateId: string;
       prospectId: string;
       customValues?: Record<string, string>;
-      resumeId?: string | null;
+      documentIds?: string[];
     };
 
     if (!templateId || !prospectId) {
@@ -115,7 +115,7 @@ router.post('/send', async (req, res, next) => {
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
     const html = plainTextToHtml(resolvedBody);
 
-    const attachment = resumeId ? await getResumeAttachment(resumeId) : null;
+    const attachments = await getAttachments(documentIds);
 
     const sendRecord = await pool.query<EmailSend>(
       `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
@@ -130,7 +130,7 @@ router.post('/send', async (req, res, next) => {
         to: prospect.email,
         subject: resolvedSubject,
         html,
-        attachments: attachment ? [attachment] : undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       await pool.query(
@@ -153,12 +153,12 @@ router.post('/send', async (req, res, next) => {
 
 router.post('/send-company', async (req, res, next) => {
   try {
-    const { templateId, companyId, prospectIds, customValues = {}, resumeId = null } = req.body as {
+    const { templateId, companyId, prospectIds, customValues = {}, documentIds = [] } = req.body as {
       templateId: string;
       companyId: string;
       prospectIds?: string[];
       customValues?: Record<string, string>;
-      resumeId?: string | null;
+      documentIds?: string[];
     };
 
     if (!templateId || !companyId) {
@@ -196,7 +196,7 @@ router.post('/send-company', async (req, res, next) => {
       return;
     }
 
-    const attachment = resumeId ? await getResumeAttachment(resumeId) : null;
+    const attachments = await getAttachments(documentIds);
     const provider = getEmailProvider();
 
     const results = await Promise.allSettled(
@@ -218,7 +218,7 @@ router.post('/send-company', async (req, res, next) => {
             to: prospect.email,
             subject,
             html,
-            attachments: attachment ? [attachment] : undefined,
+            attachments: attachments.length > 0 ? attachments : undefined,
           });
           await pool.query(
             `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,

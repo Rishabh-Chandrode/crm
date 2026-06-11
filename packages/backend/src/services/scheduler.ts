@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { pool } from '../db/index.js';
 import { getEmailProvider } from './email/index.js';
 import { resolveTemplate, plainTextToHtml } from './templateEngine.js';
-import { getResumeAttachment } from './resumeHelper.js';
+import { getAttachments } from './attachmentHelper.js';
 import type { EmailTemplate, Prospect, Company } from '../types/index.js';
 
 interface ScheduleRow {
@@ -12,7 +12,7 @@ interface ScheduleRow {
   prospect_ids: string[];
   custom_values: Record<string, string>;
   scheduled_for: Date;
-  resume_id: string | null;
+  document_ids: string[];
 }
 
 async function processSchedule(schedule: ScheduleRow): Promise<void> {
@@ -65,7 +65,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
     return;
   }
 
-  const attachment = schedule.resume_id ? await getResumeAttachment(schedule.resume_id) : null;
+  const attachments = await getAttachments(schedule.document_ids);
   const provider = getEmailProvider();
   let sentCount = 0;
   let failedCount = 0;
@@ -89,7 +89,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
           to: prospect.email,
           subject,
           html,
-          attachments: attachment ? [attachment] : undefined,
+          attachments: attachments.length > 0 ? attachments : undefined,
         });
         await pool.query(
           `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,

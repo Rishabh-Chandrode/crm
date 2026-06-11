@@ -7,7 +7,7 @@ import emailRouter from './email.js';
 import importRouter from './import.js';
 import schedulesRouter from './schedules.js';
 import settingsRouter from './settings.js';
-import resumesRouter from './resumes.js';
+import documentsRouter from './documents.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -21,6 +21,6 @@ router.use('/email',      authMiddleware, emailRouter);
 router.use('/import',     authMiddleware, importRouter);
 router.use('/schedules',  authMiddleware, schedulesRouter);
 router.use('/settings',   authMiddleware, settingsRouter);
-router.use('/resumes',    authMiddleware, resumesRouter);
+router.use('/documents',  authMiddleware, documentsRouter);
 
 export default router;

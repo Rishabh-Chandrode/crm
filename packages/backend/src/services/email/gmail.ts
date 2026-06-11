@@ -8,6 +8,9 @@ export class GmailEmailProvider implements EmailProvider {
   constructor() {
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
+      pool: true,
+      maxConnections: 3,
+      maxMessages: Infinity,
       auth: {
         user: CONFIG.gmailUser,
         pass: CONFIG.gmailAppPassword,

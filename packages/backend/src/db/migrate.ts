@@ -194,5 +194,8 @@ export async function migrate(): Promise<void> {
     ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS opened_at  TIMESTAMPTZ;
     ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS open_count INT NOT NULL DEFAULT 0;
   `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_email ON prospects (LOWER(email));
+  `);
   console.log('Database migration completed successfully');
 }

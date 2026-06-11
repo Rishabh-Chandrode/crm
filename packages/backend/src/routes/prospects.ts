@@ -60,6 +60,10 @@ router.post('/', async (req, res, next) => {
     );
     res.status(201).json({ data: result.rows[0] });
   } catch (err) {
+    if ((err as { code?: string }).code === '23505') {
+      res.status(409).json({ error: 'A prospect with this email already exists' });
+      return;
+    }
     next(err);
   }
 });

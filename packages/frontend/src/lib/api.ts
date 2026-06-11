@@ -118,17 +118,17 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ templateId, prospectId, customValues }),
       }),
-    send: (templateId: string, prospectId: string, customValues?: Record<string, string>, attachResume?: boolean) =>
+    send: (templateId: string, prospectId: string, customValues?: Record<string, string>, resumeId?: string | null) =>
       request<{ data: { id: string; status: string } }>('/email/send', {
         method: 'POST',
-        body: JSON.stringify({ templateId, prospectId, customValues, attachResume }),
+        body: JSON.stringify({ templateId, prospectId, customValues, resumeId }),
       }),
     sendCompany: (
       templateId: string,
       companyId: string,
       prospectIds?: string[],
       customValues?: Record<string, string>,
-      attachResume?: boolean
+      resumeId?: string | null
     ) =>
       request<{
         data: {
@@ -139,7 +139,7 @@ export const api = {
         };
       }>('/email/send-company', {
         method: 'POST',
-        body: JSON.stringify({ templateId, companyId, prospectIds, customValues, attachResume }),
+        body: JSON.stringify({ templateId, companyId, prospectIds, customValues, resumeId }),
       }),
     history: (limit = 50, offset = 0) =>
       request<{ data: import('./types').EmailSend[]; total: number }>(
@@ -156,7 +156,7 @@ export const api = {
       prospectIds?: string[];
       customValues?: Record<string, string>;
       scheduledFor: string;
-      attachResume?: boolean;
+      resumeId?: string | null;
     }) =>
       request<{ data: import('./types').EmailSchedule }>('/schedules', {
         method: 'POST',
@@ -168,14 +168,15 @@ export const api = {
       }),
   },
 
-  settings: {
-    getResume: () =>
-      request<{ data: import('./types').ResumeInfo }>('/settings/resume'),
-    uploadResume: async (file: File): Promise<{ data: import('./types').ResumeInfo }> => {
+  resumes: {
+    list: () =>
+      request<{ data: import('./types').Resume[] }>('/resumes'),
+    upload: async (file: File, name: string): Promise<{ data: import('./types').Resume }> => {
       const token = getToken();
       const form = new FormData();
       form.append('resume', file);
-      const res = await fetch(`${BASE_URL}/api/settings/resume`, {
+      form.append('name', name);
+      const res = await fetch(`${BASE_URL}/api/resumes`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
@@ -188,10 +189,10 @@ export const api = {
             : `HTTP ${res.status}`;
         throw new Error(msg);
       }
-      return json as { data: import('./types').ResumeInfo };
+      return json as { data: import('./types').Resume };
     },
-    deleteResume: () =>
-      request<{ data: { exists: boolean } }>('/settings/resume', { method: 'DELETE' }),
+    delete: (id: string) =>
+      request<{ data: { id: string } }>(`/resumes/${id}`, { method: 'DELETE' }),
   },
 
   import: {

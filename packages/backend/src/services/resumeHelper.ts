@@ -2,16 +2,17 @@ import fs from 'fs';
 import { pool } from '../db/index.js';
 import type { Attachment } from './email/types.js';
 
-export async function getResumeAttachment(): Promise<Attachment | null> {
-  const rows = await pool.query<{ key: string; value: string }>(
-    `SELECT key, value FROM settings WHERE key IN ('resume_filename', 'resume_path')`
+interface ResumeRow {
+  filename: string;
+  path: string;
+}
+
+export async function getResumeAttachment(resumeId: string): Promise<Attachment | null> {
+  const row = await pool.query<ResumeRow>(
+    `SELECT filename, path FROM resumes WHERE id = $1`,
+    [resumeId]
   );
-  const map: Record<string, string> = {};
-  for (const r of rows.rows) map[r.key] = r.value;
-
-  const filePath = map['resume_path'];
-  const filename = map['resume_filename'];
-
-  if (!filePath || !filename || !fs.existsSync(filePath)) return null;
-  return { filename, path: filePath };
+  const r = row.rows[0];
+  if (!r || !fs.existsSync(r.path)) return null;
+  return { filename: r.filename, path: r.path };
 }

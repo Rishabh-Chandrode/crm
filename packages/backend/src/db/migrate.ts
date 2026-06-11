@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS email_sends (
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS resumes (
+  id          UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name        VARCHAR(255) NOT NULL,
+  filename    VARCHAR(255) NOT NULL,
+  path        VARCHAR(500) NOT NULL,
+  size        INT,
+  created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS email_schedules (
   id              UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
   template_id     UUID         REFERENCES email_templates(id) ON DELETE SET NULL,
@@ -63,7 +72,7 @@ CREATE TABLE IF NOT EXISTS email_schedules (
   total_prospects INT          NOT NULL DEFAULT 0,
   sent_count      INT          NOT NULL DEFAULT 0,
   failed_count    INT          NOT NULL DEFAULT 0,
-  attach_resume   BOOLEAN      NOT NULL DEFAULT FALSE,
+  resume_id       UUID         REFERENCES resumes(id) ON DELETE SET NULL,
   error_message   TEXT,
   created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   sent_at         TIMESTAMPTZ
@@ -111,21 +120,33 @@ BEGIN
 END $$;
 `;
 
-const MIGRATE_SCHEDULE_ATTACH_RESUME = `
+/* Replaces the old attach_resume BOOLEAN with a FK to the resumes table.
+   Also cleans up the single-resume key-value entries from the settings table. */
+const MIGRATE_SCHEDULE_RESUME_ID = `
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'email_schedules' AND column_name = 'resume_id'
+  ) THEN
+    ALTER TABLE email_schedules
+      ADD COLUMN resume_id UUID REFERENCES resumes(id) ON DELETE SET NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
     WHERE table_name = 'email_schedules' AND column_name = 'attach_resume'
   ) THEN
-    ALTER TABLE email_schedules ADD COLUMN attach_resume BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE email_schedules DROP COLUMN attach_resume;
   END IF;
 END $$;
+
+DELETE FROM settings WHERE key IN ('resume_filename', 'resume_path', 'resume_uploaded_at');
 `;
 
 export async function migrate(): Promise<void> {
   await pool.query(SCHEMA);
   await pool.query(MIGRATE_PROSPECT_NAME);
-  await pool.query(MIGRATE_SCHEDULE_ATTACH_RESUME);
+  await pool.query(MIGRATE_SCHEDULE_RESUME_ID);
   console.log('Database migration completed successfully');
 }

@@ -12,7 +12,7 @@ interface ScheduleRow {
   prospect_ids: string[];
   custom_values: Record<string, string>;
   scheduled_for: Date;
-  attach_resume: boolean;
+  resume_id: string | null;
 }
 
 async function processSchedule(schedule: ScheduleRow): Promise<void> {
@@ -65,7 +65,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
     return;
   }
 
-  const attachment = schedule.attach_resume ? await getResumeAttachment() : null;
+  const attachment = schedule.resume_id ? await getResumeAttachment(schedule.resume_id) : null;
   const provider = getEmailProvider();
   let sentCount = 0;
   let failedCount = 0;

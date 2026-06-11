@@ -81,11 +81,11 @@ router.post('/preview', async (req, res, next) => {
 
 router.post('/send', async (req, res, next) => {
   try {
-    const { templateId, prospectId, customValues = {}, attachResume = false } = req.body as {
+    const { templateId, prospectId, customValues = {}, resumeId = null } = req.body as {
       templateId: string;
       prospectId: string;
       customValues?: Record<string, string>;
-      attachResume?: boolean;
+      resumeId?: string | null;
     };
 
     if (!templateId || !prospectId) {
@@ -115,7 +115,7 @@ router.post('/send', async (req, res, next) => {
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
     const html = plainTextToHtml(resolvedBody);
 
-    const attachment = attachResume ? await getResumeAttachment() : null;
+    const attachment = resumeId ? await getResumeAttachment(resumeId) : null;
 
     const sendRecord = await pool.query<EmailSend>(
       `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
@@ -153,12 +153,12 @@ router.post('/send', async (req, res, next) => {
 
 router.post('/send-company', async (req, res, next) => {
   try {
-    const { templateId, companyId, prospectIds, customValues = {}, attachResume = false } = req.body as {
+    const { templateId, companyId, prospectIds, customValues = {}, resumeId = null } = req.body as {
       templateId: string;
       companyId: string;
       prospectIds?: string[];
       customValues?: Record<string, string>;
-      attachResume?: boolean;
+      resumeId?: string | null;
     };
 
     if (!templateId || !companyId) {
@@ -196,7 +196,7 @@ router.post('/send-company', async (req, res, next) => {
       return;
     }
 
-    const attachment = attachResume ? await getResumeAttachment() : null;
+    const attachment = resumeId ? await getResumeAttachment(resumeId) : null;
     const provider = getEmailProvider();
 
     const results = await Promise.allSettled(

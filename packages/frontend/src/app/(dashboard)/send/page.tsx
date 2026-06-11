@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
-import type { EmailTemplate, Company, Prospect, ResumeInfo, TemplateVariable } from '@/lib/types';
+import type { EmailTemplate, Company, Prospect, Resume, TemplateVariable } from '@/lib/types';
 
 type Step = 'select' | 'customize' | 'preview' | 'result';
 
@@ -38,9 +38,9 @@ export default function SendPage() {
   const [scheduleDateTime, setScheduleDateTime] = useState(localDatetimeDefault);
   const [scheduling, setScheduling] = useState(false);
   const [scheduled, setScheduled] = useState(false);
-  const [resume, setResume] = useState<ResumeInfo | null>(null);
-  const [attachResume, setAttachResume] = useState(false);
-  const hasLoadedResume = useRef(false);
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [resumeId, setResumeId] = useState('');
+  const hasLoadedResumes = useRef(false);
 
   useEffect(() => {
     async function load() {
@@ -52,14 +52,9 @@ export default function SendPage() {
   }, []);
 
   useEffect(() => {
-    if (hasLoadedResume.current) return;
-    hasLoadedResume.current = true;
-    api.settings.getResume()
-      .then((r) => {
-        setResume(r.data);
-        if (r.data.exists) setAttachResume(true);
-      })
-      .catch(console.error);
+    if (hasLoadedResumes.current) return;
+    hasLoadedResumes.current = true;
+    api.resumes.list().then((r) => setResumes(r.data)).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -91,7 +86,7 @@ export default function SendPage() {
     setSending(true);
     try {
       const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
-      const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, attachResume);
+      const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, resumeId || null);
       setResult(res.data);
       setStep('result');
     } catch (err) {
@@ -113,7 +108,7 @@ export default function SendPage() {
         prospectIds: ids,
         customValues,
         scheduledFor: new Date(scheduleDateTime).toISOString(),
-        attachResume,
+        resumeId: resumeId || null,
       });
       setShowSchedulePicker(false);
       setScheduled(true);
@@ -268,21 +263,20 @@ export default function SendPage() {
             </div>
           )}
 
-          {resume?.exists && (
-            <label className="flex items-center gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={attachResume}
-                onChange={(e) => setAttachResume(e.target.checked)}
-                className="rounded border-slate-300 text-indigo-600 w-4 h-4"
-              />
-              <span className="text-sm text-slate-700">
-                Attach resume
-                {resume.filename && (
-                  <span className="text-slate-400 ml-1">({resume.filename})</span>
-                )}
-              </span>
-            </label>
+          {resumes.length > 0 && (
+            <div>
+              <label className="form-label">Attach resume</label>
+              <select
+                className="form-input"
+                value={resumeId}
+                onChange={(e) => setResumeId(e.target.value)}
+              >
+                <option value="">No attachment</option>
+                {resumes.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
           )}
 
           <div className="flex justify-between">

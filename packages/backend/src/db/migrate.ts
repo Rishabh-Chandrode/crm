@@ -164,18 +164,22 @@ DELETE FROM settings WHERE key IN ('resume_filename', 'resume_path', 'resume_upl
 
 const MIGRATE_ROLE_CATEGORY = `
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS role_category VARCHAR(50);
+`;
 
+/* Re-runs every migration: classifies all rows so the fix applies to
+   existing data that was incorrectly set by earlier broken regex strings. */
+const MIGRATE_ROLE_CATEGORY_BACKFILL = `
 UPDATE prospects
 SET role_category = CASE
-  WHEN job_title ~* '\m(hr|human\s+resources?|recruit(er|ing|ment)?|talent(\s+(acquisition|partner|lead|manager|sourcer|ops))?|people\s+(ops|operations|partner)|staffing|headhunter)\M'
+  WHEN job_title ~* '\\m(hr|human\\s+resources?|recruit(er|ing|ment)?|talent(\\s+(acquisition|partner|lead|manager|sourcer|ops))?|people\\s+(ops|operations|partner)|staffing|headhunter)\\M'
     THEN 'hr'
-  WHEN job_title ~* '\m(sde|swe|software|developer|programmer|engineer|architect|backend|devops|sre|platform|infrastructure|mobile|data\s+(scientist|engineer)|machine\s+learning|tech\s+lead|technical\s+lead|engineering\s+manager|cto)\M'
+  WHEN job_title ~* '\\m(sde|swe|software|developer|programmer|engineer|architect|backend|devops|sre|platform|infrastructure|mobile|data\\s+(scientist|engineer)|machine\\s+learning|tech\\s+lead|technical\\s+lead|engineering\\s+manager|cto)\\M'
     THEN 'engineer'
   WHEN job_title IS NOT NULL AND TRIM(job_title) <> ''
     THEN 'other'
   ELSE NULL
 END
-WHERE role_category IS NULL;
+WHERE role_category IS NULL OR role_category = 'other';
 `;
 
 export async function migrate(): Promise<void> {
@@ -183,5 +187,6 @@ export async function migrate(): Promise<void> {
   await pool.query(MIGRATE_PROSPECT_NAME);
   await pool.query(MIGRATE_TO_DOCUMENTS);
   await pool.query(MIGRATE_ROLE_CATEGORY);
+  await pool.query(MIGRATE_ROLE_CATEGORY_BACKFILL);
   console.log('Database migration completed successfully');
 }

@@ -16,6 +16,10 @@ export function errorHandler(
     res.status(400).json({ error: 'Referenced record does not exist' });
     return;
   }
+  if (pgCode === '23505') {
+    res.status(409).json({ error: 'A record with that value already exists' });
+    return;
+  }
 
   console.error('Unhandled error:', err);
   const message = err instanceof Error ? err.message : 'Internal server error';

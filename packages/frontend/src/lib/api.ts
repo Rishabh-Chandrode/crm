@@ -195,6 +195,23 @@ export const api = {
       request<{ data: { id: string } }>(`/documents/${id}`, { method: 'DELETE' }),
   },
 
+  variablePresets: {
+    list: () =>
+      request<{ data: import('./types').VariablePreset[] }>('/variable-presets'),
+    create: (body: Omit<import('./types').VariablePreset, 'id' | 'created_at' | 'updated_at'>) =>
+      request<{ data: import('./types').VariablePreset }>('/variable-presets', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Omit<import('./types').VariablePreset, 'id' | 'created_at' | 'updated_at'>) =>
+      request<{ data: import('./types').VariablePreset }>(`/variable-presets/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<{ data: { id: string } }>(`/variable-presets/${id}`, { method: 'DELETE' }),
+  },
+
   import: {
     parse: async (file: File): Promise<{
       data: {

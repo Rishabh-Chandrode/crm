@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 const NAV = [
   {
@@ -79,7 +80,7 @@ const NAV = [
   },
 ];
 
-export default function Sidebar() {
+function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -89,7 +90,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-60 min-h-screen bg-slate-900 flex flex-col">
+    <>
       <div className="px-6 py-5 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -108,6 +109,7 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={onNavClick}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 active
                   ? 'bg-indigo-600 text-white'
@@ -132,6 +134,70 @@ export default function Sidebar() {
           Sign out
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export default function Sidebar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  return (
+    <>
+      {/* Mobile topbar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-slate-900 flex items-center px-4 border-b border-slate-800">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="text-slate-400 hover:text-white p-1 -ml-1"
+          aria-label="Open menu"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <div className="flex items-center gap-2 ml-3">
+          <div className="w-6 h-6 bg-indigo-600 rounded flex items-center justify-center flex-shrink-0">
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <span className="text-white font-semibold text-sm">Outreach CRM</span>
+        </div>
+      </div>
+
+      {/* Mobile drawer overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="relative w-64 bg-slate-900 flex flex-col h-full shadow-xl">
+            <div className="absolute top-3 right-3">
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="text-slate-400 hover:text-white p-1"
+                aria-label="Close menu"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <SidebarContent onNavClick={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-60 min-h-screen bg-slate-900 flex-col">
+        <SidebarContent />
+      </aside>
+    </>
   );
 }

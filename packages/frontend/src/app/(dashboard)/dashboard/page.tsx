@@ -49,7 +49,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Dashboard</h1>
       <p className="text-slate-500 text-sm mb-8">Overview of your outreach activity</p>
 
@@ -57,7 +57,7 @@ export default function DashboardPage() {
         <p className="text-slate-400 text-sm">Loading…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
             {[
               { label: 'Companies', value: stats?.companies ?? 0, color: 'bg-blue-50 text-blue-600' },
               { label: 'Prospects', value: stats?.prospects ?? 0, color: 'bg-violet-50 text-violet-600' },
@@ -76,8 +76,8 @@ export default function DashboardPage() {
             {recentSends.length === 0 ? (
               <p className="text-slate-400 text-sm">No emails sent yet.</p>
             ) : (
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+                <table className="w-full text-sm min-w-[500px]">
                   <thead>
                     <tr className="border-b border-slate-100">
                       <th className="text-left px-4 py-3 text-slate-500 font-medium">Prospect</th>

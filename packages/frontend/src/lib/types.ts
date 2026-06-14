@@ -98,6 +98,42 @@ export interface Document {
   created_at: string;
 }
 
+export interface VariablePreset {
+  id: string;
+  key: string;
+  label: string;
+  source: VariableSource;
+  field: string | null;
+  default_value: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function toVariableLabel(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+export function buildVariableFromKey(
+  key: string,
+  presets: VariablePreset[]
+): TemplateVariable {
+  const preset = presets.find((p) => p.key === key);
+  if (preset) {
+    return {
+      key,
+      label: preset.label,
+      source: preset.source,
+      field: preset.field ?? undefined,
+      defaultValue: preset.default_value,
+    };
+  }
+  return { key, label: toVariableLabel(key), source: 'custom', field: undefined, defaultValue: '' };
+}
+
 export const PROSPECT_FIELDS: { value: string; label: string }[] = [
   { value: 'first_name', label: 'First Name' },
   { value: 'last_name', label: 'Last Name' },

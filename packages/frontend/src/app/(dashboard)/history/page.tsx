@@ -44,7 +44,7 @@ export default function HistoryPage() {
   useEffect(() => { void load(page); }, [page]);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Send History</h1>
         <p className="text-slate-500 text-sm mt-1">{total} emails sent in total</p>
@@ -59,8 +59,8 @@ export default function HistoryPage() {
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-4">
-            <table className="w-full text-sm">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto mb-4">
+            <table className="w-full text-sm min-w-[680px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Prospect</th>

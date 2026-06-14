@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { EmailTemplate, TemplateVariable, VariableSource } from '@/lib/types';
-import { PROSPECT_FIELDS, COMPANY_FIELDS } from '@/lib/types';
+import type { EmailTemplate, TemplateVariable, VariablePreset, VariableSource } from '@/lib/types';
+import { PROSPECT_FIELDS, COMPANY_FIELDS, buildVariableFromKey } from '@/lib/types';
 
 interface TemplateForm {
   name: string;
@@ -32,6 +32,7 @@ const SOURCE_LABELS: Record<VariableSource, string> = {
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [presets, setPresets] = useState<VariablePreset[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEditor, setShowEditor] = useState(false);
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
@@ -41,8 +42,12 @@ export default function TemplatesPage() {
   const [detecting, setDetecting] = useState(false);
 
   async function load() {
-    const res = await api.templates.list();
-    setTemplates(res.data as EmailTemplate[]);
+    const [tRes, pRes] = await Promise.all([
+      api.templates.list(),
+      api.variablePresets.list(),
+    ]);
+    setTemplates(tRes.data as EmailTemplate[]);
+    setPresets(pRes.data);
     setLoading(false);
   }
 
@@ -78,13 +83,7 @@ export default function TemplatesPage() {
       const existingKeys = new Set(form.variables.map((v) => v.key));
       const newVars: TemplateVariable[] = keys
         .filter((k) => !existingKeys.has(k))
-        .map((k) => ({
-          key: k,
-          label: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-          source: 'custom' as VariableSource,
-          field: undefined,
-          defaultValue: '',
-        }));
+        .map((k) => buildVariableFromKey(k, presets));
       setForm((prev) => ({ ...prev, variables: [...prev.variables, ...newVars] }));
       return;
     }
@@ -168,13 +167,13 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 md:p-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Email Templates</h1>
           <p className="text-slate-500 text-sm mt-1">Create reusable templates with dynamic variables</p>
         </div>
-        <button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+        <button onClick={openCreate} className="self-start sm:self-auto bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           + New Template
         </button>
       </div>

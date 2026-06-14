@@ -149,7 +149,7 @@ export default function SendPage() {
   }
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 md:p-8 max-w-3xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Send Emails</h1>
         <p className="text-slate-500 text-sm mt-1">Send personalized emails to prospects at a company</p>

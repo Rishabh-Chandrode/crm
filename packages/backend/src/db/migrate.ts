@@ -184,6 +184,20 @@ END
 WHERE role_category IS NULL OR role_category = 'other';
 `;
 
+const MIGRATE_VARIABLE_PRESETS = `
+CREATE TABLE IF NOT EXISTS variable_presets (
+  id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+  key           VARCHAR(255) NOT NULL,
+  label         VARCHAR(255) NOT NULL,
+  source        VARCHAR(50)  NOT NULL,
+  field         VARCHAR(255),
+  default_value TEXT         NOT NULL DEFAULT '',
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  CONSTRAINT variable_presets_key_unique UNIQUE (key)
+);
+`;
+
 export async function migrate(): Promise<void> {
   await pool.query(SCHEMA);
   await pool.query(MIGRATE_PROSPECT_NAME);
@@ -198,5 +212,6 @@ export async function migrate(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_email ON prospects (LOWER(email));
     CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name  ON companies  (LOWER(name));
   `);
+  await pool.query(MIGRATE_VARIABLE_PRESETS);
   console.log('Database migration completed successfully');
 }

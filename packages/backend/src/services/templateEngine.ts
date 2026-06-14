@@ -1,5 +1,13 @@
 import type { TemplateVariable, Prospect, Company } from '../types/index.js';
 
+export function toVariableLabel(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
 interface ResolutionContext {
   prospect: Prospect;
   company: Company | null;

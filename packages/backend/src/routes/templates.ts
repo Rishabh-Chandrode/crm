@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
 import type { EmailTemplate, TemplateVariable } from '../types/index.js';
-import { extractPlaceholders } from '../services/templateEngine.js';
+import { extractPlaceholders, toVariableLabel } from '../services/templateEngine.js';
+import type { VariablePreset } from './variable-presets.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -137,15 +138,30 @@ router.post('/:id/detect-variables', async (req, res, next) => {
     const existingVars = (req.body as { existing?: TemplateVariable[] }).existing ?? [];
     const existingKeys = new Set(existingVars.map((v) => v.key));
 
+    const presetsResult = await pool.query<VariablePreset>('SELECT * FROM variable_presets');
+    const presetMap = new Map(presetsResult.rows.map((p) => [p.key, p]));
+
     const newVars: TemplateVariable[] = keys
       .filter((k) => !existingKeys.has(k))
-      .map((k) => ({
-        key: k,
-        label: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-        source: 'custom' as const,
-        field: undefined,
-        defaultValue: '',
-      }));
+      .map((k) => {
+        const preset = presetMap.get(k);
+        if (preset) {
+          return {
+            key: k,
+            label: preset.label,
+            source: preset.source as TemplateVariable['source'],
+            field: preset.field ?? undefined,
+            defaultValue: preset.default_value,
+          };
+        }
+        return {
+          key: k,
+          label: toVariableLabel(k),
+          source: 'custom' as const,
+          field: undefined,
+          defaultValue: '',
+        };
+      });
 
     res.json({ data: { detected: keys, newVariables: newVars } });
   } catch (err) {

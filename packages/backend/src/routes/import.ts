@@ -156,6 +156,7 @@ router.post('/prospects', async (req, res, next) => {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]!;
       const rowNum = i + 1;
+      let email = '';
 
       try {
         // ── Resolve name ────────────────────────────────────────────────────
@@ -169,7 +170,7 @@ router.post('/prospects', async (req, res, next) => {
           lastName = spaceIdx > -1 ? full.slice(spaceIdx + 1).trim() || null : null;
         }
 
-        const email = col(row, mapping.email).toLowerCase();
+        email = col(row, mapping.email).toLowerCase();
 
         if (!firstName) {
           errors.push({ row: rowNum, error: 'Missing first name — skipped' });

@@ -1,15 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { EmailSend } from '@/lib/types';
 
 const STATUS_STYLES: Record<string, string> = {
-  sent: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  sent:    'bg-green-100 text-green-700',
+  failed:  'bg-red-100 text-red-700',
   pending: 'bg-yellow-100 text-yellow-700',
 };
+
+const STATUS_TABS = [
+  { value: 'all',     label: 'All' },
+  { value: 'sent',    label: 'Sent' },
+  { value: 'failed',  label: 'Failed' },
+  { value: 'pending', label: 'Pending' },
+];
 
 function formatOpenedAt(dateStr: string): string {
   const d = new Date(dateStr);
@@ -28,12 +35,20 @@ export default function HistoryPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const limit = 25;
 
-  async function load(p: number) {
+  async function load(p: number, status: string, q: string) {
     setLoading(true);
     try {
-      const res = await api.email.history(limit, p * limit);
+      const res = await api.email.history(limit, p * limit, {
+        status: status !== 'all' ? status : undefined,
+        search: q || undefined,
+      });
       setSends(res.data);
       setTotal(res.total);
     } finally {
@@ -41,26 +56,95 @@ export default function HistoryPage() {
     }
   }
 
-  useEffect(() => { void load(page); }, [page]);
+  useEffect(() => { void load(page, statusFilter, search); }, [page, statusFilter, search]);
+
+  function handleSearchChange(val: string) {
+    setSearchInput(val);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => {
+      setPage(0);
+      setSearch(val);
+    }, 300);
+  }
+
+  function handleStatusChange(val: string) {
+    setStatusFilter(val);
+    setPage(0);
+  }
+
+  async function handleRetry(id: string) {
+    setRetrying(id);
+    try {
+      await api.email.retry(id);
+      await load(page, statusFilter, search);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Retry failed');
+    } finally {
+      setRetrying(null);
+    }
+  }
 
   return (
     <div className="p-4 md:p-8">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Send History</h1>
-        <p className="text-slate-500 text-sm mt-1">{total} emails sent in total</p>
+        <p className="text-slate-500 text-sm mt-1">{total} emails{statusFilter !== 'all' || search ? ' matching filters' : ' total'}</p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-5">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => handleStatusChange(tab.value)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                statusFilter === tab.value
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 max-w-xs">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search name, email, subject…"
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+          {searchInput && (
+            <button
+              onClick={() => { setSearchInput(''); setPage(0); setSearch(''); }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
         <p className="text-slate-400 text-sm">Loading…</p>
       ) : sends.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-lg font-medium mb-1">No emails sent yet</p>
-          <p className="text-sm">Go to Send Emails to get started</p>
+          <p className="text-lg font-medium mb-1">
+            {statusFilter !== 'all' || search ? 'No emails match your filters' : 'No emails sent yet'}
+          </p>
+          {statusFilter === 'all' && !search && (
+            <p className="text-sm">Go to Send Emails to get started</p>
+          )}
         </div>
       ) : (
         <>
           <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto mb-4">
-            <table className="w-full text-sm min-w-[680px]">
+            <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Prospect</th>
@@ -70,6 +154,7 @@ export default function HistoryPage() {
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Status</th>
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Opened</th>
                   <th className="text-left px-4 py-3 text-slate-500 font-medium">Sent at</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -79,6 +164,9 @@ export default function HistoryPage() {
                       <div className="font-medium text-slate-800">
                         {s.prospect ? prospectFullName(s.prospect) : '—'}
                       </div>
+                      {s.prospect?.email && (
+                        <div className="text-xs text-slate-400">{s.prospect.email}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{s.company?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{s.template?.name ?? '—'}</td>
@@ -111,10 +199,21 @@ export default function HistoryPage() {
                         <span className="text-xs text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-400 text-xs">
+                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
                       {s.sent_at
                         ? new Date(s.sent_at).toLocaleString()
                         : new Date(s.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      {s.status === 'failed' && (
+                        <button
+                          onClick={() => void handleRetry(s.id)}
+                          disabled={retrying === s.id}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 whitespace-nowrap transition-colors"
+                        >
+                          {retrying === s.id ? 'Retrying…' : 'Retry'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

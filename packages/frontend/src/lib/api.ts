@@ -141,10 +141,16 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ templateId, companyId, prospectIds, customValues, documentIds }),
       }),
-    history: (limit = 50, offset = 0) =>
-      request<{ data: import('./types').EmailSend[]; total: number }>(
-        `/email/history?limit=${limit}&offset=${offset}`
-      ),
+    history: (limit = 50, offset = 0, filters?: { status?: string; search?: string; company_id?: string; template_id?: string }) => {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+      if (filters?.status && filters.status !== 'all') params.set('status', filters.status);
+      if (filters?.search) params.set('search', filters.search);
+      if (filters?.company_id) params.set('company_id', filters.company_id);
+      if (filters?.template_id) params.set('template_id', filters.template_id);
+      return request<{ data: import('./types').EmailSend[]; total: number }>(`/email/history?${params.toString()}`);
+    },
+    retry: (id: string) =>
+      request<{ data: { id: string; status: string } }>(`/email/retry/${id}`, { method: 'POST' }),
   },
 
   schedules: {

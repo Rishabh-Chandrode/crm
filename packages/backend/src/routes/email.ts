@@ -14,7 +14,31 @@ function pixelUrl(sendId: string): string {
 
 router.get('/history', async (req, res, next) => {
   try {
-    const { limit = '50', offset = '0' } = req.query as Record<string, string>;
+    const { limit = '50', offset = '0', status, search, company_id, template_id } = req.query as Record<string, string>;
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (status && status !== 'all') {
+      params.push(status);
+      conditions.push(`es.status = $${params.length}`);
+    }
+    if (company_id) {
+      params.push(company_id);
+      conditions.push(`es.company_id = $${params.length}`);
+    }
+    if (template_id) {
+      params.push(template_id);
+      conditions.push(`es.template_id = $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(p.first_name ILIKE $${params.length} OR p.last_name ILIKE $${params.length} OR p.email ILIKE $${params.length} OR es.subject ILIKE $${params.length})`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const dataParams = [...params, parseInt(limit, 10), parseInt(offset, 10)];
     const result = await pool.query<EmailSend>(
       `SELECT es.*,
               json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email) AS prospect,
@@ -24,15 +48,71 @@ router.get('/history', async (req, res, next) => {
        LEFT JOIN prospects p ON p.id = es.prospect_id
        LEFT JOIN companies c ON c.id = es.company_id
        LEFT JOIN email_templates t ON t.id = es.template_id
+       ${where}
        ORDER BY es.created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [parseInt(limit, 10), parseInt(offset, 10)]
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
     );
-    const countRes = await pool.query<{ count: string }>('SELECT COUNT(*) FROM email_sends');
+    const countRes = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM email_sends es
+       LEFT JOIN prospects p ON p.id = es.prospect_id
+       ${where}`,
+      params
+    );
     res.json({
       data: result.rows,
       total: parseInt(countRes.rows[0]?.count ?? '0', 10),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/retry/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params as { id: string };
+
+    const sendRes = await pool.query<EmailSend>(
+      `SELECT es.*, p.email AS prospect_email
+       FROM email_sends es
+       LEFT JOIN prospects p ON p.id = es.prospect_id
+       WHERE es.id = $1`,
+      [id]
+    );
+    const send = sendRes.rows[0] as (EmailSend & { prospect_email: string | null }) | undefined;
+
+    if (!send) { res.status(404).json({ error: 'Email send record not found' }); return; }
+    if (send.status !== 'failed') { res.status(400).json({ error: 'Only failed emails can be retried' }); return; }
+    if (!send.prospect_email) { res.status(400).json({ error: 'Prospect email not found' }); return; }
+    if (!send.subject || !send.body) { res.status(400).json({ error: 'Missing subject or body for retry' }); return; }
+
+    await pool.query(
+      `UPDATE email_sends SET status = 'pending', error_message = NULL WHERE id = $1`,
+      [id]
+    );
+
+    const html = wrapEmailHtml(plainTextToHtml(send.body), pixelUrl(id));
+
+    try {
+      const provider = getEmailProvider();
+      const result = await provider.send({
+        to: send.prospect_email,
+        subject: send.subject,
+        html,
+      });
+      await pool.query(
+        `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
+        [result.id, id]
+      );
+      res.json({ data: { id, status: 'sent' } });
+    } catch (sendErr) {
+      const msg = sendErr instanceof Error ? sendErr.message : 'Unknown error';
+      await pool.query(
+        `UPDATE email_sends SET status = 'failed', error_message = $1 WHERE id = $2`,
+        [msg, id]
+      );
+      res.status(502).json({ error: `Retry failed: ${msg}` });
+    }
   } catch (err) {
     next(err);
   }

@@ -112,11 +112,12 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
     })
   );
 
+  const finalStatus = sentCount === 0 ? 'failed' : 'sent';
   await pool.query(
     `UPDATE email_schedules
-     SET status = 'sent', sent_at = NOW(), sent_count = $1, failed_count = $2, total_prospects = $3
-     WHERE id = $4`,
-    [sentCount, failedCount, prospects.length, schedule.id]
+     SET status = $1, sent_at = NOW(), sent_count = $2, failed_count = $3, total_prospects = $4
+     WHERE id = $5`,
+    [finalStatus, sentCount, failedCount, prospects.length, schedule.id]
   );
 }
 

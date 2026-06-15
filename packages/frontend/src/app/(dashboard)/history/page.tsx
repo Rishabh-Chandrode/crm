@@ -45,6 +45,37 @@ function formatOpenedAt(dateStr: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+function StatusBadge({ send }: { send: EmailSend }) {
+  const badge = (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[send.status] ?? ''} ${send.error_message ? 'cursor-help' : ''}`}>
+      {send.status}
+    </span>
+  );
+  return send.error_message ? <Tooltip text={send.error_message}>{badge}</Tooltip> : badge;
+}
+
+function OpenedCell({ send }: { send: EmailSend }) {
+  return (
+    <div>
+      {send.opened_at ? (
+        <div className="flex items-center gap-1 mb-0.5">
+          <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          <span className="text-xs text-green-700 font-medium">{formatOpenedAt(send.opened_at)}</span>
+          {send.open_count > 1 && <span className="text-xs text-slate-400">×{send.open_count}</span>}
+        </div>
+      ) : send.status === 'sent' ? (
+        <div className="text-xs text-slate-300 mb-0.5">not opened</div>
+      ) : null}
+      <div className="text-xs text-slate-400">
+        {send.sent_at ? new Date(send.sent_at).toLocaleString() : new Date(send.created_at).toLocaleString()}
+      </div>
+    </div>
+  );
+}
+
 export default function HistoryPage() {
   const [sends, setSends] = useState<EmailSend[]>([]);
   const [total, setTotal] = useState(0);
@@ -76,10 +107,7 @@ export default function HistoryPage() {
   function handleSearchChange(val: string) {
     setSearchInput(val);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => {
-      setPage(0);
-      setSearch(val);
-    }, 300);
+    searchTimeout.current = setTimeout(() => { setPage(0); setSearch(val); }, 300);
   }
 
   function handleStatusChange(val: string) {
@@ -107,8 +135,8 @@ export default function HistoryPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+      <div className="flex flex-col gap-3 mb-5">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 self-start">
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -123,7 +151,7 @@ export default function HistoryPage() {
             </button>
           ))}
         </div>
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative w-full sm:max-w-xs">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -132,7 +160,7 @@ export default function HistoryPage() {
             placeholder="Search name, email, subject…"
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-9 pr-8 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
           {searchInput && (
             <button
@@ -158,78 +186,42 @@ export default function HistoryPage() {
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl border border-slate-200 mb-4">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left px-4 py-3 text-slate-500 font-medium w-[30%]">Prospect</th>
-                  <th className="text-left px-4 py-3 text-slate-500 font-medium w-[30%]">Subject</th>
-                  <th className="text-left px-4 py-3 text-slate-500 font-medium w-[20%]">Status</th>
-                  <th className="text-left px-4 py-3 text-slate-500 font-medium w-[20%]">Opened / Sent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sends.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800 truncate">
-                        {s.prospect ? prospectFullName(s.prospect) : '—'}
-                      </div>
-                      <div className="text-xs text-slate-400 truncate">{s.prospect?.email ?? ''}</div>
+          {/* Cards — all screen sizes */}
+          <div className="space-y-3 mb-4">
+            {sends.map((s) => (
+              <div key={s.id} className="bg-white rounded-xl border border-slate-200 p-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-800 truncate">{s.prospect ? prospectFullName(s.prospect) : '—'}</div>
+                    <div className="text-xs text-slate-400 truncate">{s.prospect?.email ?? ''}</div>
+                    {(s.company?.name ?? s.template?.name) && (
                       <div className="text-xs text-slate-400 truncate">
                         {[s.company?.name, s.template?.name].filter(Boolean).join(' · ')}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      <div className="truncate">{s.subject ?? '—'}</div>
-                    </td>
-                    <td className="px-4 py-3 w-[20%]">
-                      {s.error_message ? (
-                        <Tooltip text={s.error_message}>
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium cursor-help ${STATUS_STYLES[s.status] ?? ''}`}>
-                            {s.status}
-                          </span>
-                        </Tooltip>
-                      ) : (
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[s.status] ?? ''}`}>
-                          {s.status}
-                        </span>
-                      )}
-                      {s.status === 'failed' && (
-                        <button
-                          onClick={() => void handleRetry(s.id)}
-                          disabled={retrying === s.id}
-                          className="mt-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 transition-colors"
-                        >
-                          {retrying === s.id ? 'Retrying…' : '↺ Retry'}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {s.opened_at ? (
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          <span className="text-xs text-green-700 font-medium">{formatOpenedAt(s.opened_at)}</span>
-                          {s.open_count > 1 && <span className="text-xs text-slate-400">×{s.open_count}</span>}
-                        </div>
-                      ) : s.status === 'sent' ? (
-                        <div className="text-xs text-slate-300 mb-0.5">not opened</div>
-                      ) : null}
-                      <div className="text-xs text-slate-400">
-                        {s.sent_at
-                          ? new Date(s.sent_at).toLocaleString()
-                          : new Date(s.created_at).toLocaleString()}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <StatusBadge send={s} />
+                    {s.status === 'failed' && (
+                      <button
+                        onClick={() => void handleRetry(s.id)}
+                        disabled={retrying === s.id}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 transition-colors cursor-pointer"
+                      >
+                        {retrying === s.id ? 'Retrying…' : '↺ Retry'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {s.subject && (
+                  <div className="text-sm text-slate-600 truncate mb-2">{s.subject}</div>
+                )}
+                <OpenedCell send={s} />
+              </div>
+            ))}
           </div>
 
+          {/* Pagination */}
           <div className="flex items-center justify-between text-sm">
             <p className="text-slate-500">
               Showing {page * limit + 1}–{Math.min((page + 1) * limit, total)} of {total}

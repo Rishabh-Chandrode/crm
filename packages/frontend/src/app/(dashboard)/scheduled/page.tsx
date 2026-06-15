@@ -116,11 +116,11 @@ function ScheduleRow({
           <span>
             {schedule.status === 'pending'
               ? isPast ? 'Sending soon…' : `Sends ${scheduledDate.toLocaleString()}`
-              : schedule.status === 'sent'
-              ? `Sent ${schedule.sent_at ? new Date(schedule.sent_at).toLocaleString() : ''}`
+              : schedule.status === 'sent' || schedule.status === 'failed'
+              ? `Attempted ${schedule.sent_at ? new Date(schedule.sent_at).toLocaleString() : scheduledDate.toLocaleString()}`
               : scheduledDate.toLocaleString()}
           </span>
-          {schedule.status === 'sent' && (
+          {(schedule.status === 'sent' || schedule.status === 'failed') && schedule.total_prospects > 0 && (
             <span>{schedule.sent_count} sent · {schedule.failed_count} failed · {schedule.total_prospects} total</span>
           )}
           {schedule.prospect_ids.length > 0 && (
@@ -130,7 +130,9 @@ function ScheduleRow({
             <span>All {schedule.total_prospects} prospects</span>
           )}
           {schedule.error_message && (
-            <span className="text-red-500">{schedule.error_message}</span>
+            <span className="text-red-500" title={schedule.error_message}>
+              {schedule.error_message.length > 80 ? schedule.error_message.slice(0, 80) + '…' : schedule.error_message}
+            </span>
           )}
         </div>
       </div>

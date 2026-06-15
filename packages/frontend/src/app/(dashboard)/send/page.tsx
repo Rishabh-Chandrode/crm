@@ -20,6 +20,58 @@ function localDatetimeDefault(): string {
   return d.toISOString().slice(0, 16);
 }
 
+function toLocalDatetimeInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+interface QuickOption {
+  label: string;
+  sublabel: string;
+  isoString: string;
+}
+
+function getQuickScheduleOptions(): QuickOption[] {
+  const now = new Date();
+  const options: QuickOption[] = [];
+
+  // Tomorrow at 9:30 AM (local)
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  tomorrow.setHours(9, 30, 0, 0);
+  const tomorrowDay = tomorrow.getDay(); // 0=Sun, 6=Sat
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmt = (d: Date) => `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()} · 9:30 AM`;
+
+  if (tomorrowDay !== 0 && tomorrowDay !== 6) {
+    // Tomorrow is a weekday
+    options.push({ label: 'Tomorrow morning', sublabel: fmt(tomorrow), isoString: tomorrow.toISOString() });
+  } else {
+    // Tomorrow is weekend — find next Monday
+    const nextMonday = new Date(now);
+    const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
+    nextMonday.setDate(now.getDate() + daysUntilMonday);
+    nextMonday.setHours(9, 30, 0, 0);
+    options.push({ label: 'Monday morning', sublabel: fmt(nextMonday), isoString: nextMonday.toISOString() });
+  }
+
+  // Next weekday morning (if tomorrow IS a weekday, also offer Monday; if today is Mon–Thu, next Mon)
+  // Add "Next Monday" only if tomorrow option was a weekday (avoid duplicate Monday)
+  if (tomorrowDay !== 0 && tomorrowDay !== 6) {
+    const nextMonday = new Date(now);
+    const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
+    nextMonday.setDate(now.getDate() + daysUntilMonday);
+    nextMonday.setHours(9, 30, 0, 0);
+    if (nextMonday.toDateString() !== tomorrow.toDateString()) {
+      options.push({ label: 'Monday morning', sublabel: fmt(nextMonday), isoString: nextMonday.toISOString() });
+    }
+  }
+
+  return options;
+}
+
 export default function SendPage() {
   const [step, setStep] = useState<Step>('select');
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -36,6 +88,7 @@ export default function SendPage() {
   const [error, setError] = useState('');
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState(localDatetimeDefault);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [scheduled, setScheduled] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -96,22 +149,25 @@ export default function SendPage() {
     }
   }
 
-  async function handleSchedule() {
+  async function handleSchedule(isoOverride?: string) {
     if (!selectedTemplate || !selectedCompany) return;
     setError('');
     setScheduling(true);
     try {
       const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
+      const scheduledFor = isoOverride ?? new Date(scheduleDateTime).toISOString();
       await api.schedules.create({
         templateId: selectedTemplate,
         companyId: selectedCompany,
         prospectIds: ids,
         customValues,
-        scheduledFor: new Date(scheduleDateTime).toISOString(),
+        scheduledFor,
         documentIds: selectedDocumentIds,
       });
       setShowSchedulePicker(false);
+      setShowCustomPicker(false);
       setScheduled(true);
+      setScheduleDateTime(isoOverride ? toLocalDatetimeInput(new Date(isoOverride)) : scheduleDateTime);
       setStep('result');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Scheduling failed');
@@ -132,6 +188,7 @@ export default function SendPage() {
     setError('');
     setScheduled(false);
     setShowSchedulePicker(false);
+    setShowCustomPicker(false);
     setScheduleDateTime(localDatetimeDefault());
     setSelectedDocumentIds([]);
   }
@@ -307,7 +364,10 @@ export default function SendPage() {
               <label className="form-label">Preview for prospect</label>
               <select className="form-input" value={previewProspect} onChange={(e) => setPreviewProspect(e.target.value)}>
                 <option value="">Choose a prospect to preview…</option>
-                {prospects.map((p) => (
+                {(selectedProspects.length > 0
+                  ? prospects.filter((p) => selectedProspects.includes(p.id))
+                  : prospects
+                ).map((p) => (
                   <option key={p.id} value={p.id}>{prospectFullName(p)} ({p.email})</option>
                 ))}
               </select>
@@ -370,36 +430,102 @@ export default function SendPage() {
 
       {/* Schedule date/time picker modal */}
       {showSchedulePicker && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-semibold text-slate-800 mb-1">Schedule send</h3>
-            <p className="text-slate-500 text-sm mb-5">
-              Emails will be sent to {selectedProspects.length > 0 ? selectedProspects.length : prospects.length} prospect{(selectedProspects.length || prospects.length) !== 1 ? 's' : ''} at the chosen time.
-            </p>
-            <label className="form-label">Date &amp; time</label>
-            <input
-              type="datetime-local"
-              className="form-input mb-5"
-              value={scheduleDateTime}
-              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-              onChange={(e) => setScheduleDateTime(e.target.value)}
-            />
-            {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setShowSchedulePicker(false); setError(''); }}
-                className="text-slate-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void handleSchedule()}
-                disabled={scheduling}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
-              >
-                {scheduling ? 'Scheduling…' : 'Confirm schedule'}
-              </button>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setShowSchedulePicker(false); setShowCustomPicker(false); setError(''); } }}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            {/* Header */}
+            <div className="px-5 pt-5 pb-3">
+              <div className="flex items-center justify-between mb-0.5">
+                <h3 className="text-base font-semibold text-slate-800">Schedule send</h3>
+                <button
+                  onClick={() => { setShowSchedulePicker(false); setShowCustomPicker(false); setError(''); }}
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">
+                {selectedProspects.length > 0 ? selectedProspects.length : prospects.length} prospect{(selectedProspects.length || prospects.length) !== 1 ? 's' : ''} will receive this email
+              </p>
             </div>
+
+            {/* Quick options */}
+            <div className="px-3 pb-2">
+              {getQuickScheduleOptions().map((opt) => (
+                <button
+                  key={opt.isoString}
+                  onClick={() => void handleSchedule(opt.isoString)}
+                  disabled={scheduling}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 transition-colors text-left group disabled:opacity-50"
+                >
+                  <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-100 transition-colors">
+                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800">{opt.label}</p>
+                    <p className="text-xs text-slate-400">{opt.sublabel}</p>
+                  </div>
+                  {scheduling && (
+                    <svg className="w-4 h-4 text-indigo-400 ml-auto animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+
+              {/* Custom date & time */}
+              <button
+                onClick={() => setShowCustomPicker((v) => !v)}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 transition-colors text-left group"
+              >
+                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-slate-200 transition-colors">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800">Pick date &amp; time</p>
+                  {showCustomPicker && scheduleDateTime && (
+                    <p className="text-xs text-slate-400">
+                      {new Date(scheduleDateTime).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  )}
+                </div>
+                <svg className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${showCustomPicker ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showCustomPicker && (
+                <div className="mx-3 mb-2 space-y-3">
+                  <input
+                    type="datetime-local"
+                    className="form-input text-sm"
+                    value={scheduleDateTime}
+                    min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                    onChange={(e) => setScheduleDateTime(e.target.value)}
+                  />
+                  {error && <p className="text-red-500 text-xs">{error}</p>}
+                  <button
+                    onClick={() => void handleSchedule()}
+                    disabled={scheduling || !scheduleDateTime}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+                  >
+                    {scheduling ? 'Scheduling…' : 'Schedule send'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {!showCustomPicker && error && (
+              <p className="text-red-500 text-xs px-5 pb-3">{error}</p>
+            )}
+
+            <div className="h-2" />
           </div>
         </div>
       )}

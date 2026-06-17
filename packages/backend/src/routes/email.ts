@@ -41,7 +41,7 @@ router.get('/history', async (req, res, next) => {
     const dataParams = [...params, parseInt(limit, 10), parseInt(offset, 10)];
     const result = await pool.query<EmailSend>(
       `SELECT es.*,
-              json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email) AS prospect,
+              json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email, 'job_title', p.job_title) AS prospect,
               json_build_object('name', c.name) AS company,
               json_build_object('name', t.name) AS template
        FROM email_sends es

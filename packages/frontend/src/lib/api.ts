@@ -168,6 +168,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    get: (id: string) =>
+      request<{ data: import('./types').EmailScheduleDetail }>(`/schedules/${id}`),
     cancel: (id: string) =>
       request<{ data: import('./types').EmailSchedule }>(`/schedules/${id}`, {
         method: 'DELETE',

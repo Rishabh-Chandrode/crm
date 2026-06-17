@@ -58,6 +58,7 @@ export interface EmailSend {
   prospect_id: string | null;
   company_id: string | null;
   subject: string | null;
+  body: string | null;
   status: EmailSendStatus;
   resend_id: string | null;
   sent_at: string | null;
@@ -65,7 +66,7 @@ export interface EmailSend {
   opened_at: string | null;
   open_count: number;
   created_at: string;
-  prospect?: { first_name: string; last_name: string | null; email: string };
+  prospect?: { first_name: string; last_name: string | null; email: string; job_title?: string | null };
   company?: { name: string };
   template?: { name: string };
 }
@@ -87,7 +88,11 @@ export interface EmailSchedule {
   created_at: string;
   sent_at: string | null;
   company?: { name: string };
-  template?: { name: string };
+  template?: { name: string; subject?: string };
+}
+
+export interface EmailScheduleDetail extends EmailSchedule {
+  prospects: { id: string; first_name: string; last_name: string | null; email: string; job_title: string | null }[];
 }
 
 export interface Document {

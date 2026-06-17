@@ -102,7 +102,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {NAV.map(({ href, label, icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
@@ -195,7 +195,7 @@ export default function Sidebar() {
       )}
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 min-h-screen bg-slate-900 flex-col">
+      <aside className="hidden md:flex w-60 h-screen sticky top-0 bg-slate-900 flex-col">
         <SidebarContent />
       </aside>
     </>

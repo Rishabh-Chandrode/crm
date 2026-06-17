@@ -238,6 +238,21 @@ export const api = {
       request<{ data: { id: string } }>(`/variable-presets/${id}`, { method: 'DELETE' }),
   },
 
+  stats: {
+    get: () =>
+      request<{
+        companies: number;
+        prospects: number;
+        templates: number;
+        emails: { total: number; sent: number; failed: number; pending: number; opened: number; openRate: number };
+        prospectsByCategory: { category: string; count: number }[];
+        topCompanies: { name: string; count: number }[];
+        recentSends: import('./types').EmailSend[];
+        upcomingSchedules: import('./types').EmailSchedule[];
+        dailyActivity: { day: string; sent: number; failed: number }[];
+      }>('/stats'),
+  },
+
   import: {
     parse: async (file: File): Promise<{
       data: {

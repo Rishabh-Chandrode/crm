@@ -64,10 +64,28 @@ export const api = {
   },
 
   prospects: {
-    list: (companyId?: string) =>
-      request<{ data: import('./types').Prospect[] }>(
-        companyId ? `/prospects?company_id=${companyId}` : '/prospects'
-      ),
+    list: (params?: {
+      companyId?: string;
+      roleCategory?: string;
+      search?: string;
+      sortBy?: string;
+      sortDir?: 'asc' | 'desc';
+      limit?: number;
+      offset?: number;
+    }) => {
+      const p = new URLSearchParams();
+      if (params?.companyId) p.set('company_id', params.companyId);
+      if (params?.roleCategory) p.set('role_category', params.roleCategory);
+      if (params?.search) p.set('search', params.search);
+      if (params?.sortBy) p.set('sort_by', params.sortBy);
+      if (params?.sortDir) p.set('sort_dir', params.sortDir);
+      if (params?.limit != null) p.set('limit', String(params.limit));
+      if (params?.offset != null) p.set('offset', String(params.offset));
+      const qs = p.toString();
+      return request<{ data: import('./types').Prospect[]; total: number }>(
+        qs ? `/prospects?${qs}` : '/prospects'
+      );
+    },
     get: (id: string) => request<{ data: import('./types').Prospect }>(`/prospects/${id}`),
     create: (body: Partial<import('./types').Prospect>) =>
       request<{ data: import('./types').Prospect }>('/prospects', {

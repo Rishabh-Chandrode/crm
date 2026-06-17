@@ -5,9 +5,40 @@ import type { Prospect } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
+const ALLOWED_SORT_COLS: Record<string, string> = {
+  first_name: 'p.first_name',
+  last_name: 'p.last_name',
+  email: 'p.email',
+  job_title: 'p.job_title',
+  company_name: 'c.name',
+  created_at: 'p.created_at',
+};
+
 router.get('/', async (req, res, next) => {
   try {
-    const { company_id } = req.query as { company_id?: string };
+    const {
+      company_id,
+      role_category,
+      search,
+      sort_by = 'first_name',
+      sort_dir = 'asc',
+      limit: limitStr = '25',
+      offset: offsetStr = '0',
+    } = req.query as {
+      company_id?: string;
+      role_category?: string;
+      search?: string;
+      sort_by?: string;
+      sort_dir?: string;
+      limit?: string;
+      offset?: string;
+    };
+
+    const limit = Math.min(Math.max(parseInt(limitStr, 10) || 25, 1), 100);
+    const offset = Math.max(parseInt(offsetStr, 10) || 0, 0);
+    const sortCol = ALLOWED_SORT_COLS[sort_by] ?? 'p.first_name';
+    const sortDir = sort_dir === 'desc' ? 'DESC' : 'ASC';
+
     const conditions: string[] = [];
     const values: unknown[] = [];
 
@@ -15,17 +46,37 @@ router.get('/', async (req, res, next) => {
       conditions.push(`p.company_id = $${values.length + 1}`);
       values.push(company_id);
     }
+    if (role_category) {
+      conditions.push(`p.role_category = $${values.length + 1}`);
+      values.push(role_category);
+    }
+    if (search?.trim()) {
+      const term = `%${search.trim().toLowerCase()}%`;
+      conditions.push(
+        `(LOWER(p.first_name) LIKE $${values.length + 1} OR LOWER(p.last_name) LIKE $${values.length + 1} OR LOWER(p.email) LIKE $${values.length + 1} OR LOWER(COALESCE(p.job_title,'')) LIKE $${values.length + 1})`
+      );
+      values.push(term);
+    }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await pool.query<Prospect & { company_name: string }>(
-      `SELECT p.*, c.name AS company_name
-       FROM prospects p
-       LEFT JOIN companies c ON c.id = p.company_id
-       ${where}
-       ORDER BY p.first_name ASC, p.last_name ASC`,
-      values
-    );
-    res.json({ data: result.rows });
+
+    const [result, countResult] = await Promise.all([
+      pool.query<Prospect & { company_name: string }>(
+        `SELECT p.*, c.name AS company_name
+         FROM prospects p
+         LEFT JOIN companies c ON c.id = p.company_id
+         ${where}
+         ORDER BY ${sortCol} ${sortDir} NULLS LAST, p.first_name ASC
+         LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+        [...values, limit, offset]
+      ),
+      pool.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM prospects p LEFT JOIN companies c ON c.id = p.company_id ${where}`,
+        values
+      ),
+    ]);
+
+    res.json({ data: result.rows, total: parseInt(countResult.rows[0]?.count ?? '0', 10) });
   } catch (err) {
     next(err);
   }
@@ -91,7 +142,8 @@ router.post('/quick-add', async (req, res, next) => {
       [normalizedEmail]
     );
     if (existing.rows[0]) {
-      res.status(409).json({ error: 'A prospect with this email already exists' });
+      // Return the existing prospect so callers (e.g. browser extension) can still use the ID
+      res.status(200).json({ data: { id: existing.rows[0].id }, existed: true });
       return;
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Prospect, Company } from '@/lib/types';
@@ -49,29 +49,92 @@ const CATEGORY_STYLES: Record<string, string> = {
   other: 'bg-slate-100 text-slate-500',
 };
 
+type SortCol = 'first_name' | 'last_name' | 'email' | 'job_title' | 'company_name' | 'created_at';
+
+const PAGE_SIZE = 25;
+
+function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
+  if (!active) {
+    return (
+      <svg className="w-3.5 h-3.5 text-slate-300 inline ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    );
+  }
+  return dir === 'asc' ? (
+    <svg className="w-3.5 h-3.5 text-indigo-500 inline ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+    </svg>
+  ) : (
+    <svg className="w-3.5 h-3.5 text-indigo-500 inline ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
 export default function ProspectsPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Prospect | null>(null);
   const [form, setForm] = useState<ProspectFormData>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [filterCompany, setFilterCompany] = useState('');
   const [showImport, setShowImport] = useState(false);
 
+  // Filters & sort
+  const [search, setSearch] = useState('');
+  const [filterCompany, setFilterCompany] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [sortBy, setSortBy] = useState<SortCol>('first_name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(0);
+
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(0);
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [search]);
+
   async function load() {
+    setLoading(true);
     const [pRes, cRes] = await Promise.all([
-      api.prospects.list(filterCompany || undefined),
+      api.prospects.list({
+        companyId: filterCompany || undefined,
+        roleCategory: filterCategory || undefined,
+        search: debouncedSearch || undefined,
+        sortBy,
+        sortDir,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      }),
       api.companies.list(),
     ]);
     setProspects(pRes.data as Prospect[]);
+    setTotal(pRes.total ?? 0);
     setCompanies(cRes.data as Company[]);
     setLoading(false);
   }
 
-  useEffect(() => { void load(); }, [filterCompany]);
+  useEffect(() => { void load(); }, [filterCompany, filterCategory, debouncedSearch, sortBy, sortDir, page]);
+
+  function handleSort(col: SortCol) {
+    if (sortBy === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
+    setPage(0);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -139,9 +202,29 @@ export default function ProspectsPage() {
       return next;
     });
 
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  function ThCol({
+    col,
+    label,
+  }: {
+    col: SortCol;
+    label: string;
+  }) {
+    return (
+      <th
+        className="text-left px-4 py-3 text-slate-500 font-medium cursor-pointer select-none hover:text-slate-800 transition-colors whitespace-nowrap"
+        onClick={() => handleSort(col)}
+      >
+        {label}
+        <SortIcon active={sortBy === col} dir={sortDir} />
+      </th>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Prospects</h1>
           <p className="text-slate-500 text-sm mt-1">HR contacts and hiring managers</p>
@@ -165,17 +248,48 @@ export default function ProspectsPage() {
         </div>
       </div>
 
-      <div className="mb-4">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="relative">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, email, title…"
+            className="rounded-lg border border-slate-300 pl-8 pr-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56"
+          />
+        </div>
         <select
           value={filterCompany}
-          onChange={(e) => setFilterCompany(e.target.value)}
-          className="form-input max-w-xs"
+          onChange={(e) => { setFilterCompany(e.target.value); setPage(0); }}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
         >
           <option value="">All companies</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+        <select
+          value={filterCategory}
+          onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+        >
+          <option value="">All categories</option>
+          <option value="engineer">Engineer</option>
+          <option value="hr">HR / Recruiter</option>
+          <option value="other">Other</option>
+        </select>
+        {(search || filterCompany || filterCategory) && (
+          <button
+            onClick={() => { setSearch(''); setFilterCompany(''); setFilterCategory(''); setPage(0); }}
+            className="text-slate-500 hover:text-slate-800 text-sm font-medium px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -183,71 +297,121 @@ export default function ProspectsPage() {
       ) : prospects.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <p className="text-lg font-medium mb-1">No prospects found</p>
-          <p className="text-sm">Add your first prospect to get started</p>
+          <p className="text-sm">
+            {search || filterCompany || filterCategory
+              ? 'Try adjusting your filters'
+              : 'Add your first prospect to get started'}
+          </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          <table className="w-full text-sm min-w-[600px]">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-left px-4 py-3 text-slate-500 font-medium">Name</th>
-                <th className="text-left px-4 py-3 text-slate-500 font-medium">Email</th>
-                <th className="text-left px-4 py-3 text-slate-500 font-medium">Title</th>
-                <th className="text-left px-4 py-3 text-slate-500 font-medium">Category</th>
-                <th className="text-left px-4 py-3 text-slate-500 font-medium">Company</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {prospects.map((p) => (
-                <tr key={p.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">
-                    <div>{prospectFullName(p)}</div>
-                    {p.phone && <div className="text-slate-400 text-xs">{p.phone}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{p.email}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.job_title ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    {p.role_category ? (
-                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[p.role_category] ?? 'bg-slate-100 text-slate-500'}`}>
-                        {CATEGORY_LABELS[p.role_category] ?? p.role_category}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{p.company_name ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      {p.linkedin_url && (
-                        <a
-                          href={p.linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+        <>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+            <table className="w-full text-sm min-w-[680px]">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <ThCol col="first_name" label="Name" />
+                  <ThCol col="email" label="Email" />
+                  <ThCol col="job_title" label="Title" />
+                  <th className="text-left px-4 py-3 text-slate-500 font-medium">Category</th>
+                  <ThCol col="company_name" label="Company" />
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {prospects.map((p) => (
+                  <tr key={p.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium text-slate-800">
+                      <div>{prospectFullName(p)}</div>
+                      {p.phone && <div className="text-slate-400 text-xs">{p.phone}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{p.email}</td>
+                    <td className="px-4 py-3 text-slate-600">{p.job_title ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {p.role_category ? (
+                        <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[p.role_category] ?? 'bg-slate-100 text-slate-500'}`}>
+                          {CATEGORY_LABELS[p.role_category] ?? p.role_category}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{p.company_name ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 justify-end">
+                        {p.linkedin_url && (
+                          <a
+                            href={p.linkedin_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-slate-400 hover:text-indigo-600 text-xs font-medium transition-colors"
+                          >
+                            LinkedIn
+                          </a>
+                        )}
+                        <button
+                          onClick={() => openEdit(p)}
                           className="text-slate-400 hover:text-indigo-600 text-xs font-medium transition-colors"
                         >
-                          LinkedIn
-                        </a>
-                      )}
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="text-slate-400 hover:text-indigo-600 text-xs font-medium transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => void handleDelete(p.id)}
-                        className="text-slate-400 hover:text-red-600 text-xs font-medium transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => void handleDelete(p.id)}
+                          className="text-slate-400 hover:text-red-600 text-xs font-medium transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between mt-4 text-sm text-slate-500">
+            <span>
+              {total === 0
+                ? 'No results'
+                : `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, total)} of ${total}`}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(0)}
+                disabled={page === 0}
+                className="px-2 py-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="First page"
+              >
+                «
+              </button>
+              <button
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 0}
+                className="px-2 py-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                ‹ Prev
+              </button>
+              <span className="px-3 py-1 font-medium text-slate-700">
+                {page + 1} / {totalPages || 1}
+              </span>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages - 1}
+                className="px-2 py-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next ›
+              </button>
+              <button
+                onClick={() => setPage(totalPages - 1)}
+                disabled={page >= totalPages - 1}
+                className="px-2 py-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Last page"
+              >
+                »
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {showForm && (

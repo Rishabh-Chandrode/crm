@@ -112,7 +112,7 @@ export default function SendPage() {
 
   useEffect(() => {
     if (!selectedCompany) { setProspects([]); return; }
-    api.prospects.list(selectedCompany).then((res) => {
+    api.prospects.list({ companyId: selectedCompany }).then((res) => {
       setProspects(res.data as Prospect[]);
       setSelectedProspects([]);
     }).catch(console.error);

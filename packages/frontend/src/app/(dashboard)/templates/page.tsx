@@ -28,6 +28,7 @@ const EMPTY_FORM: TemplateForm = {
 const SOURCE_LABELS: Record<VariableSource, string> = {
   prospect: 'Prospect field',
   company: 'Company field',
+  sender: 'Sender profile',
   static: 'Static value',
   custom: 'Custom (per send)',
 };

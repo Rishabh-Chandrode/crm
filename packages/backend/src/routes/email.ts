@@ -1,9 +1,19 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
+import { ownerFilter } from '../middleware/ownerFilter.js';
 import { getEmailProvider } from '../services/email/index.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from '../services/templateEngine.js';
 import { getAttachments } from '../services/attachmentHelper.js';
-import type { EmailTemplate, Prospect, Company, EmailSend } from '../types/index.js';
+import type { EmailTemplate, Prospect, Company, EmailSend, SenderProfile } from '../types/index.js';
+
+async function loadSenderProfile(userId: string): Promise<SenderProfile | null> {
+  const r = await pool.query<SenderProfile>(
+    `SELECT first_name, last_name, email, current_company, job_title, phone, website
+     FROM users WHERE id = $1`,
+    [userId]
+  );
+  return r.rows[0] ?? null;
+}
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -35,6 +45,9 @@ router.get('/history', async (req, res, next) => {
       params.push(`%${search}%`);
       conditions.push(`(p.first_name ILIKE $${params.length} OR p.last_name ILIKE $${params.length} OR p.email ILIKE $${params.length} OR es.subject ILIKE $${params.length})`);
     }
+
+    const { sql, value } = ownerFilter(req.user!, 'es', params.length + 1);
+    if (sql) { conditions.push(sql); if (value) params.push(value); }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -71,13 +84,17 @@ router.get('/history', async (req, res, next) => {
 router.post('/retry/:id', async (req, res, next) => {
   try {
     const { id } = req.params as { id: string };
+    const { sql, value } = ownerFilter(req.user!, 'es', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
 
     const sendRes = await pool.query<EmailSend>(
       `SELECT es.*, p.email AS prospect_email
        FROM email_sends es
        LEFT JOIN prospects p ON p.id = es.prospect_id
-       WHERE es.id = $1`,
-      [id]
+       WHERE es.id = $1 ${ownerWhere}`,
+      params
     );
     const send = sendRes.rows[0] as (EmailSend & { prospect_email: string | null }) | undefined;
 
@@ -131,13 +148,19 @@ router.post('/preview', async (req, res, next) => {
       return;
     }
 
+    const { sql: tSql, value: tVal } = ownerFilter(req.user!, 'email_templates', 2);
+    const { sql: pSql, value: pVal } = ownerFilter(req.user!, 'p', 2);
+
     const [templateRes, prospectRes] = await Promise.all([
-      pool.query<EmailTemplate>('SELECT * FROM email_templates WHERE id = $1', [templateId]),
+      pool.query<EmailTemplate>(
+        `SELECT * FROM email_templates WHERE id = $1 ${tSql ? `AND ${tSql}` : ''}`,
+        tVal ? [templateId, tVal] : [templateId]
+      ),
       pool.query<Prospect>(
         `SELECT p.*, row_to_json(c) AS company
          FROM prospects p LEFT JOIN companies c ON c.id = p.company_id
-         WHERE p.id = $1`,
-        [prospectId]
+         WHERE p.id = $1 ${pSql ? `AND ${pSql}` : ''}`,
+        pVal ? [prospectId, pVal] : [prospectId]
       ),
     ]);
 
@@ -147,8 +170,9 @@ router.post('/preview', async (req, res, next) => {
     const template = templateRes.rows[0];
     const prospect = prospectRes.rows[0];
     const company = (prospect as unknown as { company: Company | null }).company;
+    const sender = await loadSenderProfile(req.user!.id);
 
-    const context = { prospect, company, custom: customValues };
+    const context = { prospect, company, custom: customValues, sender };
     const resolvedSubject = resolveTemplate(template.subject, template.variables, context);
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
 
@@ -178,13 +202,19 @@ router.post('/send', async (req, res, next) => {
       return;
     }
 
+    const { sql: tSql, value: tVal } = ownerFilter(req.user!, 'email_templates', 2);
+    const { sql: pSql, value: pVal } = ownerFilter(req.user!, 'p', 2);
+
     const [templateRes, prospectRes] = await Promise.all([
-      pool.query<EmailTemplate>('SELECT * FROM email_templates WHERE id = $1', [templateId]),
+      pool.query<EmailTemplate>(
+        `SELECT * FROM email_templates WHERE id = $1 ${tSql ? `AND ${tSql}` : ''}`,
+        tVal ? [templateId, tVal] : [templateId]
+      ),
       pool.query<Prospect>(
         `SELECT p.*, row_to_json(c) AS company
          FROM prospects p LEFT JOIN companies c ON c.id = p.company_id
-         WHERE p.id = $1`,
-        [prospectId]
+         WHERE p.id = $1 ${pSql ? `AND ${pSql}` : ''}`,
+        pVal ? [prospectId, pVal] : [prospectId]
       ),
     ]);
 
@@ -194,8 +224,9 @@ router.post('/send', async (req, res, next) => {
     const template = templateRes.rows[0];
     const prospect = prospectRes.rows[0];
     const company = (prospect as unknown as { company: Company | null }).company;
+    const sender = await loadSenderProfile(req.user!.id);
 
-    const context = { prospect, company, custom: customValues };
+    const context = { prospect, company, custom: customValues, sender };
     const resolvedSubject = resolveTemplate(template.subject, template.variables, context);
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
 
@@ -203,9 +234,9 @@ router.post('/send', async (req, res, next) => {
     const attachments = await getAttachments(allDocumentIds);
 
     const sendRecord = await pool.query<EmailSend>(
-      `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING *`,
-      [template.id, prospect.id, prospect.company_id, resolvedSubject, resolvedBody]
+      `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING *`,
+      [template.id, prospect.id, prospect.company_id, resolvedSubject, resolvedBody, req.user!.id]
     );
     const sendId = sendRecord.rows[0]!.id;
     const html = wrapEmailHtml(plainTextToHtml(resolvedBody), pixelUrl(sendId));
@@ -252,9 +283,18 @@ router.post('/send-company', async (req, res, next) => {
       return;
     }
 
+    const { sql: tSql, value: tVal } = ownerFilter(req.user!, 'email_templates', 2);
+    const { sql: cSql, value: cVal } = ownerFilter(req.user!, 'companies', 2);
+
     const [templateRes, companyRes] = await Promise.all([
-      pool.query<EmailTemplate>('SELECT * FROM email_templates WHERE id = $1', [templateId]),
-      pool.query<Company>('SELECT * FROM companies WHERE id = $1', [companyId]),
+      pool.query<EmailTemplate>(
+        `SELECT * FROM email_templates WHERE id = $1 ${tSql ? `AND ${tSql}` : ''}`,
+        tVal ? [templateId, tVal] : [templateId]
+      ),
+      pool.query<Company>(
+        `SELECT * FROM companies WHERE id = $1 ${cSql ? `AND ${cSql}` : ''}`,
+        cVal ? [companyId, cVal] : [companyId]
+      ),
     ]);
 
     if (!templateRes.rows[0]) { res.status(404).json({ error: 'Template not found' }); return; }
@@ -263,16 +303,18 @@ router.post('/send-company', async (req, res, next) => {
     const template = templateRes.rows[0];
     const company = companyRes.rows[0];
 
+    const { sql: pSql, value: pVal } = ownerFilter(req.user!, 'prospects', prospectIds?.length ? 3 : 2);
+
     let prospectsRes;
     if (prospectIds && prospectIds.length > 0) {
       prospectsRes = await pool.query<Prospect>(
-        `SELECT * FROM prospects WHERE id = ANY($1) AND company_id = $2`,
-        [prospectIds, companyId]
+        `SELECT * FROM prospects WHERE id = ANY($1) AND company_id = $2 ${pSql ? `AND ${pSql}` : ''}`,
+        pVal ? [prospectIds, companyId, pVal] : [prospectIds, companyId]
       );
     } else {
       prospectsRes = await pool.query<Prospect>(
-        'SELECT * FROM prospects WHERE company_id = $1',
-        [companyId]
+        `SELECT * FROM prospects WHERE company_id = $1 ${pSql ? `AND ${pSql}` : ''}`,
+        pVal ? [companyId, pVal] : [companyId]
       );
     }
 
@@ -285,17 +327,19 @@ router.post('/send-company', async (req, res, next) => {
     const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
     const attachments = await getAttachments(allDocumentIds);
     const provider = getEmailProvider();
+    const userId = req.user!.id;
+    const sender = await loadSenderProfile(userId);
 
     const results = await Promise.allSettled(
       prospects.map(async (prospect) => {
-        const context = { prospect, company, custom: customValues };
+        const context = { prospect, company, custom: customValues, sender };
         const subject = resolveTemplate(template.subject, template.variables, context);
         const body = resolveTemplate(template.body, template.variables, context);
 
         const sendRecord = await pool.query<EmailSend>(
-          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
-           VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING id`,
-          [template.id, prospect.id, company.id, subject, body]
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING id`,
+          [template.id, prospect.id, company.id, subject, body, userId]
         );
         const sendId = sendRecord.rows[0]!.id;
         const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));

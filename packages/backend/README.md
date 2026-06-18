@@ -6,12 +6,14 @@ Express 4 API server. TypeScript strict mode, ESM (`"type": "module"`), Node.js 
 
 ## Entry point
 
-`src/index.ts` — creates the Express app, runs DB migration, then starts listening.
+`src/index.ts` — creates the Express app, runs the DB migration, seeds the admin user, then starts listening.
 
 Startup order:
-1. Validate required env vars (`src/config.ts`)
-2. Run `migrate()` — creates tables if missing, runs column migrations
-3. Start HTTP server
+1. Validate env vars (`src/config.ts`)
+2. `migrate()` — creates tables, runs incremental column migrations
+3. `seedAdminUser()` — upserts the admin account from `ADMIN_USERNAME` / `ADMIN_PASSWORD`
+4. `startScheduler()` — starts the cron job that fires pending email schedules
+5. HTTP server starts
 
 ---
 
@@ -19,106 +21,224 @@ Startup order:
 
 ```
 src/
-├── config.ts                  # Typed env vars — edit here to add new ones
-├── index.ts                   # App bootstrap
+├── config.ts                    # Typed env vars — add new ones here
+├── index.ts                     # App bootstrap
 ├── db/
-│   ├── index.ts               # pg Pool instance (import `pool` from here)
-│   └── migrate.ts             # Schema + incremental column migrations (idempotent)
+│   ├── index.ts                 # pg Pool singleton (import `pool` from here)
+│   └── migrate.ts               # Schema + incremental column migrations (idempotent)
 ├── middleware/
-│   ├── auth.ts                # Bearer-token auth — swap this for real auth
-│   └── errorHandler.ts        # Global Express error handler
+│   ├── auth.ts                  # JWT verification, attaches req.user
+│   ├── ownerFilter.ts           # Row-level isolation helper
+│   └── errorHandler.ts          # Global Express error handler
 ├── routes/
-│   ├── index.ts               # Mounts all routers; applies authMiddleware
-│   ├── auth.ts                # POST /api/auth/login, GET /api/auth/me
-│   ├── companies.ts           # CRUD for companies
-│   ├── prospects.ts           # CRUD for prospects
-│   ├── templates.ts           # CRUD for email templates + detect-variables
-│   └── email.ts               # preview, send, send-company, history
+│   ├── index.ts                 # Mounts all routers
+│   ├── auth.ts                  # /auth — login, signup, me, profile
+│   ├── users.ts                 # /users — admin-only user management
+│   ├── companies.ts             # /companies — CRUD
+│   ├── prospects.ts             # /prospects — CRUD + quick-add
+│   ├── templates.ts             # /templates — CRUD + detect-variables
+│   ├── email.ts                 # /email — preview, send, send-company, history, retry
+│   ├── schedules.ts             # /schedules — future sends
+│   ├── documents.ts             # /documents — file upload/delete
+│   ├── variable-presets.ts      # /variable-presets — saved variable mappings
+│   ├── import.ts                # /import — CSV parsing + bulk prospect import
+│   ├── stats.ts                 # /stats — dashboard stats
+│   ├── settings.ts              # /settings — key/value store
+│   └── track.ts                 # /track — email open pixel (public, no auth)
 ├── services/
 │   ├── email/
-│   │   ├── types.ts           # EmailProvider interface — implement this to swap providers
-│   │   ├── resend.ts          # Resend implementation
-│   │   └── index.ts           # Factory — returns the active provider singleton
-│   └── templateEngine.ts      # {{variable}} resolution and plain-text → HTML
+│   │   ├── types.ts             # EmailProvider interface
+│   │   ├── resend.ts            # Resend implementation
+│   │   ├── gmail.ts             # Gmail/Nodemailer implementation
+│   │   └── index.ts             # Factory — picks provider from env
+│   ├── templateEngine.ts        # {{variable}} resolution + plain-text → HTML
+│   ├── attachmentHelper.ts      # Loads documents from disk for attachments
+│   └── scheduler.ts             # node-cron job — processes pending email_schedules
 └── types/
-    └── index.ts               # Shared TypeScript interfaces + prospectFullName helper
+    └── index.ts                 # Shared TypeScript interfaces
 ```
+
+---
+
+## Authentication
+
+JWT-based. Every protected route requires `Authorization: Bearer <token>`.
+
+- `POST /api/auth/login` — validates username + password (bcrypt), returns a signed JWT
+- `POST /api/auth/signup` — public, creates `role=user` account, returns JWT
+- `GET /api/auth/me` — returns the current user's full profile
+- `PATCH /api/auth/profile` — updates the current user's profile fields
+
+**Middleware:**
+
+```typescript
+// src/middleware/auth.ts
+authMiddleware          // verifies JWT, attaches req.user: AuthenticatedUser
+requireRole('admin')    // factory — rejects requests from non-admin users
+```
+
+**JWT payload:**
+
+```typescript
+{ id: string; username: string; role: 'admin' | 'user' }
+```
+
+---
+
+## Data isolation
+
+Every data table has a `created_by UUID REFERENCES users(id)` column. Non-admin users only see their own rows; admins see everything.
+
+The `ownerFilter` helper in `src/middleware/ownerFilter.ts` generates the WHERE clause fragment:
+
+```typescript
+ownerFilter(req.user!, 'es', params.length + 1)
+// admin  → { sql: '',                          value: null }
+// user   → { sql: 'es.created_by = $3',        value: '...' }
+```
+
+Apply it in every route that lists or looks up data. INSERT routes set `created_by = req.user!.id`.
 
 ---
 
 ## API routes
 
-All routes except `/api/auth/*` require `Authorization: Bearer <ADMIN_PASSWORD>`.
+`/api/auth/*` and `/api/track/*` are public. Everything else requires a valid JWT.
 
 ### Auth
-| Method | Path | Body | Description |
+
+| Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/login` | `{ password }` | Returns `{ token }` on success |
-| GET | `/api/auth/me` | — | 200 if token valid, 401 otherwise |
+| POST | `/api/auth/login` | public | `{ username, password }` → `{ token, user }` |
+| POST | `/api/auth/signup` | public | `{ username, password, email? }` → `{ token, user }` |
+| GET | `/api/auth/me` | required | Returns current user with profile fields |
+| PATCH | `/api/auth/profile` | required | Update profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`) |
+
+### Users (admin only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/users` | List all users |
+| POST | `/api/users` | Create user `{ username, password, email?, role? }` |
+| PATCH | `/api/users/:id` | Update `email`, `role`, `is_active`, `password` |
+| DELETE | `/api/users/:id` | Delete (cannot delete self) |
 
 ### Companies
-| Method | Path | Body | Description |
-|---|---|---|---|
-| GET | `/api/companies` | — | List all (includes `prospect_count`) |
-| POST | `/api/companies` | `{ name, website?, industry? }` | Create |
-| GET | `/api/companies/:id` | — | Single company with nested `prospects[]` |
-| PATCH | `/api/companies/:id` | any subset of fields | Partial update |
-| DELETE | `/api/companies/:id` | — | Delete |
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/companies` | List (includes `prospect_count`) |
+| POST | `/api/companies` | Create `{ name, website?, industry? }` |
+| GET | `/api/companies/:id` | Single company with nested `prospects[]` |
+| PATCH | `/api/companies/:id` | Partial update |
+| DELETE | `/api/companies/:id` | Delete |
+| POST | `/api/companies/:id/merge` | Merge source company into target `{ sourceId }` |
 
 ### Prospects
-| Method | Path | Body | Description |
-|---|---|---|---|
-| GET | `/api/prospects` | `?company_id=` | List (filterable by company) |
-| POST | `/api/prospects` | `{ first_name, last_name?, email, company_id?, job_title?, phone?, linkedin_url?, notes? }` | Create |
-| GET | `/api/prospects/:id` | — | Single prospect with nested `company` |
-| PATCH | `/api/prospects/:id` | any subset of fields | Partial update |
-| DELETE | `/api/prospects/:id` | — | Delete |
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/prospects` | List — query params: `company_id`, `role_category`, `search`, `sort_by`, `sort_dir`, `limit`, `offset` |
+| POST | `/api/prospects` | Create |
+| GET | `/api/prospects/:id` | Single prospect with nested `company` |
+| PATCH | `/api/prospects/:id` | Partial update |
+| DELETE | `/api/prospects/:id` | Delete |
+| POST | `/api/prospects/quick-add` | Create or update from minimal data (used by extension) |
 
 ### Email templates
-| Method | Path | Body | Description |
-|---|---|---|---|
-| GET | `/api/templates` | — | List all |
-| POST | `/api/templates` | `{ name, subject, body, description?, job_description?, variables? }` | Create |
-| GET | `/api/templates/:id` | — | Single template |
-| PATCH | `/api/templates/:id` | any subset | Partial update |
-| DELETE | `/api/templates/:id` | — | Delete |
-| POST | `/api/templates/:id/detect-variables` | `{ existing: TemplateVariable[] }` | Scan body+subject for `{{placeholders}}`, return new ones not yet in `existing` |
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/templates` | List all |
+| POST | `/api/templates` | Create `{ name, subject, body, description?, variables?, document_ids? }` |
+| GET | `/api/templates/:id` | Single template |
+| PATCH | `/api/templates/:id` | Partial update |
+| DELETE | `/api/templates/:id` | Delete |
+| POST | `/api/templates/:id/detect-variables` | Scan `subject+body` for `{{placeholders}}`, return new keys not in `existing` |
 
 ### Email
-| Method | Path | Body | Description |
-|---|---|---|---|
-| POST | `/api/email/preview` | `{ templateId, prospectId, customValues? }` | Resolve variables and return `{ subject, body, html }` — does not send |
-| POST | `/api/email/send` | `{ templateId, prospectId, customValues? }` | Send to one prospect |
-| POST | `/api/email/send-company` | `{ templateId, companyId, prospectIds?, customValues? }` | Send to all (or selected) prospects at a company |
-| GET | `/api/email/history` | `?limit=50&offset=0` | Paginated send log |
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/email/preview` | Resolve variables → `{ subject, body, html }` — no send |
+| POST | `/api/email/send` | Send to one prospect |
+| POST | `/api/email/send-company` | Send to all (or filtered) prospects at a company |
+| GET | `/api/email/history` | Paginated send log — filters: `status`, `search`, `company_id`, `template_id` |
+| POST | `/api/email/retry/:id` | Retry a failed send |
+
+### Schedules
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/schedules` | List all schedules |
+| POST | `/api/schedules` | Create `{ templateId, companyId, prospectIds?, customValues?, scheduledFor, documentIds? }` |
+| GET | `/api/schedules/:id` | Detail with nested `prospects[]` |
+| DELETE | `/api/schedules/:id` | Cancel (pending only) |
+
+### Documents
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/documents` | List |
+| POST | `/api/documents` | Upload (multipart/form-data: `document` file + `name` field) |
+| DELETE | `/api/documents/:id` | Delete |
+
+### Variable presets
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/variable-presets` | List |
+| POST | `/api/variable-presets` | Create `{ key, label, source, field?, default_value }` |
+| PUT | `/api/variable-presets/:id` | Replace |
+| DELETE | `/api/variable-presets/:id` | Delete |
+
+### Other
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/stats` | Dashboard stats (scoped to user or all for admin) |
+| POST | `/api/import/parse` | Parse CSV/Excel file, return headers + preview rows |
+| POST | `/api/import/prospects` | Bulk create prospects from parsed rows |
+| GET | `/api/track/open/:id.gif` | Email open tracking pixel (public) |
 
 ---
 
 ## Database
 
-### Schema
+### Schema (key tables)
 
 ```sql
-companies (id, name, website, industry, created_at, updated_at)
+users (id UUID PK, username, email, password_hash, role, is_active,
+       first_name, last_name, current_company, job_title, phone, website, bio,
+       created_at, updated_at)
 
-prospects (id, company_id→companies, first_name, last_name, email,
-           job_title, linkedin_url, phone, notes, created_at, updated_at)
-
+companies      (id, name, website, industry, created_by→users, created_at, updated_at)
+prospects      (id, company_id→companies, first_name, last_name, email,
+                job_title, role_category, linkedin_url, phone, notes,
+                created_by→users, created_at, updated_at)
 email_templates (id, name, description, subject, body, job_description,
-                 variables JSONB, created_at, updated_at)
-
-email_sends (id, template_id→email_templates, prospect_id→prospects,
-             company_id→companies, subject, body, status,
-             resend_id, sent_at, error_message, created_at)
+                 variables JSONB, document_ids UUID[],
+                 created_by→users, created_at, updated_at)
+email_sends     (id, template_id, prospect_id, company_id, subject, body,
+                 status, resend_id, sent_at, error_message, opened_at, open_count,
+                 created_by→users, created_at)
+email_schedules (id, template_id, company_id, prospect_ids UUID[],
+                 custom_values JSONB, scheduled_for, status,
+                 total_prospects, sent_count, failed_count, document_ids UUID[],
+                 created_by→users, created_at, sent_at)
+documents       (id, name, filename, path, size, created_by→users, created_at)
+variable_presets (id, key, label, source, field, default_value,
+                  created_by→users, created_at, updated_at)
 ```
 
 ### Migrations
 
-`migrate.ts` runs on every startup. It is **idempotent** — uses `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. Column-level changes use `DO $$ ... END $$` blocks that check `information_schema.columns` before altering.
+`migrate.ts` runs on every startup. It is **idempotent** — `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and `DO $$ ... END $$` blocks that check `information_schema.columns` before altering.
 
 **To add a new column:**
+
 ```typescript
-// In migrate.ts, add a new DO block after the SCHEMA const:
+// In migrate.ts, add a DO block and call it in migrate():
 const MIGRATE_MY_COLUMN = `
 DO $$
 BEGIN
@@ -130,68 +250,64 @@ BEGIN
   END IF;
 END $$;
 `;
-// Then call: await pool.query(MIGRATE_MY_COLUMN); inside migrate()
 ```
 
 ---
 
 ## Template variable system
 
-`TemplateVariable` (defined in `types/index.ts`):
+`TemplateVariable` (from `types/index.ts`):
 
 ```typescript
 {
-  key: string          // placeholder name — used as {{key}} in templates
-  label: string        // human-readable label shown in UI
-  source: 'prospect' | 'company' | 'static' | 'custom'
-  field?: string       // which field on prospect/company to read
+  key: string          // used as {{key}} in templates
+  label: string        // shown in the UI
+  source: 'prospect' | 'company' | 'sender' | 'static' | 'custom'
+  field?: string       // which field to read (for prospect/company/sender)
   defaultValue?: string
 }
 ```
 
-Resolution happens in `services/templateEngine.ts → resolveTemplate()`:
+Resolution in `services/templateEngine.ts → resolveTemplate()`:
 
-| `source` | Resolved from |
+| source | Resolved from |
 |---|---|
 | `prospect` | `prospect[field]` |
 | `company` | `company[field]` |
-| `static` | `variable.defaultValue` (set once in the template editor) |
-| `custom` | `customValues[key]` — the caller provides a value per send |
+| `sender` | sending user's profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`) |
+| `static` | `variable.defaultValue` |
+| `custom` | `customValues[key]` — provided by the caller at send time |
 
-To add a new source type, update `VariableSource` in `types/index.ts` and add a branch in `resolveTemplate`.
+The scheduler resolves `sender` by loading the profile of the user who created the schedule (`created_by`).
 
 ---
 
-## Email provider
+## Email providers
 
-The `EmailProvider` interface (`services/email/types.ts`):
+`EmailProvider` interface (`services/email/types.ts`):
 
 ```typescript
 interface EmailProvider {
-  send(options: { to, subject, html, replyTo? }): Promise<{ id: string }>;
+  send(options: { to: string; subject: string; html: string; attachments?: ...; replyTo?: string }): Promise<{ id: string }>;
 }
 ```
 
-To swap Resend for another provider:
-1. Create a new file in `services/email/` implementing `EmailProvider`
-2. In `services/email/index.ts`, change what `getEmailProvider()` instantiates
+`services/email/index.ts → getEmailProvider()` picks the active provider:
+- **Gmail** — if `GMAIL_USER` and `GMAIL_APP_PASSWORD` are set
+- **Resend** — if `RESEND_API_KEY` is set
+
+To add a provider, implement the interface and update the factory.
 
 ---
 
-## Adding a new route
+## Email scheduler
 
-1. Create `src/routes/my-resource.ts` — export a default `Router`
-2. Register it in `src/routes/index.ts`:
-   ```typescript
-   import myRouter from './my-resource.js';
-   router.use('/my-resource', authMiddleware, myRouter);
-   ```
-3. Add types to `src/types/index.ts` if needed
+`services/scheduler.ts` runs a `node-cron` job every minute. It picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs in the schedule, and updates counts. The sender profile is loaded from `created_by` on the schedule row so `{{sender…}}` variables resolve correctly.
 
 ---
 
 ## TypeScript notes
 
-- Module system: **ESM** (`"type": "module"` in package.json). All relative imports must use `.js` extension even though source files are `.ts`.
-- `pg` is a CommonJS module — import as `import pg from 'pg'; const { Pool } = pg;`
-- Run with `tsx` in dev, compile with `tsc` for production.
+- Module system: **ESM** (`"type": "module"`). All relative imports need `.js` extension even though source files are `.ts`.
+- `pg` is CommonJS — import as `import pg from 'pg'; const { Pool } = pg;`
+- Dev: `tsx watch`, prod: compile with `tsc` then run with `node`.

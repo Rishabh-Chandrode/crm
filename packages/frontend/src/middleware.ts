@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/login', '/signup'];
 
 export function middleware(request: NextRequest): NextResponse {
   const token = request.cookies.get('crm_token')?.value;
@@ -13,7 +13,7 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (token && pathname === '/login') {
+  if (token && (pathname === '/login' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

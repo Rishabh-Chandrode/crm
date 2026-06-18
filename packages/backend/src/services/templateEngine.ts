@@ -1,4 +1,4 @@
-import type { TemplateVariable, Prospect, Company } from '../types/index.js';
+import type { TemplateVariable, Prospect, Company, SenderProfile } from '../types/index.js';
 
 export function toVariableLabel(key: string): string {
   return key
@@ -12,6 +12,7 @@ interface ResolutionContext {
   prospect: Prospect;
   company: Company | null;
   custom: Record<string, string>;
+  sender?: SenderProfile | null;
 }
 
 export function resolveTemplate(
@@ -35,6 +36,9 @@ export function resolveTemplate(
       value = variable.defaultValue ?? '';
     } else if (variable.source === 'custom') {
       value = context.custom[variable.key] ?? (variable.defaultValue ?? '');
+    } else if (variable.source === 'sender' && variable.field && context.sender) {
+      const raw = (context.sender as unknown as Record<string, unknown>)[variable.field];
+      value = raw != null ? String(raw) : (variable.defaultValue ?? '');
     }
 
     result = result.replaceAll(placeholder, value);

@@ -1,3 +1,38 @@
+export type UserRole = 'admin' | 'user';
+
+export interface User {
+  id: string;
+  username: string;
+  email: string | null;
+  role: UserRole;
+  is_active: boolean;
+  first_name: string | null;
+  last_name: string | null;
+  current_company: string | null;
+  job_title: string | null;
+  phone: string | null;
+  website: string | null;
+  bio: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type SenderProfile = Pick<User, 'first_name' | 'last_name' | 'email' | 'current_company' | 'job_title' | 'phone' | 'website'>;
+
+export interface AuthenticatedUser {
+  id: string;
+  username: string;
+  role: UserRole;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+    }
+  }
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -27,7 +62,7 @@ export function prospectFullName(p: Pick<Prospect, 'first_name' | 'last_name'>):
   return [p.first_name, p.last_name].filter(Boolean).join(' ');
 }
 
-export type VariableSource = 'prospect' | 'company' | 'static' | 'custom';
+export type VariableSource = 'prospect' | 'company' | 'static' | 'custom' | 'sender';
 
 export interface TemplateVariable {
   key: string;

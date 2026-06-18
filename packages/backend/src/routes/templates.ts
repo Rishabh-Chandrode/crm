@@ -1,15 +1,20 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
+import { ownerFilter } from '../middleware/ownerFilter.js';
 import type { EmailTemplate, TemplateVariable } from '../types/index.js';
 import { extractPlaceholders, toVariableLabel } from '../services/templateEngine.js';
 import type { VariablePreset } from './variable-presets.js';
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
+    const { sql, value } = ownerFilter(req.user!, 'email_templates', 1);
+    const where = sql ? `WHERE ${sql}` : '';
+    const params = value ? [value] : [];
     const result = await pool.query<EmailTemplate>(
-      'SELECT * FROM email_templates ORDER BY name ASC'
+      `SELECT * FROM email_templates ${where} ORDER BY name ASC`,
+      params
     );
     res.json({ data: result.rows });
   } catch (err) {
@@ -27,8 +32,8 @@ router.post('/', async (req, res, next) => {
     if (!body?.trim()) { res.status(400).json({ error: 'body is required' }); return; }
 
     const result = await pool.query<EmailTemplate>(
-      `INSERT INTO email_templates (name, description, subject, body, job_description, variables, document_ids)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      `INSERT INTO email_templates (name, description, subject, body, job_description, variables, document_ids, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
         name.trim(),
         description ?? null,
@@ -37,6 +42,7 @@ router.post('/', async (req, res, next) => {
         job_description ?? null,
         JSON.stringify(variables ?? []),
         document_ids ?? [],
+        req.user!.id,
       ]
     );
     res.status(201).json({ data: result.rows[0] });
@@ -48,9 +54,14 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'email_templates', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
     const result = await pool.query<EmailTemplate>(
-      'SELECT * FROM email_templates WHERE id = $1',
-      [id]
+      `SELECT * FROM email_templates WHERE id = $1 ${ownerWhere}`,
+      params
     );
     if (!result.rows[0]) {
       res.status(404).json({ error: 'Template not found' });
@@ -92,8 +103,12 @@ router.patch('/:id', async (req, res, next) => {
     fields.push('updated_at = NOW()');
     values.push(id);
 
+    const { sql, value } = ownerFilter(req.user!, 'email_templates', values.length + 1);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    if (value) values.push(value);
+
     const result = await pool.query<EmailTemplate>(
-      `UPDATE email_templates SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+      `UPDATE email_templates SET ${fields.join(', ')} WHERE id = $${values.length - (value ? 1 : 0)} ${ownerWhere} RETURNING *`,
       values
     );
     if (!result.rows[0]) {
@@ -109,9 +124,14 @@ router.patch('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'email_templates', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
     const result = await pool.query<{ id: string }>(
-      'DELETE FROM email_templates WHERE id = $1 RETURNING id',
-      [id]
+      `DELETE FROM email_templates WHERE id = $1 ${ownerWhere} RETURNING id`,
+      params
     );
     if (!result.rows[0]) {
       res.status(404).json({ error: 'Template not found' });
@@ -126,9 +146,14 @@ router.delete('/:id', async (req, res, next) => {
 router.post('/:id/detect-variables', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'email_templates', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
     const result = await pool.query<EmailTemplate>(
-      'SELECT subject, body FROM email_templates WHERE id = $1',
-      [id]
+      `SELECT subject, body FROM email_templates WHERE id = $1 ${ownerWhere}`,
+      params
     );
     if (!result.rows[0]) {
       res.status(404).json({ error: 'Template not found' });

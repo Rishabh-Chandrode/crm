@@ -1,17 +1,23 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
+import { ownerFilter } from '../middleware/ownerFilter.js';
 import type { Company } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
+    const { sql, value } = ownerFilter(req.user!, 'c', 1);
+    const where = sql ? `WHERE ${sql}` : '';
+    const params = value ? [value] : [];
     const result = await pool.query<Company>(
       `SELECT c.*, COUNT(p.id)::int AS prospect_count
        FROM companies c
        LEFT JOIN prospects p ON p.company_id = c.id
+       ${where}
        GROUP BY c.id
-       ORDER BY c.name ASC`
+       ORDER BY c.name ASC`,
+      params
     );
     res.json({ data: result.rows });
   } catch (err) {
@@ -27,9 +33,9 @@ router.post('/', async (req, res, next) => {
       return;
     }
     const result = await pool.query<Company>(
-      `INSERT INTO companies (name, website, industry)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [name.trim(), website ?? null, industry ?? null]
+      `INSERT INTO companies (name, website, industry, created_by)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [name.trim(), website ?? null, industry ?? null, req.user!.id]
     );
     res.status(201).json({ data: result.rows[0] });
   } catch (err) {
@@ -44,8 +50,13 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'c', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
     const [companyRes, prospectsRes] = await Promise.all([
-      pool.query<Company>('SELECT * FROM companies WHERE id = $1', [id]),
+      pool.query<Company>(`SELECT * FROM companies c WHERE c.id = $1 ${ownerWhere}`, params),
       pool.query(
         'SELECT * FROM prospects WHERE company_id = $1 ORDER BY first_name ASC, last_name ASC',
         [id]
@@ -81,8 +92,12 @@ router.patch('/:id', async (req, res, next) => {
     fields.push(`updated_at = NOW()`);
     values.push(id);
 
+    const { sql, value } = ownerFilter(req.user!, 'companies', values.length + 1);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    if (value) values.push(value);
+
     const result = await pool.query<Company>(
-      `UPDATE companies SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+      `UPDATE companies SET ${fields.join(', ')} WHERE id = $${values.length - (value ? 1 : 0)} ${ownerWhere} RETURNING *`,
       values
     );
     if (!result.rows[0]) {
@@ -108,9 +123,13 @@ router.post('/:id/merge', async (req, res, next) => {
     if (!sourceId) { res.status(400).json({ error: 'sourceId is required' }); return; }
     if (sourceId === targetId) { res.status(400).json({ error: 'Cannot merge a company into itself' }); return; }
 
+    const { sql, value } = ownerFilter(req.user!, 'c', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const ownerParams = (id: string) => value ? [id, value] : [id];
+
     const [targetRes, sourceRes] = await Promise.all([
-      client.query<Company>('SELECT * FROM companies WHERE id = $1', [targetId]),
-      client.query<Company>('SELECT * FROM companies WHERE id = $1', [sourceId]),
+      client.query<Company>(`SELECT * FROM companies c WHERE c.id = $1 ${ownerWhere}`, ownerParams(targetId)),
+      client.query<Company>(`SELECT * FROM companies c WHERE c.id = $1 ${ownerWhere}`, ownerParams(sourceId)),
     ]);
     if (!targetRes.rows[0]) { res.status(404).json({ error: 'Target company not found' }); return; }
     if (!sourceRes.rows[0]) { res.status(404).json({ error: 'Source company not found' }); return; }
@@ -134,9 +153,14 @@ router.post('/:id/merge', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'companies', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
     const result = await pool.query<{ id: string }>(
-      'DELETE FROM companies WHERE id = $1 RETURNING id',
-      [id]
+      `DELETE FROM companies WHERE id = $1 ${ownerWhere} RETURNING id`,
+      params
     );
     if (!result.rows[0]) {
       res.status(404).json({ error: 'Company not found' });

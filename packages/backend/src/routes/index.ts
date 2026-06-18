@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authRouter from './auth.js';
+import usersRouter from './users.js';
 import companiesRouter from './companies.js';
 import prospectsRouter from './prospects.js';
 import templatesRouter from './templates.js';
@@ -16,6 +17,7 @@ import { authMiddleware } from '../middleware/auth.js';
 const router: ReturnType<typeof Router> = Router();
 
 router.use('/auth', authRouter);
+router.use('/users', usersRouter);
 router.use('/track', trackRouter); // public — email clients don't send auth headers
 
 router.use('/companies',  authMiddleware, companiesRouter);

@@ -1,3 +1,30 @@
+export interface CrmUser {
+  id: string;
+  username: string;
+  email: string | null;
+  role: 'admin' | 'user';
+  is_active: boolean;
+  first_name: string | null;
+  last_name: string | null;
+  current_company: string | null;
+  job_title: string | null;
+  phone: string | null;
+  website: string | null;
+  bio: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const SENDER_FIELDS: { value: string; label: string }[] = [
+  { value: 'first_name',       label: 'First Name' },
+  { value: 'last_name',        label: 'Last Name' },
+  { value: 'email',            label: 'Email' },
+  { value: 'current_company',  label: 'Current Company' },
+  { value: 'job_title',        label: 'Job Title' },
+  { value: 'phone',            label: 'Phone' },
+  { value: 'website',          label: 'Website' },
+];
+
 export interface Company {
   id: string;
   name: string;
@@ -28,7 +55,7 @@ export function prospectFullName(p: Pick<Prospect, 'first_name' | 'last_name'>):
   return [p.first_name, p.last_name].filter(Boolean).join(' ');
 }
 
-export type VariableSource = 'prospect' | 'company' | 'static' | 'custom';
+export type VariableSource = 'prospect' | 'company' | 'static' | 'custom' | 'sender';
 
 export interface TemplateVariable {
   key: string;

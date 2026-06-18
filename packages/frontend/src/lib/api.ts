@@ -35,12 +35,42 @@ async function request<T>(
 
 export const api = {
   auth: {
-    login: (password: string) =>
-      request<{ token: string }>('/auth/login', {
+    login: (username: string, password: string) =>
+      request<{ token: string; user: { id: string; username: string; email: string | null; role: string } }>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       }),
-    me: () => request<{ authenticated: boolean }>('/auth/me'),
+    me: () => request<{ user: import('./types').CrmUser }>('/auth/me'),
+    updateProfile: (body: {
+      first_name?: string | null; last_name?: string | null; email?: string | null;
+      current_company?: string | null; job_title?: string | null; phone?: string | null;
+      website?: string | null; bio?: string | null;
+    }) =>
+      request<{ user: import('./types').CrmUser }>('/auth/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    signup: (username: string, password: string, email?: string) =>
+      request<{ token: string; user: { id: string; username: string; email: string | null; role: string } }>('/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({ username, password, email }),
+      }),
+  },
+
+  users: {
+    list: () => request<{ data: import('./types').CrmUser[] }>('/users'),
+    create: (body: { username: string; password: string; email?: string; role?: string }) =>
+      request<{ data: import('./types').CrmUser }>('/users', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: { email?: string; role?: string; is_active?: boolean; password?: string }) =>
+      request<{ data: import('./types').CrmUser }>(`/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<{ data: { id: string } }>(`/users/${id}`, { method: 'DELETE' }),
   },
 
   companies: {

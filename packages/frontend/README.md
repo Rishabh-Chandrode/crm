@@ -1,6 +1,6 @@
 # Frontend
 
-Next.js 14 with App Router, React 18, Tailwind CSS. Strict TypeScript. No third-party data-fetching library — uses native `fetch` via a typed API client.
+Next.js 14 with App Router, React 18, Tailwind CSS. Strict TypeScript. No third-party data-fetching library — all backend calls go through a typed `api.*` client backed by native `fetch`.
 
 ---
 
@@ -8,42 +8,40 @@ Next.js 14 with App Router, React 18, Tailwind CSS. Strict TypeScript. No third-
 
 ```
 src/
-├── middleware.ts              # Next.js edge middleware — redirects unauthenticated users
+├── middleware.ts                  # Edge middleware — redirects unauthenticated users
 ├── app/
-│   ├── layout.tsx             # Root HTML shell, imports globals.css
-│   ├── page.tsx               # Redirects / → /dashboard
-│   ├── globals.css            # Tailwind directives + shared component classes
-│   ├── login/
-│   │   └── page.tsx           # Login form — sets crm_token cookie on success
-│   └── (dashboard)/           # Route group — shares the sidebar layout
-│       ├── layout.tsx         # Renders <Sidebar> + <main>
-│       ├── dashboard/page.tsx # Stats overview + recent sends table
-│       ├── companies/page.tsx # Company CRUD (table + modal form)
-│       ├── prospects/page.tsx # Prospect CRUD (table + modal form)
-│       ├── templates/page.tsx # Template CRUD + variable manager editor
-│       ├── send/page.tsx      # 4-step send wizard
-│       └── history/page.tsx   # Paginated email send log
+│   ├── layout.tsx                 # Root HTML shell, imports globals.css
+│   ├── page.tsx                   # Redirects / → /dashboard
+│   ├── globals.css                # Tailwind directives + shared component classes
+│   ├── login/page.tsx             # Login form (username + password)
+│   ├── signup/page.tsx            # Signup form (username, email?, password)
+│   └── (dashboard)/               # Route group — shares sidebar layout
+│       ├── layout.tsx             # Renders <Sidebar> + <main>
+│       ├── dashboard/page.tsx     # Stats overview + charts + recent activity
+│       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
+│       ├── prospects/page.tsx     # Prospect CRUD (table + filters + pagination)
+│       ├── templates/page.tsx     # Template CRUD + variable manager
+│       ├── send/page.tsx          # Multi-step send wizard
+│       ├── history/page.tsx       # Paginated email send log
+│       ├── scheduled/page.tsx     # Email schedule list + cancel
+│       ├── settings/page.tsx      # Profile, Documents, Template Variables
+│       └── users/page.tsx         # Admin-only user management
 ├── components/
-│   └── Sidebar.tsx            # Left nav — links + logout button
+│   └── Sidebar.tsx                # Left nav with user info + sign-out
 └── lib/
-    ├── types.ts               # TypeScript interfaces mirroring backend types
-    └── api.ts                 # Typed fetch wrapper — all backend calls go here
+    ├── types.ts                   # TypeScript interfaces mirroring backend types
+    └── api.ts                     # Typed fetch wrapper — all backend calls go here
 ```
 
 ---
 
 ## Authentication flow
 
-1. User visits any protected route → `middleware.ts` checks for `crm_token` cookie → redirects to `/login` if missing.
-2. Login page calls `POST /api/auth/login` with the password.
-3. On success, sets `document.cookie = 'crm_token=<password>; ...'` (7-day expiry).
+1. Any protected route → `middleware.ts` checks for `crm_token` cookie → redirects to `/login` if missing.
+2. Logged-in users visiting `/login` or `/signup` are redirected to `/dashboard`.
+3. Login/signup pages call `POST /api/auth/login` or `POST /api/auth/signup`, receive a JWT, and store it as `document.cookie = 'crm_token=<jwt>; max-age=604800; path=/'`.
 4. All `api.*` calls in `lib/api.ts` read the cookie and send `Authorization: Bearer <token>`.
-5. Logout: `Sidebar.tsx` clears the cookie via `max-age=0` and redirects to `/login`.
-
-**To swap to real auth (e.g. JWT/OAuth):**
-- `login/page.tsx` — change what gets stored in the cookie
-- `lib/api.ts → getToken()` — change how the token is read
-- `middleware.ts` — optionally add server-side token validation
+5. Sign-out: `Sidebar.tsx` clears the cookie (`max-age=0`) and redirects to `/login`.
 
 ---
 
@@ -52,21 +50,41 @@ src/
 All backend calls go through `api.*` — never call `fetch` directly from pages.
 
 ```typescript
-// Pattern for every resource:
-api.companies.list()           // GET /api/companies
-api.companies.create(body)     // POST /api/companies
-api.companies.update(id, body) // PATCH /api/companies/:id
-api.companies.delete(id)       // DELETE /api/companies/:id
+// Auth
+api.auth.login(username, password)          // POST /api/auth/login
+api.auth.signup(username, password, email?) // POST /api/auth/signup
+api.auth.me()                               // GET  /api/auth/me
+api.auth.updateProfile(fields)              // PATCH /api/auth/profile
 
-api.prospects.list(companyId?) // optional filter
-api.templates.detectVariables(id, existingVars)
+// Users (admin only)
+api.users.list()
+api.users.create(body)
+api.users.update(id, body)
+api.users.delete(id)
+
+// Standard CRUD pattern (companies, prospects, templates)
+api.companies.list()
+api.companies.get(id)
+api.companies.create(body)
+api.companies.update(id, body)
+api.companies.delete(id)
+api.companies.merge(targetId, sourceId)
+
+// Email
 api.email.preview(templateId, prospectId, customValues?)
-api.email.send(templateId, prospectId, customValues?)
-api.email.sendCompany(templateId, companyId, prospectIds?, customValues?)
-api.email.history(limit, offset)
-```
+api.email.send(templateId, prospectId, customValues?, documentIds?)
+api.email.sendCompany(templateId, companyId, prospectIds?, customValues?, documentIds?)
+api.email.history(limit, offset, filters?)
+api.email.retry(id)
 
-All methods return typed promises — the return types are inlined in `lib/api.ts`.
+// Schedules, Documents, Variable Presets, Stats, Import
+api.schedules.list() / .create() / .get(id) / .cancel(id)
+api.documents.list() / .upload(file, name) / .delete(id)
+api.variablePresets.list() / .create() / .update() / .delete()
+api.stats.get()
+api.import.parse(file)
+api.import.prospects(body)
+```
 
 **To add a new resource:**
 1. Add the interface to `lib/types.ts`
@@ -78,76 +96,75 @@ All methods return typed promises — the return types are inlined in `lib/api.t
 
 Mirrors backend `src/types/index.ts`. Keep both in sync when the schema changes.
 
-Key exported items:
+Key exports:
 
 | Export | Purpose |
 |---|---|
-| `Company`, `Prospect`, `EmailTemplate`, `EmailSend` | Core data interfaces |
-| `prospectFullName(p)` | Combines `first_name` + `last_name` into a display string |
-| `PROSPECT_FIELDS` | Field options for the template variable mapper (prospect source) |
-| `COMPANY_FIELDS` | Field options for the template variable mapper (company source) |
+| `CrmUser` | User account with profile fields |
+| `Company`, `Prospect`, `EmailTemplate`, `EmailSend`, `EmailSchedule` | Core data interfaces |
+| `VariableSource` | `'prospect' \| 'company' \| 'sender' \| 'static' \| 'custom'` |
+| `TemplateVariable`, `VariablePreset` | Template variable types |
+| `PROSPECT_FIELDS` | Field options for the variable mapper (prospect source) |
+| `COMPANY_FIELDS` | Field options for the variable mapper (company source) |
+| `SENDER_FIELDS` | Field options for the variable mapper (sender/profile source) |
+| `prospectFullName(p)` | Combines `first_name` + `last_name` |
+| `buildVariableFromKey(key, presets)` | Resolves a key against saved presets |
 
-When a new prospect or company field is added to the DB:
-1. Add it to the `Prospect` / `Company` interface
-2. Add it to `PROSPECT_FIELDS` / `COMPANY_FIELDS` if it should be available as a template variable
+---
+
+## Pages overview
+
+### Settings (`/settings`)
+
+Three tabs:
+
+- **Profile** — edit your sender details (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`). These values are available in email templates via the `sender` variable source.
+- **Documents** — upload PDF/DOC files to attach to outreach emails. Stored server-side, referenced by ID in templates or at send time.
+- **Template Variables** — configure variable presets. Map a `{{key}}` once (e.g. `{{myName}}` → sender → `first_name`) and it auto-wires in every template.
+
+### Templates (`/templates`)
+
+Full template CRUD + inline variable manager. Each variable has a source dropdown; when source is `prospect`, `company`, or `sender`, a field picker appears. **Detect Variables** scans the current `subject` + `body` and adds stubs for any `{{key}}` not yet configured.
+
+### Send wizard (`/send`)
+
+Four steps: select template + company + prospects → fill custom variables → preview → confirm send. Calls `api.email.sendCompany()`.
+
+### Scheduled (`/scheduled`)
+
+Lists upcoming and past email schedules. Pending schedules can be cancelled.
+
+### Users (`/users`)
+
+Admin-only. Table of all accounts with role selector, active toggle, and delete. Includes a create-user form.
 
 ---
 
 ## Styling
 
-Tailwind CSS with no component library. Shared classes are defined as `@layer components` in `globals.css`:
+Tailwind CSS, no component library. Shared classes are defined as `@layer components` in `globals.css`:
 
 ```css
-.form-label    /* <label> style */
-.form-input    /* <input> and <select> style */
-.form-textarea /* <textarea> style (extends form-input) */
+.form-label     /* <label> */
+.form-input     /* <input> and <select> */
 ```
 
-Use these classes on form elements instead of repeating Tailwind utilities.
+Use these on form elements instead of repeating Tailwind utilities.
 
 ---
 
 ## Adding a new page
 
-1. Create a folder under `src/app/(dashboard)/my-page/`
-2. Add `page.tsx` — mark it `'use client'` if it needs state or effects
-3. Add a nav entry in `src/components/Sidebar.tsx` (the `NAV` array)
+1. Create `src/app/(dashboard)/my-page/page.tsx` — mark it `'use client'` if it needs state
+2. Add a nav entry in `src/components/Sidebar.tsx` (the `NAV` array at the top)
 
-All pages inside `(dashboard)/` automatically get the sidebar layout from `(dashboard)/layout.tsx`.
-
----
-
-## Template variable manager
-
-Lives inside `templates/page.tsx`. Each variable entry has:
-
-| Field | UI control | Notes |
-|---|---|---|
-| `key` | Text input (monospace) | Used as `{{key}}` in the template body |
-| `label` | Text input | Human-readable, shown to user |
-| `source` | Dropdown | `prospect`, `company`, `static`, `custom` |
-| `field` | Dropdown (dynamic) | Shown when source is `prospect` or `company` — options come from `PROSPECT_FIELDS` / `COMPANY_FIELDS` |
-| `defaultValue` | Text input | Shown when source is `static` or `custom` |
-
-**Auto-detect**: scans `subject + body` for `{{...}}` patterns and creates stub variables for any keys not already in the list.
-
----
-
-## Send wizard (`send/page.tsx`)
-
-Four steps:
-
-1. **Select** — choose template and company; optionally filter which prospects to include
-2. **Customize** — fill in `custom`-sourced variables; pick a prospect to preview
-3. **Preview** — rendered subject + HTML body for the chosen prospect
-4. **Result** — per-prospect send status summary
-
-The wizard calls `api.email.sendCompany()` which sends to all selected prospects server-side, recording each attempt in `email_sends`.
+All pages inside `(dashboard)/` automatically get the sidebar layout.
 
 ---
 
 ## Environment
 
-`NEXT_PUBLIC_API_URL` is the only runtime env var. It is baked into the JS bundle at build time by Next.js (because of the `NEXT_PUBLIC_` prefix), so:
-- **Docker**: pass it as a build arg in the Dockerfile (`ARG NEXT_PUBLIC_API_URL`)
-- **Local dev**: prefix the `next dev` command: `NEXT_PUBLIC_API_URL=http://localhost:3001 pnpm dev`
+`NEXT_PUBLIC_API_URL` is the only runtime env var. It is baked into the JS bundle at build time, so:
+
+- **Docker**: set it as a build arg: `NEXT_PUBLIC_API_URL=https://api.example.com docker compose up --build`
+- **Local dev**: prefix the command: `NEXT_PUBLIC_API_URL=http://localhost:3001 pnpm dev`

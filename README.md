@@ -1,6 +1,6 @@
 # Outreach CRM
 
-A personal CRM for managing job-search email outreach. Store target companies and their HR contacts (prospects), write reusable email templates with dynamic variables, and send personalised emails to every prospect at a company in one action.
+A personal CRM for managing job-search email outreach. Store target companies and their contacts (prospects), write reusable templates with dynamic `{{variables}}`, and blast personalised emails to every prospect at a company in one action. Includes a Chrome extension for scraping LinkedIn profiles directly into the CRM.
 
 ---
 
@@ -12,48 +12,44 @@ A personal CRM for managing job-search email outreach. Store target companies an
 | Backend | Node.js 20, Express 4, TypeScript (strict, ESM) |
 | Frontend | Next.js 14 (App Router), React 18, Tailwind CSS |
 | Database | PostgreSQL 16 |
-| Email | Resend (swappable — see [backend README](packages/backend/README.md)) |
+| Email | Resend or Gmail (swappable — see [backend README](packages/backend/README.md)) |
 | Containers | Docker + Docker Compose |
+| Extension | Chrome MV3, TypeScript |
 
 ---
 
 ## Quick start
 
 ### Prerequisites
+
 - Docker + Docker Compose
 - Node.js 20+ and pnpm (for local development only)
 
-### Production (full Docker)
+### Production — full Docker
 
 ```bash
 cp .env.example .env
-# Fill in: ADMIN_PASSWORD, RESEND_API_KEY, FROM_EMAIL
+# Fill in at minimum: ADMIN_PASSWORD, FROM_EMAIL, and one of RESEND_API_KEY or GMAIL_USER+GMAIL_APP_PASSWORD
 docker compose up --build
 ```
 
 - Frontend → http://localhost:3000
 - Backend API → http://localhost:3001
 
-### Local development (DB in Docker, apps running locally)
+### Local development (DB in Docker, apps on host)
 
 ```bash
 cp .env.example .env
 # Set DATABASE_URL=postgresql://postgres:postgres@localhost:5432/crm
 
-# Start only the database
-docker compose up db -d
-
-# Install all packages (run from repo root)
-pnpm install
+docker compose up db -d          # start only the database
+pnpm install                     # install all packages from repo root
 
 # Terminal 1 — backend (hot reload)
-cd packages/backend
-cp ../../.env .
-pnpm dev
+cd packages/backend && pnpm dev
 
 # Terminal 2 — frontend (hot reload)
-cd packages/frontend
-NEXT_PUBLIC_API_URL=http://localhost:3001 pnpm dev
+cd packages/frontend && pnpm dev
 ```
 
 ---
@@ -66,12 +62,20 @@ NEXT_PUBLIC_API_URL=http://localhost:3001 pnpm dev
 | `POSTGRES_USER` | yes | DB user (default: `postgres`) |
 | `POSTGRES_PASSWORD` | yes | DB password |
 | `DATABASE_URL` | yes (backend) | Full postgres connection string |
-| `ADMIN_PASSWORD` | yes | Single password to log in to the app |
-| `RESEND_API_KEY` | yes* | Resend API key — app starts without it but sending will fail |
-| `FROM_EMAIL` | yes* | Verified sender email address |
+| `ADMIN_PASSWORD` | yes | Password for the auto-seeded `admin` account |
+| `ADMIN_USERNAME` | no | Username for the admin account (default: `admin`) |
+| `JWT_SECRET` | no | Secret used to sign JWTs — change in production (default: `change-me-in-production`) |
+| `RESEND_API_KEY` | no* | Resend API key — used if `GMAIL_USER` is not set |
+| `GMAIL_USER` | no* | Gmail address for sending via Nodemailer |
+| `GMAIL_APP_PASSWORD` | no* | Gmail app password (not your account password) |
+| `FROM_EMAIL` | yes | Verified sender address |
 | `FROM_NAME` | no | Display name for outgoing emails (default: `CRM`) |
+| `REPLY_TO_EMAIL` | no | Reply-to address |
+| `TRACKING_BASE_URL` | no | Public base URL for email open tracking pixels (default: `http://localhost:3001`) |
 | `PORT` | no | Backend port (default: `3001`) |
 | `NEXT_PUBLIC_API_URL` | yes (frontend) | Backend URL visible to the browser |
+
+\* At least one of Resend or Gmail credentials must be set for email sending to work.
 
 ---
 
@@ -80,41 +84,73 @@ NEXT_PUBLIC_API_URL=http://localhost:3001 pnpm dev
 ```
 crm/
 ├── docker-compose.yml          # Orchestrates db, backend, frontend
-├── .env.example                # Copy to .env and fill in
+├── .env.example                # Copy to .env and fill in secrets
 ├── packages/
 │   ├── backend/                # Express API — see packages/backend/README.md
-│   └── frontend/               # Next.js app — see packages/frontend/README.md
+│   ├── frontend/               # Next.js app — see packages/frontend/README.md
+│   └── extension/              # Chrome extension — see packages/extension/README.md
 └── pnpm-workspace.yaml
 ```
+
+---
+
+## Authentication
+
+JWT-based auth with bcrypt password hashing. On first startup the backend seeds an admin user from `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+
+- All API routes (except `/api/auth/*` and `/api/track/*`) require `Authorization: Bearer <jwt>`.
+- Frontend stores the JWT in an `HttpOnly`-equivalent cookie (`crm_token`), read by all `api.*` calls.
+- Users have roles: **admin** (sees all data) or **user** (sees only their own records).
+- Anyone can sign up at `/signup` — new accounts get `role=user` and immediate access.
+- The Chrome extension authenticates via `POST /api/auth/login` and stores the JWT in `chrome.storage.sync`.
 
 ---
 
 ## Database schema (overview)
 
 ```
+users           ← accounts (username, password_hash, role, profile fields)
+
 companies       ← target companies
-prospects       ← HR contacts (first_name, last_name, email, …)
-  └── company_id → companies.id
+  └── created_by → users.id
+
+prospects       ← contacts at companies
+  ├── company_id  → companies.id
+  └── created_by  → users.id
 
 email_templates ← reusable templates with {{variable}} placeholders
-  └── variables  (JSONB) — each variable maps a key to a data source
+  └── created_by  → users.id
 
-email_sends     ← log of every sent/failed email
+email_sends     ← log of every sent / failed email
   ├── template_id → email_templates.id
   ├── prospect_id → prospects.id
-  └── company_id  → companies.id
+  └── created_by  → users.id
+
+email_schedules ← future sends processed by the scheduler
+  └── created_by  → users.id
+
+documents       ← uploaded PDF/DOC attachments
+variable_presets← saved template variable mappings
+settings        ← key/value store
 ```
 
-Full schema and migration logic live in `packages/backend/src/db/migrate.ts`.
+Full schema and incremental migrations live in `packages/backend/src/db/migrate.ts`.
 
 ---
 
-## Authentication
+## Template variable system
 
-A single `ADMIN_PASSWORD` environment variable protects all routes. The frontend stores the password as a cookie (`crm_token`) and sends it as `Authorization: Bearer <password>` on every API request. To swap in real auth (e.g. JWT or OAuth), replace:
+Templates use `{{variableName}}` placeholders. Each variable has a **source**:
 
-- **Backend**: the `authMiddleware` in `packages/backend/src/middleware/auth.ts`
-- **Frontend**: the cookie logic in `packages/frontend/src/app/login/page.tsx` and the API client in `packages/frontend/src/lib/api.ts`
+| Source | Resolved from |
+|---|---|
+| `prospect` | A field on the prospect record (`first_name`, `email`, …) |
+| `company` | A field on the company record (`name`, `website`, …) |
+| `sender` | A field from the sending user's profile (`first_name`, `email`, `job_title`, …) |
+| `static` | A fixed default value set once in the template editor |
+| `custom` | A value you fill in manually at send time |
+
+Variable presets (Settings → Template Variables) let you wire up a key once and have it auto-apply to every template — e.g. `{{myFirstName}}` → sender → `first_name`.
 
 ---
 
@@ -124,6 +160,6 @@ A single `ADMIN_PASSWORD` environment variable protects all routes. The frontend
 |---|---|
 | New DB table | `backend/src/db/migrate.ts`, `backend/src/types/index.ts` |
 | New API route | Add file in `backend/src/routes/`, register in `backend/src/routes/index.ts` |
-| New frontend page | Add folder under `frontend/src/app/(dashboard)/` |
-| New template variable source | `backend/src/services/templateEngine.ts`, `frontend/src/lib/types.ts` (PROSPECT_FIELDS / COMPANY_FIELDS) |
-| Swap email provider | `backend/src/services/email/` — implement `EmailProvider` interface |
+| New frontend page | Add folder under `frontend/src/app/(dashboard)/`, add nav entry in `Sidebar.tsx` |
+| New template variable source | `backend/src/services/templateEngine.ts` + `backend/src/types/index.ts` + `frontend/src/lib/types.ts` |
+| Swap email provider | Implement `EmailProvider` interface in `backend/src/services/email/` |

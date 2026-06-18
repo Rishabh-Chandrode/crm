@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
+import { ownerFilter } from '../middleware/ownerFilter.js';
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
+    const { sql, value } = ownerFilter(req.user!, 'es', 1);
+    const where = sql ? `WHERE ${sql}` : '';
+    const params = value ? [value] : [];
     const result = await pool.query(
       `SELECT es.*,
               json_build_object('name', c.name) AS company,
@@ -12,7 +16,9 @@ router.get('/', async (_req, res, next) => {
        FROM email_schedules es
        LEFT JOIN companies c ON c.id = es.company_id
        LEFT JOIN email_templates t ON t.id = es.template_id
-       ORDER BY es.scheduled_for DESC`
+       ${where}
+       ORDER BY es.scheduled_for DESC`,
+      params
     );
     res.json({ data: result.rows });
   } catch (err) {
@@ -22,6 +28,11 @@ router.get('/', async (_req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
+    const { sql, value } = ownerFilter(req.user!, 'es', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [req.params['id']];
+    if (value) params.push(value);
+
     const result = await pool.query(
       `SELECT es.*,
               json_build_object('name', c.name) AS company,
@@ -29,8 +40,8 @@ router.get('/:id', async (req, res, next) => {
        FROM email_schedules es
        LEFT JOIN companies c ON c.id = es.company_id
        LEFT JOIN email_templates t ON t.id = es.template_id
-       WHERE es.id = $1`,
-      [req.params['id']]
+       WHERE es.id = $1 ${ownerWhere}`,
+      params
     );
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Schedule not found' });
@@ -38,7 +49,6 @@ router.get('/:id', async (req, res, next) => {
     }
     const schedule = result.rows[0];
 
-    // Fetch prospects: either the selected ones or all from the company
     let prospects: { id: string; first_name: string; last_name: string | null; email: string; job_title: string | null }[] = [];
     if (schedule.prospect_ids && schedule.prospect_ids.length > 0) {
       const pr = await pool.query(
@@ -106,10 +116,10 @@ router.post('/', async (req, res, next) => {
 
     const result = await pool.query(
       `INSERT INTO email_schedules
-         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects, document_ids)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects, document_ids, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects, documentIds]
+      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects, documentIds, req.user!.id]
     );
 
     res.status(201).json({ data: result.rows[0] });
@@ -120,11 +130,16 @@ router.post('/', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
+    const { sql, value } = ownerFilter(req.user!, 'email_schedules', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [req.params['id']];
+    if (value) params.push(value);
+
     const result = await pool.query(
       `UPDATE email_schedules SET status = 'cancelled'
-       WHERE id = $1 AND status = 'pending'
+       WHERE id = $1 AND status = 'pending' ${ownerWhere}
        RETURNING *`,
-      [req.params['id']]
+      params
     );
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Schedule not found or already sent/cancelled' });

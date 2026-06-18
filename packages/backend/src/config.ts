@@ -9,6 +9,9 @@ function requireEnv(name: string): string {
 export const CONFIG = {
   port: parseInt(process.env['PORT'] ?? '3001', 10),
   databaseUrl: requireEnv('DATABASE_URL'),
+  jwtSecret: process.env['JWT_SECRET'] ?? 'change-me-in-production',
+  jwtExpiresIn: '7d',
+  adminUsername: process.env['ADMIN_USERNAME'] ?? 'admin',
   adminPassword: requireEnv('ADMIN_PASSWORD'),
   gmailUser: process.env['GMAIL_USER'] ?? '',
   gmailAppPassword: process.env['GMAIL_APP_PASSWORD'] ?? '',

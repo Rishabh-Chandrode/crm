@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
+import { ownerFilter } from '../middleware/ownerFilter.js';
 import { inferRoleCategory } from '../services/roleCategory.js';
 import type { Prospect } from '../types/index.js';
 
@@ -58,6 +59,9 @@ router.get('/', async (req, res, next) => {
       values.push(term);
     }
 
+    const { sql, value } = ownerFilter(req.user!, 'p', values.length + 1);
+    if (sql) { conditions.push(sql); if (value) values.push(value); }
+
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const [result, countResult] = await Promise.all([
@@ -95,8 +99,8 @@ router.post('/', async (req, res, next) => {
     if (!email?.trim()) { res.status(400).json({ error: 'email is required' }); return; }
 
     const result = await pool.query<Prospect>(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         company_id ?? null,
         first_name.trim(),
@@ -107,6 +111,7 @@ router.post('/', async (req, res, next) => {
         linkedin_url ?? null,
         phone ?? null,
         notes ?? null,
+        req.user!.id,
       ]
     );
     res.status(201).json({ data: result.rows[0] });
@@ -135,41 +140,41 @@ router.post('/quick-add', async (req, res, next) => {
     if (!email?.trim())      { res.status(400).json({ error: 'email is required' }); return; }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const userId = req.user!.id;
 
-    // Check for duplicate email
+    // Check for duplicate email scoped to this user
     const existing = await pool.query<{ id: string }>(
-      'SELECT id FROM prospects WHERE email = $1',
-      [normalizedEmail]
+      'SELECT id FROM prospects WHERE email = $1 AND created_by = $2',
+      [normalizedEmail, userId]
     );
     if (existing.rows[0]) {
-      // Return the existing prospect so callers (e.g. browser extension) can still use the ID
       res.status(200).json({ data: { id: existing.rows[0].id }, existed: true });
       return;
     }
 
-    // Resolve or create company
+    // Resolve or create company (scoped to this user)
     let companyId: string | null = null;
     if (company_name?.trim()) {
       const name = company_name.trim();
       const companyRes = await pool.query<{ id: string }>(
-        'SELECT id FROM companies WHERE LOWER(name) = LOWER($1) LIMIT 1',
-        [name]
+        'SELECT id FROM companies WHERE LOWER(name) = LOWER($1) AND created_by = $2 LIMIT 1',
+        [name, userId]
       );
       if (companyRes.rows[0]) {
         companyId = companyRes.rows[0].id;
       } else {
         const newCompany = await pool.query<{ id: string }>(
-          'INSERT INTO companies (name) VALUES ($1) RETURNING id',
-          [name]
+          'INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id',
+          [name, userId]
         );
         companyId = newCompany.rows[0]?.id ?? null;
       }
     }
 
     const result = await pool.query(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null]
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null, userId]
     );
 
     res.status(201).json({ data: result.rows[0] });
@@ -181,12 +186,17 @@ router.post('/quick-add', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'p', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
     const result = await pool.query<Prospect>(
       `SELECT p.*, row_to_json(c) AS company
        FROM prospects p
        LEFT JOIN companies c ON c.id = p.company_id
-       WHERE p.id = $1`,
-      [id]
+       WHERE p.id = $1 ${ownerWhere}`,
+      params
     );
     if (!result.rows[0]) {
       res.status(404).json({ error: 'Prospect not found' });
@@ -235,8 +245,12 @@ router.patch('/:id', async (req, res, next) => {
     fields.push('updated_at = NOW()');
     values.push(id);
 
+    const { sql, value } = ownerFilter(req.user!, 'prospects', values.length + 1);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    if (value) values.push(value);
+
     const result = await pool.query<Prospect>(
-      `UPDATE prospects SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+      `UPDATE prospects SET ${fields.join(', ')} WHERE id = $${values.length - (value ? 1 : 0)} ${ownerWhere} RETURNING *`,
       values
     );
     if (!result.rows[0]) {
@@ -252,9 +266,14 @@ router.patch('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'prospects', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
     const result = await pool.query<{ id: string }>(
-      'DELETE FROM prospects WHERE id = $1 RETURNING id',
-      [id]
+      `DELETE FROM prospects WHERE id = $1 ${ownerWhere} RETURNING id`,
+      params
     );
     if (!result.rows[0]) {
       res.status(404).json({ error: 'Prospect not found' });

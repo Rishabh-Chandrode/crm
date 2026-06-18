@@ -8,7 +8,7 @@ function pixelUrl(sendId: string): string {
   return `${base}/api/track/open/${sendId}.gif`;
 }
 import { getAttachments } from './attachmentHelper.js';
-import type { EmailTemplate, Prospect, Company } from '../types/index.js';
+import type { EmailTemplate, Prospect, Company, SenderProfile } from '../types/index.js';
 
 interface ScheduleRow {
   id: string;
@@ -18,6 +18,7 @@ interface ScheduleRow {
   custom_values: Record<string, string>;
   scheduled_for: Date;
   document_ids: string[];
+  created_by: string | null;
 }
 
 async function processSchedule(schedule: ScheduleRow): Promise<void> {
@@ -70,6 +71,16 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
     return;
   }
 
+  let sender: SenderProfile | null = null;
+  if (schedule.created_by) {
+    const senderRes = await pool.query<SenderProfile>(
+      `SELECT first_name, last_name, email, current_company, job_title, phone, website
+       FROM users WHERE id = $1`,
+      [schedule.created_by]
+    );
+    sender = senderRes.rows[0] ?? null;
+  }
+
   const attachments = await getAttachments(schedule.document_ids);
   const provider = getEmailProvider();
   let sentCount = 0;
@@ -78,14 +89,14 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   await Promise.allSettled(
     prospects.map(async (prospect) => {
-      const ctx = { prospect, company, custom: schedule.custom_values };
+      const ctx = { prospect, company, custom: schedule.custom_values, sender };
       const subject = resolveTemplate(template.subject, template.variables, ctx);
       const body = resolveTemplate(template.body, template.variables, ctx);
 
       const sendRecord = await pool.query<{ id: string }>(
-        `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
-         VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING id`,
-        [template.id, prospect.id, company?.id ?? null, subject, body]
+        `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING id`,
+        [template.id, prospect.id, company?.id ?? null, subject, body, schedule.created_by]
       );
       const sendId = sendRecord.rows[0]!.id;
       const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));

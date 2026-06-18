@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { pool } from '../db/index.js';
+import { ownerFilter } from '../middleware/ownerFilter.js';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -33,10 +34,14 @@ const upload = multer({
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
+    const { sql, value } = ownerFilter(req.user!, 'documents', 1);
+    const where = sql ? `WHERE ${sql}` : '';
+    const params = value ? [value] : [];
     const result = await pool.query(
-      `SELECT id, name, filename, size, created_at FROM documents ORDER BY created_at DESC`
+      `SELECT id, name, filename, size, created_at FROM documents ${where} ORDER BY created_at DESC`,
+      params
     );
     res.json({ data: result.rows });
   } catch (err) {
@@ -59,8 +64,8 @@ router.post('/', upload.single('document'), async (req, res, next) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO documents (name, filename, path, size) VALUES ($1, $2, $3, $4) RETURNING id, name, filename, size, created_at`,
-      [name, req.file.originalname, req.file.path, req.file.size]
+      `INSERT INTO documents (name, filename, path, size, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, filename, size, created_at`,
+      [name, req.file.originalname, req.file.path, req.file.size, req.user!.id]
     );
 
     res.status(201).json({ data: result.rows[0] });
@@ -74,9 +79,14 @@ router.post('/', upload.single('document'), async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
+    const { sql, value } = ownerFilter(req.user!, 'documents', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [req.params['id']];
+    if (value) params.push(value);
+
     const result = await pool.query<{ path: string }>(
-      `DELETE FROM documents WHERE id = $1 RETURNING path`,
-      [req.params['id']]
+      `DELETE FROM documents WHERE id = $1 ${ownerWhere} RETURNING path`,
+      params
     );
     if (!result.rows[0]) {
       res.status(404).json({ error: 'Document not found' });

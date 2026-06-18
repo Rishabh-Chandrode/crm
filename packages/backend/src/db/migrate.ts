@@ -1,7 +1,22 @@
 import { pool } from './index.js';
+import bcrypt from 'bcryptjs';
+import { CONFIG } from '../config.js';
 
 const SCHEMA = `
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+  username      VARCHAR(255) NOT NULL,
+  email         VARCHAR(255),
+  password_hash TEXT         NOT NULL,
+  role          VARCHAR(50)  NOT NULL DEFAULT 'user',
+  is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  CONSTRAINT users_username_unique UNIQUE (username),
+  CONSTRAINT users_email_unique    UNIQUE (email)
+);
 
 CREATE TABLE IF NOT EXISTS companies (
   id          UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -216,5 +231,53 @@ export async function migrate(): Promise<void> {
   await pool.query(`
     ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS document_ids UUID[] NOT NULL DEFAULT '{}';
   `);
+  await seedAdminUser();
+  await pool.query(`
+    ALTER TABLE companies         ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE prospects         ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE email_templates   ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE email_sends       ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE email_schedules   ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE documents         ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE variable_presets  ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+  `);
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name    VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name     VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS current_company VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title     VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS phone         VARCHAR(50);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS website       VARCHAR(500);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS bio           TEXT;
+  `);
+  /* Assign pre-existing rows (created before auth existed) to the first admin */
+  await pool.query(`
+    DO $$
+    DECLARE admin_id UUID;
+    BEGIN
+      SELECT id INTO admin_id FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1;
+      IF admin_id IS NOT NULL THEN
+        UPDATE companies        SET created_by = admin_id WHERE created_by IS NULL;
+        UPDATE prospects        SET created_by = admin_id WHERE created_by IS NULL;
+        UPDATE email_templates  SET created_by = admin_id WHERE created_by IS NULL;
+        UPDATE email_sends      SET created_by = admin_id WHERE created_by IS NULL;
+        UPDATE email_schedules  SET created_by = admin_id WHERE created_by IS NULL;
+        UPDATE documents        SET created_by = admin_id WHERE created_by IS NULL;
+        UPDATE variable_presets SET created_by = admin_id WHERE created_by IS NULL;
+      END IF;
+    END $$;
+  `);
   console.log('Database migration completed successfully');
+}
+
+async function seedAdminUser(): Promise<void> {
+  const existing = await pool.query('SELECT id FROM users WHERE username = $1', [CONFIG.adminUsername]);
+  if (existing.rowCount && existing.rowCount > 0) return;
+
+  const hash = await bcrypt.hash(CONFIG.adminPassword, 12);
+  await pool.query(
+    `INSERT INTO users (username, role, password_hash) VALUES ($1, 'admin', $2)`,
+    [CONFIG.adminUsername, hash]
+  );
+  console.log(`Admin user '${CONFIG.adminUsername}' created`);
 }

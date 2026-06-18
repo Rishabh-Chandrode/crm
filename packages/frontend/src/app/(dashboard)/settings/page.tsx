@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
-import type { Document, VariablePreset, VariableSource } from '@/lib/types';
-import { PROSPECT_FIELDS, COMPANY_FIELDS, toVariableLabel } from '@/lib/types';
+import type { CrmUser, Document, VariablePreset, VariableSource } from '@/lib/types';
+import { PROSPECT_FIELDS, COMPANY_FIELDS, SENDER_FIELDS, toVariableLabel } from '@/lib/types';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const SOURCE_OPTIONS: { value: VariableSource; label: string; description: string }[] = [
   { value: 'prospect', label: 'Prospect field', description: 'Pulled from the prospect record' },
   { value: 'company',  label: 'Company field',  description: 'Pulled from the company record' },
+  { value: 'sender',   label: 'Sender (your profile)', description: 'Pulled from your user profile' },
   { value: 'static',   label: 'Static value',   description: 'Same fixed value every time' },
   { value: 'custom',   label: 'Custom (per send)', description: 'You fill it in when sending' },
 ];
@@ -22,9 +23,20 @@ const EMPTY_PRESET = {
   default_value: '',
 };
 
-type Section = 'documents' | 'variables';
+type Section = 'profile' | 'documents' | 'variables';
 
 const NAV: { id: Section; label: string; description: string; icon: React.ReactNode }[] = [
+  {
+    id: 'profile',
+    label: 'Profile',
+    description: 'Your sender details',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    ),
+  },
   {
     id: 'documents',
     label: 'Documents',
@@ -227,6 +239,137 @@ function DocumentsSection() {
   );
 }
 
+// ─── profile section ──────────────────────────────────────────────────────────
+
+function ProfileSection() {
+  const [user, setUser] = useState<CrmUser | null>(null);
+  const [form, setForm] = useState({
+    first_name: '', last_name: '', email: '',
+    current_company: '', job_title: '', phone: '', website: '', bio: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    api.auth.me().then((r) => {
+      setUser(r.user);
+      setForm({
+        first_name:       r.user.first_name       ?? '',
+        last_name:        r.user.last_name        ?? '',
+        email:            r.user.email            ?? '',
+        current_company:  r.user.current_company  ?? '',
+        job_title:        r.user.job_title        ?? '',
+        phone:            r.user.phone            ?? '',
+        website:          r.user.website          ?? '',
+        bio:              r.user.bio              ?? '',
+      });
+    }).catch(console.error);
+  }, []);
+
+  async function handleSave() {
+    setSaving(true); setError(''); setSuccess('');
+    try {
+      const r = await api.auth.updateProfile({
+        first_name:      form.first_name.trim()      || null,
+        last_name:       form.last_name.trim()       || null,
+        email:           form.email.trim()           || null,
+        current_company: form.current_company.trim() || null,
+        job_title:       form.job_title.trim()       || null,
+        phone:           form.phone.trim()           || null,
+        website:         form.website.trim()         || null,
+        bio:             form.bio.trim()             || null,
+      });
+      setUser(r.user);
+      setSuccess('Profile saved.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed');
+    } finally { setSaving(false); }
+  }
+
+  function field(id: keyof typeof form, label: string, placeholder?: string, multiline?: boolean) {
+    return (
+      <div>
+        <label className="form-label">{label}</label>
+        {multiline ? (
+          <textarea
+            className="form-input"
+            rows={3}
+            placeholder={placeholder}
+            value={form[id]}
+            onChange={(e) => setForm((prev) => ({ ...prev, [id]: e.target.value }))}
+          />
+        ) : (
+          <input
+            className="form-input"
+            placeholder={placeholder}
+            value={form[id]}
+            onChange={(e) => setForm((prev) => ({ ...prev, [id]: e.target.value }))}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader
+        title="Your Profile"
+        description="These details are available as {{sender…}} variables in email templates — e.g. {{myFirstName}} can map to your First Name."
+      />
+
+      {error && <Alert type="error" message={error} />}
+      {success && <Alert type="success" message={success} />}
+
+      {user && (
+        <div className="mb-5 flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+          <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+            {user.username[0]?.toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-slate-800">{user.username}</p>
+            <p className="text-xs text-slate-400 capitalize">{user.role}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {field('first_name', 'First name', 'Jane')}
+          {field('last_name', 'Last name', 'Smith')}
+        </div>
+        {field('email', 'Email address', 'jane@example.com')}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {field('current_company', 'Current company', 'Acme Inc.')}
+          {field('job_title', 'Job title', 'Software Engineer')}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {field('phone', 'Phone', '+1 555-000-0000')}
+          {field('website', 'Website', 'https://yoursite.com')}
+        </div>
+        {field('bio', 'Bio / signature blurb', 'A short note about yourself…', true)}
+      </div>
+
+      <div className="mt-5 pt-5 border-t border-slate-100">
+        <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3 mb-4">
+          <p className="text-xs font-medium text-indigo-700 mb-1">Using profile fields in templates</p>
+          <p className="text-xs text-indigo-600">
+            Go to <strong>Template Variables</strong> and add a preset with source "Sender (your profile)", then pick the field.
+            Use it as <code className="bg-white/60 px-1 rounded">{`{{myFirstName}}`}</code> (or any key you choose) in any template.
+          </p>
+        </div>
+        <button
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+        >
+          {saving ? 'Saving…' : 'Save profile'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── variable presets section ─────────────────────────────────────────────────
 
 function VariablesSection() {
@@ -286,7 +429,7 @@ function VariablesSection() {
     }
   }
 
-  const fieldOptions = form.source === 'prospect' ? PROSPECT_FIELDS : form.source === 'company' ? COMPANY_FIELDS : [];
+  const fieldOptions = form.source === 'prospect' ? PROSPECT_FIELDS : form.source === 'company' ? COMPANY_FIELDS : form.source === 'sender' ? SENDER_FIELDS : [];
 
   return (
     <div>
@@ -397,7 +540,7 @@ function VariablesSection() {
         <p className="text-slate-400 text-sm text-center py-6">No presets yet. Add one above.</p>
       ) : (
         <>
-          {(['prospect', 'company', 'static', 'custom'] as VariableSource[]).map((src) => {
+          {(['prospect', 'company', 'sender', 'static', 'custom'] as VariableSource[]).map((src) => {
             const group = presets.filter((p) => p.source === src);
             if (group.length === 0) return null;
             const srcLabel = SOURCE_OPTIONS.find((o) => o.value === src)?.label ?? src;
@@ -449,7 +592,7 @@ function VariablesSection() {
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const [active, setActive] = useState<Section>('documents');
+  const [active, setActive] = useState<Section>('profile');
   const current = NAV.find((n) => n.id === active)!;
 
   return (
@@ -488,6 +631,7 @@ export default function SettingsPage() {
 
         {/* Content */}
         <div className="flex-1 bg-white rounded-xl border border-slate-200 p-6 min-w-0">
+          {active === 'profile'   && <ProfileSection />}
           {active === 'documents' && <DocumentsSection />}
           {active === 'variables' && <VariablesSection />}
         </div>

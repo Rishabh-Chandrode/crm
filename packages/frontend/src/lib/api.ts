@@ -199,6 +199,23 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ templateId, companyId, prospectIds, customValues, documentIds }),
       }),
+    sendBatch: (
+      templateId: string,
+      prospectIds: string[],
+      customValues?: Record<string, string>,
+      documentIds?: string[]
+    ) =>
+      request<{
+        data: {
+          sent: number;
+          failed: number;
+          total: number;
+          results: { email: string; status: string; error?: string }[];
+        };
+      }>('/email/send-batch', {
+        method: 'POST',
+        body: JSON.stringify({ templateId, prospectIds, customValues, documentIds }),
+      }),
     history: (limit = 50, offset = 0, filters?: { status?: string; search?: string; company_id?: string; template_id?: string }) => {
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
       if (filters?.status && filters.status !== 'all') params.set('status', filters.status);
@@ -216,7 +233,7 @@ export const api = {
       request<{ data: import('./types').EmailSchedule[] }>('/schedules'),
     create: (body: {
       templateId: string;
-      companyId: string;
+      companyId?: string | null;
       prospectIds?: string[];
       customValues?: Record<string, string>;
       scheduledFor: string;

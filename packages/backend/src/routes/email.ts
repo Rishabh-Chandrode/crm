@@ -449,4 +449,108 @@ router.post('/send-company', async (req, res, next) => {
   }
 });
 
+// Send to an explicit list of prospect IDs — no company constraint.
+// Each prospect is resolved with its own company for template variables.
+router.post('/send-batch', async (req, res, next) => {
+  try {
+    const { templateId, prospectIds, customValues = {}, documentIds = [] } = req.body as {
+      templateId: string;
+      prospectIds: string[];
+      customValues?: Record<string, string>;
+      documentIds?: string[];
+    };
+
+    if (!templateId || !Array.isArray(prospectIds) || prospectIds.length === 0) {
+      res.status(400).json({ error: 'templateId and at least one prospectId are required' });
+      return;
+    }
+
+    const { sql: tSql, value: tVal } = ownerFilter(req.user!, 'email_templates', 2);
+    const { sql: pSql, value: pVal } = ownerFilter(req.user!, 'p', 2);
+
+    const [templateRes, prospectsRes] = await Promise.all([
+      pool.query<EmailTemplate>(
+        `SELECT * FROM email_templates WHERE id = $1 ${tSql ? `AND ${tSql}` : ''}`,
+        tVal ? [templateId, tVal] : [templateId]
+      ),
+      pool.query<Prospect & { company: Company | null }>(
+        `SELECT p.*, row_to_json(c) AS company
+         FROM prospects p LEFT JOIN companies c ON c.id = p.company_id
+         WHERE p.id = ANY($1) ${pSql ? `AND ${pSql}` : ''}`,
+        pVal ? [prospectIds, pVal] : [prospectIds]
+      ),
+    ]);
+
+    if (!templateRes.rows[0]) { res.status(404).json({ error: 'Template not found' }); return; }
+
+    const template = templateRes.rows[0];
+    const prospects = prospectsRes.rows;
+    if (prospects.length === 0) { res.status(400).json({ error: 'No prospects found' }); return; }
+
+    const userId = req.user!.id;
+    const userConfig = await loadUserEmailConfig(userId);
+    if (!userConfig) { res.status(500).json({ error: 'User not found' }); return; }
+
+    let provider;
+    try {
+      provider = resolveEmailProvider(userConfig);
+    } catch (cfgErr) {
+      res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
+      return;
+    }
+
+    const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
+    const attachments = await getAttachments(allDocumentIds);
+    const sender = userConfig.senderProfile;
+
+    const results = await Promise.allSettled(
+      prospects.map(async (prospect) => {
+        const company = prospect.company;
+        const context = { prospect, company, custom: customValues, sender };
+        const subject = resolveTemplate(template.subject, template.variables, context);
+        const body = resolveTemplate(template.body, template.variables, context);
+
+        const sendRecord = await pool.query<EmailSend>(
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING id`,
+          [template.id, prospect.id, prospect.company_id ?? null, subject, body, userId]
+        );
+        const sendId = sendRecord.rows[0]!.id;
+        const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
+
+        try {
+          const result = await provider.send({
+            to: prospect.email,
+            subject,
+            html,
+            attachments: attachments.length > 0 ? attachments : undefined,
+          });
+          await pool.query(
+            `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
+            [result.id, sendId]
+          );
+          return { prospectId: prospect.id, email: prospect.email, status: 'sent' };
+        } catch (sendErr) {
+          const msg = sendErr instanceof Error ? sendErr.message : 'Unknown error';
+          await pool.query(
+            `UPDATE email_sends SET status = 'failed', error_message = $1 WHERE id = $2`,
+            [msg, sendId]
+          );
+          return { prospectId: prospect.id, email: prospect.email, status: 'failed', error: msg };
+        }
+      })
+    );
+
+    const summary = results.map((r) =>
+      r.status === 'fulfilled' ? r.value : { status: 'failed', error: String(r.reason) }
+    );
+    const sent = summary.filter((s) => s.status === 'sent').length;
+    const failed = summary.filter((s) => s.status === 'failed').length;
+
+    res.json({ data: { sent, failed, total: prospects.length, results: summary } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

@@ -74,22 +74,26 @@ router.post('/', async (req, res, next) => {
   try {
     const {
       templateId,
-      companyId,
+      companyId = null,
       prospectIds = [],
       customValues = {},
       scheduledFor,
       documentIds = [],
     } = req.body as {
       templateId: string;
-      companyId: string;
+      companyId?: string | null;
       prospectIds?: string[];
       customValues?: Record<string, string>;
       scheduledFor: string;
       documentIds?: string[];
     };
 
-    if (!templateId || !companyId || !scheduledFor) {
-      res.status(400).json({ error: 'templateId, companyId and scheduledFor are required' });
+    if (!templateId || !scheduledFor) {
+      res.status(400).json({ error: 'templateId and scheduledFor are required' });
+      return;
+    }
+    if (!companyId && prospectIds.length === 0) {
+      res.status(400).json({ error: 'Provide companyId or at least one prospectId' });
       return;
     }
 

@@ -5,8 +5,8 @@ import { GmailEmailProvider, type GmailCredentials } from './gmail.js';
 const _userProviders = new Map<string, GmailEmailProvider>();
 
 export function getEmailProviderForUser(creds: GmailCredentials): EmailProvider {
-  // Key by user + refresh token — if they reconnect and get a new token, a new pool is created
-  const key = `${creds.gmailUser}:${creds.refreshToken}`;
+  // Include fromName in key so display name changes get a fresh provider
+  const key = `${creds.gmailUser}:${creds.refreshToken}:${creds.fromName}`;
   let provider = _userProviders.get(key);
   if (!provider) {
     provider = new GmailEmailProvider(creds);

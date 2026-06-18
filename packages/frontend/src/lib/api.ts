@@ -55,6 +55,8 @@ export const api = {
       request<{ url: string }>('/auth/gmail/connect'),
     gmailDisconnect: () =>
       request<{ ok: boolean }>('/auth/gmail/disconnect', { method: 'DELETE' }),
+    googleLoginUrl: () =>
+      request<{ url: string }>('/auth/google/connect'),
     signup: (username: string, password: string, email?: string) =>
       request<{ token: string; user: { id: string; username: string; email: string | null; role: string } }>('/auth/signup', {
         method: 'POST',

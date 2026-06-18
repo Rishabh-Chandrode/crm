@@ -7,6 +7,7 @@ import { getAttachments } from '../services/attachmentHelper.js';
 import type { EmailTemplate, Prospect, Company, EmailSend, SenderProfile } from '../types/index.js';
 
 interface UserEmailConfig {
+  username: string;
   senderProfile: SenderProfile;
   gmailUser: string | null;
   gmailRefreshToken: string | null;
@@ -16,7 +17,7 @@ interface UserEmailConfig {
 
 async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | null> {
   const r = await pool.query(
-    `SELECT first_name, last_name, email, current_company, job_title, phone, website,
+    `SELECT username, first_name, last_name, email, current_company, job_title, phone, website,
             gmail_user, gmail_refresh_token, from_name, reply_to_email
      FROM users WHERE id = $1`,
     [userId]
@@ -24,6 +25,7 @@ async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | nu
   const row = r.rows[0];
   if (!row) return null;
   return {
+    username: row.username as string,
     senderProfile: {
       first_name: row.first_name as string | null,
       last_name: row.last_name as string | null,
@@ -48,7 +50,7 @@ function resolveEmailProvider(config: UserEmailConfig) {
   return getEmailProviderForUser({
     gmailUser: config.gmailUser,
     refreshToken: config.gmailRefreshToken,
-    fromName: (config.fromName ?? fullName) || 'CRM',
+    fromName: config.fromName || fullName || config.username || 'CRM',
   });
 }
 

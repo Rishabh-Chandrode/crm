@@ -75,7 +75,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   const userRes = schedule.created_by
     ? await pool.query(
-        `SELECT first_name, last_name, email, current_company, job_title, phone, website,
+        `SELECT username, first_name, last_name, email, current_company, job_title, phone, website,
                 gmail_user, gmail_refresh_token, from_name
          FROM users WHERE id = $1`,
         [schedule.created_by]
@@ -106,7 +106,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const provider = getEmailProviderForUser({
     gmailUser: userRow.gmail_user as string,
     refreshToken: userRow.gmail_refresh_token as string,
-    fromName: ((userRow.from_name as string | null) ?? fullName) || 'CRM',
+    fromName: (userRow.from_name as string | null) || fullName || (userRow.username as string) || 'CRM',
   });
 
   const attachments = await getAttachments(schedule.document_ids);

@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { randomBytes } from 'crypto';
 import { pool } from '../db/index.js';
 import { CONFIG } from '../config.js';
 import { authMiddleware } from '../middleware/auth.js';
+import type { User } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -14,15 +17,17 @@ const GMAIL_SCOPES = [
 ].join(' ');
 
 // GET /api/auth/gmail/connect
-// Returns the Google OAuth2 URL the frontend should redirect the user to.
 router.get('/connect', authMiddleware, (req, res) => {
   if (!CONFIG.googleClientId || !CONFIG.googleClientSecret) {
     res.status(503).json({ error: 'Google OAuth is not configured on this server' });
     return;
   }
 
-  // Sign state with JWT so the callback can verify it and identify the user
-  const state = jwt.sign({ userId: req.user!.id }, CONFIG.jwtSecret, { expiresIn: '10m' });
+  const state = jwt.sign(
+    { flow: 'gmail', userId: req.user!.id },
+    CONFIG.jwtSecret,
+    { expiresIn: '10m' }
+  );
 
   const params = new URLSearchParams({
     client_id: CONFIG.googleClientId,
@@ -30,7 +35,7 @@ router.get('/connect', authMiddleware, (req, res) => {
     response_type: 'code',
     scope: GMAIL_SCOPES,
     access_type: 'offline',
-    prompt: 'consent',   // always prompt so Google always returns a refresh_token
+    prompt: 'consent',
     state,
   });
 
@@ -38,8 +43,8 @@ router.get('/connect', authMiddleware, (req, res) => {
 });
 
 // GET /api/auth/gmail/callback
-// Google redirects here after the user approves. Not protected by authMiddleware
-// because there's no Authorization header — user identity comes from the state JWT.
+// Shared callback for both the Gmail-connect flow and the Google-login flow.
+// The `flow` field in the state JWT determines which path to take.
 router.get('/callback', async (req, res) => {
   const { code, state, error } = req.query as Record<string, string>;
 
@@ -53,17 +58,135 @@ router.get('/callback', async (req, res) => {
     return;
   }
 
-  let userId: string;
+  let payload: { flow?: string; userId?: string };
   try {
-    const payload = jwt.verify(state, CONFIG.jwtSecret) as { userId: string };
-    userId = payload.userId;
+    payload = jwt.verify(state, CONFIG.jwtSecret) as typeof payload;
   } catch {
     res.redirect(`${CONFIG.frontendUrl}/settings?gmail=error&reason=invalid_state`);
     return;
   }
 
+  if (payload.flow === 'login') {
+    await handleLoginCallback(code, res);
+  } else {
+    await handleGmailCallback(code, payload.userId, res);
+  }
+});
+
+async function handleLoginCallback(
+  code: string,
+  res: import('express').Response
+): Promise<void> {
   try {
-    // Exchange authorization code for tokens
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: CONFIG.googleClientId,
+        client_secret: CONFIG.googleClientSecret,
+        redirect_uri: CONFIG.googleRedirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    const tokens = await tokenRes.json() as {
+      access_token?: string;
+      refresh_token?: string;
+      error?: string;
+      error_description?: string;
+    };
+
+    if (!tokenRes.ok || tokens.error || !tokens.access_token) {
+      const reason = tokens.error_description ?? tokens.error ?? 'token_exchange_failed';
+      res.redirect(`${CONFIG.frontendUrl}/login?google_error=${encodeURIComponent(reason)}`);
+      return;
+    }
+
+    const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const googleUser = await userInfoRes.json() as {
+      sub?: string;
+      email?: string;
+      given_name?: string;
+      family_name?: string;
+    };
+
+    if (!googleUser.sub || !googleUser.email) {
+      res.redirect(`${CONFIG.frontendUrl}/login?google_error=no_email`);
+      return;
+    }
+
+    let user = (await pool.query<User>(
+      `SELECT id, username, email, role FROM users
+       WHERE google_id = $1 OR (LOWER(email) = LOWER($2) AND is_active = TRUE)
+       LIMIT 1`,
+      [googleUser.sub, googleUser.email]
+    )).rows[0];
+
+    if (user) {
+      // Link google_id and update gmail token if we got one
+      await pool.query(
+        `UPDATE users SET
+           google_id = COALESCE(google_id, $1),
+           gmail_user = COALESCE($2, gmail_user),
+           gmail_refresh_token = COALESCE($3, gmail_refresh_token),
+           updated_at = NOW()
+         WHERE id = $4`,
+        [googleUser.sub, tokens.refresh_token ? googleUser.email : null, tokens.refresh_token ?? null, user.id]
+      );
+    } else {
+      const base = googleUser.email.split('@')[0]!.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+      let username = base;
+      let attempt = 0;
+      while (true) {
+        const exists = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
+        if (!exists.rowCount || exists.rowCount === 0) break;
+        attempt++;
+        username = `${base}${attempt}`;
+      }
+
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 12);
+
+      const created = await pool.query<User>(
+        `INSERT INTO users (username, email, password_hash, role, google_id, first_name, last_name, gmail_user, gmail_refresh_token)
+         VALUES ($1, $2, $3, 'user', $4, $5, $6, $7, $8)
+         RETURNING id, username, email, role`,
+        [
+          username, googleUser.email, passwordHash, googleUser.sub,
+          googleUser.given_name ?? null, googleUser.family_name ?? null,
+          tokens.refresh_token ? googleUser.email : null,
+          tokens.refresh_token ?? null,
+        ]
+      );
+      user = created.rows[0]!;
+    }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      CONFIG.jwtSecret,
+      { expiresIn: CONFIG.jwtExpiresIn } as jwt.SignOptions
+    );
+
+    res.redirect(`${CONFIG.frontendUrl}/login?google_token=${encodeURIComponent(token)}`);
+  } catch (err) {
+    console.error('Google login callback error:', err);
+    res.redirect(`${CONFIG.frontendUrl}/login?google_error=server_error`);
+  }
+}
+
+async function handleGmailCallback(
+  code: string,
+  userId: string | undefined,
+  res: import('express').Response
+): Promise<void> {
+  if (!userId) {
+    res.redirect(`${CONFIG.frontendUrl}/settings?gmail=error&reason=invalid_state`);
+    return;
+  }
+
+  try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -89,7 +212,6 @@ router.get('/callback', async (req, res) => {
       return;
     }
 
-    // Fetch the user's Gmail address from Google
     const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
@@ -105,7 +227,7 @@ router.get('/callback', async (req, res) => {
     console.error('Gmail OAuth callback error:', err);
     res.redirect(`${CONFIG.frontendUrl}/settings?gmail=error&reason=server_error`);
   }
-});
+}
 
 // DELETE /api/auth/gmail/disconnect
 router.delete('/disconnect', authMiddleware, async (req, res, next) => {

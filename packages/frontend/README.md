@@ -13,8 +13,8 @@ src/
 │   ├── layout.tsx                 # Root HTML shell, imports globals.css
 │   ├── page.tsx                   # Redirects / → /dashboard
 │   ├── globals.css                # Tailwind directives + shared component classes
-│   ├── login/page.tsx             # Login form (username + password)
-│   ├── signup/page.tsx            # Signup form (username, email?, password)
+│   ├── login/page.tsx             # Login form — username/password + Google sign-in
+│   ├── signup/page.tsx            # Signup form — username/password + Google sign-in
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main>
 │       ├── dashboard/page.tsx     # Stats overview + charts + recent activity
@@ -24,7 +24,7 @@ src/
 │       ├── send/page.tsx          # Multi-step send wizard
 │       ├── history/page.tsx       # Paginated email send log
 │       ├── scheduled/page.tsx     # Email schedule list + cancel
-│       ├── settings/page.tsx      # Profile, Documents, Template Variables
+│       ├── settings/page.tsx      # Profile, Gmail connection, Documents, Template Variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/
 │   └── Sidebar.tsx                # Left nav with user info + sign-out
@@ -37,11 +37,21 @@ src/
 
 ## Authentication flow
 
+### Username / password
+
 1. Any protected route → `middleware.ts` checks for `crm_token` cookie → redirects to `/login` if missing.
-2. Logged-in users visiting `/login` or `/signup` are redirected to `/dashboard`.
-3. Login/signup pages call `POST /api/auth/login` or `POST /api/auth/signup`, receive a JWT, and store it as `document.cookie = 'crm_token=<jwt>; max-age=604800; path=/'`.
-4. All `api.*` calls in `lib/api.ts` read the cookie and send `Authorization: Bearer <token>`.
-5. Sign-out: `Sidebar.tsx` clears the cookie (`max-age=0`) and redirects to `/login`.
+2. Login/signup pages call `POST /api/auth/login` or `POST /api/auth/signup`, receive a JWT, and store it as a cookie (`crm_token`, 7-day max-age).
+3. All `api.*` calls in `lib/api.ts` read the cookie and send `Authorization: Bearer <token>`.
+4. Sign-out: `Sidebar.tsx` clears the cookie (`max-age=0`) and redirects to `/login`.
+
+### Google sign-in
+
+1. User clicks **Continue with Google** on `/login` or `/signup`.
+2. Frontend calls `GET /api/auth/google/connect` → receives a Google OAuth2 URL → redirects the browser.
+3. Google returns to the backend callback, which finds/creates the user and redirects to `/login?google_token=<jwt>`.
+4. The login page reads `google_token` from the URL, stores it as the `crm_token` cookie, and navigates to `/dashboard`.
+5. If the Google consent screen includes Gmail access and is approved, Gmail is connected automatically (Settings will show "connected").
+6. If the flow fails, `google_error` appears in the URL and an error message is shown on the login page.
 
 ---
 
@@ -55,6 +65,9 @@ api.auth.login(username, password)          // POST /api/auth/login
 api.auth.signup(username, password, email?) // POST /api/auth/signup
 api.auth.me()                               // GET  /api/auth/me
 api.auth.updateProfile(fields)              // PATCH /api/auth/profile
+api.auth.googleLoginUrl()                   // GET  /api/auth/google/connect → { url }
+api.auth.gmailConnect()                     // GET  /api/auth/gmail/connect  → { url }
+api.auth.gmailDisconnect()                  // DELETE /api/auth/gmail/disconnect
 
 // Users (admin only)
 api.users.list()
@@ -100,7 +113,7 @@ Key exports:
 
 | Export | Purpose |
 |---|---|
-| `CrmUser` | User account with profile fields |
+| `CrmUser` | User account with profile fields, `has_gmail_configured` flag |
 | `Company`, `Prospect`, `EmailTemplate`, `EmailSend`, `EmailSchedule` | Core data interfaces |
 | `VariableSource` | `'prospect' \| 'company' \| 'sender' \| 'static' \| 'custom'` |
 | `TemplateVariable`, `VariablePreset` | Template variable types |
@@ -114,11 +127,19 @@ Key exports:
 
 ## Pages overview
 
+### Login / Signup (`/login`, `/signup`)
+
+Both pages offer two sign-in paths:
+
+- **Continue with Google** — initiates the Google OAuth2 flow. On success, logs the user in and (if Gmail access was granted) connects Gmail automatically.
+- **Username + password** — classic form-based login below a divider.
+
 ### Settings (`/settings`)
 
-Three tabs:
+Four sections:
 
-- **Profile** — edit your sender details (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`). These values are available in email templates via the `sender` variable source.
+- **Profile** — edit your sender details (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`, `from_name`, `reply_to_email`). These values are available in email templates via the `sender` variable source. `from_name` sets the email display name; if blank it falls back to your full name, then username.
+- **Gmail sending account** — connect or disconnect your Gmail via OAuth2. Shows the connected address when active. Also configures `from_name` and `reply_to_email` overrides for outgoing mail.
 - **Documents** — upload PDF/DOC files to attach to outreach emails. Stored server-side, referenced by ID in templates or at send time.
 - **Template Variables** — configure variable presets. Map a `{{key}}` once (e.g. `{{myName}}` → sender → `first_name`) and it auto-wires in every template.
 

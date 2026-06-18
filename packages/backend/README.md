@@ -33,9 +33,11 @@ src/
 ├── routes/
 │   ├── index.ts                 # Mounts all routers
 │   ├── auth.ts                  # /auth — login, signup, me, profile
+│   ├── gmailOAuth.ts            # /auth/gmail — Gmail OAuth2 connect/disconnect + shared callback
+│   ├── googleLogin.ts           # /auth/google — Google sign-in (login/signup via OAuth2)
 │   ├── users.ts                 # /users — admin-only user management
-│   ├── companies.ts             # /companies — CRUD
-│   ├── prospects.ts             # /prospects — CRUD + quick-add
+│   ├── companies.ts             # /companies — CRUD + merge
+│   ├── prospects.ts             # /prospects — CRUD + quick-add + global search
 │   ├── templates.ts             # /templates — CRUD + detect-variables
 │   ├── email.ts                 # /email — preview, send, send-company, history, retry
 │   ├── schedules.ts             # /schedules — future sends
@@ -49,8 +51,8 @@ src/
 │   ├── email/
 │   │   ├── types.ts             # EmailProvider interface
 │   │   ├── resend.ts            # Resend implementation
-│   │   ├── gmail.ts             # Gmail/Nodemailer implementation
-│   │   └── index.ts             # Factory — picks provider from env
+│   │   ├── gmail.ts             # Gmail OAuth2/Nodemailer implementation
+│   │   └── index.ts             # Factory — picks provider per user
 │   ├── templateEngine.ts        # {{variable}} resolution + plain-text → HTML
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
 │   └── scheduler.ts             # node-cron job — processes pending email_schedules
@@ -64,23 +66,44 @@ src/
 
 JWT-based. Every protected route requires `Authorization: Bearer <token>`.
 
-- `POST /api/auth/login` — validates username + password (bcrypt), returns a signed JWT
-- `POST /api/auth/signup` — public, creates `role=user` account, returns JWT
-- `GET /api/auth/me` — returns the current user's full profile
-- `PATCH /api/auth/profile` — updates the current user's profile fields
+### Username / password
 
-**Middleware:**
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/login` | public | `{ username, password }` → `{ token, user }` |
+| POST | `/api/auth/signup` | public | `{ username, password, email? }` → `{ token, user }` |
+| GET | `/api/auth/me` | required | Returns current user with all profile fields |
+| PATCH | `/api/auth/profile` | required | Update profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`, `from_name`, `reply_to_email`) |
 
-```typescript
-// src/middleware/auth.ts
-authMiddleware          // verifies JWT, attaches req.user: AuthenticatedUser
-requireRole('admin')    // factory — rejects requests from non-admin users
-```
+### Google sign-in (login / signup)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/auth/google/connect` | public | Returns a Google OAuth2 URL; redirects user to Google for login |
+| GET | `/api/auth/gmail/callback` | public | Shared callback — handles both Google login and Gmail connect flows via `flow` in state JWT |
+
+On Google login the callback finds or creates a user matched by `google_id` or email. If a Gmail refresh token is returned (user approved Gmail access), it is stored immediately so Gmail is connected from first login.
+
+### Gmail connection (Settings)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/auth/gmail/connect` | required | Returns a Google OAuth2 URL requesting Gmail scopes for the logged-in user |
+| DELETE | `/api/auth/gmail/disconnect` | required | Clears stored Gmail credentials for the current user |
+
+**Shared callback:** both Google login and Gmail connect redirect to `GOOGLE_REDIRECT_URI` (`/api/auth/gmail/callback`). The `flow` field in the state JWT (`'login'` or `'gmail'`) determines which handler runs. Only one redirect URI needs to be registered in Google Cloud Console.
 
 **JWT payload:**
 
 ```typescript
 { id: string; username: string; role: 'admin' | 'user' }
+```
+
+**Middleware:**
+
+```typescript
+authMiddleware          // verifies JWT, attaches req.user: AuthenticatedUser
+requireRole('admin')    // factory — rejects requests from non-admin users
 ```
 
 ---
@@ -104,15 +127,6 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 ## API routes
 
 `/api/auth/*` and `/api/track/*` are public. Everything else requires a valid JWT.
-
-### Auth
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/api/auth/login` | public | `{ username, password }` → `{ token, user }` |
-| POST | `/api/auth/signup` | public | `{ username, password, email? }` → `{ token, user }` |
-| GET | `/api/auth/me` | required | Returns current user with profile fields |
-| PATCH | `/api/auth/profile` | required | Update profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`) |
 
 ### Users (admin only)
 
@@ -210,6 +224,9 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 ```sql
 users (id UUID PK, username, email, password_hash, role, is_active,
        first_name, last_name, current_company, job_title, phone, website, bio,
+       google_id,                          -- links Google OAuth account
+       gmail_user, gmail_refresh_token,    -- per-user Gmail OAuth2 credentials
+       from_name, reply_to_email,          -- email display name / reply-to overrides
        created_at, updated_at)
 
 companies      (id, name, website, industry, created_by→users, created_at, updated_at)
@@ -238,19 +255,42 @@ variable_presets (id, key, label, source, field, default_value,
 **To add a new column:**
 
 ```typescript
-// In migrate.ts, add a DO block and call it in migrate():
-const MIGRATE_MY_COLUMN = `
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'my_table' AND column_name = 'my_column'
-  ) THEN
-    ALTER TABLE my_table ADD COLUMN my_column VARCHAR(255);
-  END IF;
-END $$;
-`;
+// In migrate.ts, append to migrate():
+await pool.query(`
+  ALTER TABLE my_table ADD COLUMN IF NOT EXISTS my_column VARCHAR(255);
+`);
 ```
+
+---
+
+## Email providers
+
+`EmailProvider` interface (`services/email/types.ts`):
+
+```typescript
+interface EmailProvider {
+  send(options: { to: string; subject: string; html: string; attachments?: ...; replyTo?: string }): Promise<{ id: string }>;
+}
+```
+
+`services/email/index.ts → getEmailProviderForUser()` returns a provider for the given user credentials:
+
+- **Gmail** (default) — uses the user's stored `gmail_refresh_token` to send via the Gmail API. Each user connects their own account from Settings.
+- **Resend** (fallback) — used only if `RESEND_API_KEY` is set and no Gmail credentials are provided.
+
+**Display name fallback chain** (applied in both immediate and scheduled sends):
+
+```
+from_name (user setting) → first_name + last_name → username → 'CRM'
+```
+
+To add a new provider, implement `EmailProvider` and update the factory in `services/email/index.ts`.
+
+---
+
+## Email scheduler
+
+`services/scheduler.ts` runs a `node-cron` job every minute. It picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs in the schedule, and updates counts. The sender profile (including Gmail credentials) is loaded from `created_by` on the schedule row so `{{sender…}}` variables resolve correctly.
 
 ---
 
@@ -277,32 +317,6 @@ Resolution in `services/templateEngine.ts → resolveTemplate()`:
 | `sender` | sending user's profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`) |
 | `static` | `variable.defaultValue` |
 | `custom` | `customValues[key]` — provided by the caller at send time |
-
-The scheduler resolves `sender` by loading the profile of the user who created the schedule (`created_by`).
-
----
-
-## Email providers
-
-`EmailProvider` interface (`services/email/types.ts`):
-
-```typescript
-interface EmailProvider {
-  send(options: { to: string; subject: string; html: string; attachments?: ...; replyTo?: string }): Promise<{ id: string }>;
-}
-```
-
-`services/email/index.ts → getEmailProvider()` picks the active provider:
-- **Gmail** — if `GMAIL_USER` and `GMAIL_APP_PASSWORD` are set
-- **Resend** — if `RESEND_API_KEY` is set
-
-To add a provider, implement the interface and update the factory.
-
----
-
-## Email scheduler
-
-`services/scheduler.ts` runs a `node-cron` job every minute. It picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs in the schedule, and updates counts. The sender profile is loaded from `created_by` on the schedule row so `{{sender…}}` variables resolve correctly.
 
 ---
 

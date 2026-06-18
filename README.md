@@ -12,7 +12,7 @@ A personal CRM for managing job-search email outreach. Store target companies an
 | Backend | Node.js 20, Express 4, TypeScript (strict, ESM) |
 | Frontend | Next.js 14 (App Router), React 18, Tailwind CSS |
 | Database | PostgreSQL 16 |
-| Email | Resend or Gmail (swappable — see [backend README](packages/backend/README.md)) |
+| Email | Gmail via OAuth2 (or Resend as fallback) |
 | Containers | Docker + Docker Compose |
 | Extension | Chrome MV3, TypeScript |
 
@@ -29,7 +29,7 @@ A personal CRM for managing job-search email outreach. Store target companies an
 
 ```bash
 cp .env.example .env
-# Fill in at minimum: ADMIN_PASSWORD, FROM_EMAIL, and one of RESEND_API_KEY or GMAIL_USER+GMAIL_APP_PASSWORD
+# Fill in at minimum: ADMIN_PASSWORD, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 docker compose up --build
 ```
 
@@ -64,18 +64,38 @@ cd packages/frontend && pnpm dev
 | `DATABASE_URL` | yes (backend) | Full postgres connection string |
 | `ADMIN_PASSWORD` | yes | Password for the auto-seeded `admin` account |
 | `ADMIN_USERNAME` | no | Username for the admin account (default: `admin`) |
-| `JWT_SECRET` | no | Secret used to sign JWTs — change in production (default: `change-me-in-production`) |
-| `RESEND_API_KEY` | no* | Resend API key — used if `GMAIL_USER` is not set |
-| `GMAIL_USER` | no* | Gmail address for sending via Nodemailer |
-| `GMAIL_APP_PASSWORD` | no* | Gmail app password (not your account password) |
-| `FROM_EMAIL` | yes | Verified sender address |
-| `FROM_NAME` | no | Display name for outgoing emails (default: `CRM`) |
-| `REPLY_TO_EMAIL` | no | Reply-to address |
-| `TRACKING_BASE_URL` | no | Public base URL for email open tracking pixels (default: `http://localhost:3001`) |
+| `JWT_SECRET` | no | Secret used to sign JWTs — change in production |
+| `GOOGLE_CLIENT_ID` | yes | OAuth2 client ID from Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | yes | OAuth2 client secret |
+| `GOOGLE_REDIRECT_URI` | no | OAuth2 callback URI (default: `http://localhost:3001/api/auth/gmail/callback`) |
+| `RESEND_API_KEY` | no | Resend API key — fallback email provider if Gmail is not connected |
+| `FROM_EMAIL` | no | Sender address used when Resend is the active provider |
+| `TRACKING_BASE_URL` | no | Public base URL for email open-tracking pixels (default: `http://localhost:3001`) |
 | `PORT` | no | Backend port (default: `3001`) |
 | `NEXT_PUBLIC_API_URL` | yes (frontend) | Backend URL visible to the browser |
 
-\* At least one of Resend or Gmail credentials must be set for email sending to work.
+---
+
+## Authentication
+
+JWT-based auth with bcrypt password hashing. On first startup the backend seeds an admin user from `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+
+- All API routes (except `/api/auth/*` and `/api/track/*`) require `Authorization: Bearer <jwt>`.
+- Frontend stores the JWT in a cookie (`crm_token`), read by all `api.*` calls.
+- Users have roles: **admin** (sees all data) or **user** (sees only their own records).
+
+### Sign-in options
+
+| Method | How |
+|---|---|
+| Username + password | Classic form on `/login` and `/signup` |
+| Google | "Continue with Google" on `/login` and `/signup` — creates an account automatically on first use |
+
+Google sign-in requests Gmail API access at the same time. If the user approves, their Gmail account is automatically connected for sending. If they decline Gmail access they are still logged in and can connect Gmail later from Settings.
+
+### Gmail connection
+
+Each user connects their own Gmail account via OAuth2 (Settings → Gmail sending account). The refresh token is stored per-user. All emails are sent from the authenticated user's Gmail address; no shared app password is needed.
 
 ---
 
@@ -94,22 +114,12 @@ crm/
 
 ---
 
-## Authentication
-
-JWT-based auth with bcrypt password hashing. On first startup the backend seeds an admin user from `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
-
-- All API routes (except `/api/auth/*` and `/api/track/*`) require `Authorization: Bearer <jwt>`.
-- Frontend stores the JWT in an `HttpOnly`-equivalent cookie (`crm_token`), read by all `api.*` calls.
-- Users have roles: **admin** (sees all data) or **user** (sees only their own records).
-- Anyone can sign up at `/signup` — new accounts get `role=user` and immediate access.
-- The Chrome extension authenticates via `POST /api/auth/login` and stores the JWT in `chrome.storage.sync`.
-
----
-
 ## Database schema (overview)
 
 ```
-users           ← accounts (username, password_hash, role, profile fields)
+users           ← accounts (username, password_hash, role, profile fields,
+                             gmail_user, gmail_refresh_token, google_id,
+                             from_name, reply_to_email)
 
 companies       ← target companies
   └── created_by → users.id

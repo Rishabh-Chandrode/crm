@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRouter from './auth.js';
 import gmailOAuthRouter from './gmailOAuth.js';
+import googleLoginRouter from './googleLogin.js';
 import usersRouter from './users.js';
 import companiesRouter from './companies.js';
 import prospectsRouter from './prospects.js';
@@ -19,6 +20,7 @@ const router: ReturnType<typeof Router> = Router();
 
 router.use('/auth', authRouter);
 router.use('/auth/gmail', gmailOAuthRouter);
+router.use('/auth/google', googleLoginRouter);
 router.use('/users', usersRouter);
 router.use('/track', trackRouter); // public — email clients don't send auth headers
 

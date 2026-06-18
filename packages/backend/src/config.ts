@@ -20,6 +20,7 @@ export const CONFIG = {
   googleClientId: process.env['GOOGLE_CLIENT_ID'] ?? '',
   googleClientSecret: process.env['GOOGLE_CLIENT_SECRET'] ?? '',
   googleRedirectUri: process.env['GOOGLE_REDIRECT_URI'] ?? 'http://localhost:3001/api/auth/gmail/callback',
+  googleLoginRedirectUri: process.env['GOOGLE_LOGIN_REDIRECT_URI'] ?? 'http://localhost:3001/api/auth/google/callback',
   frontendUrl: process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
 } as const;

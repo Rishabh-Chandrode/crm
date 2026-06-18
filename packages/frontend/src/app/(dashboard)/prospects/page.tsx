@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Prospect, Company } from '@/lib/types';
 import ImportModal from '@/components/ImportModal';
+import Combobox from '@/components/Combobox';
 
 interface ProspectFormData {
   company_id: string;
@@ -262,16 +263,14 @@ export default function ProspectsPage() {
             className="rounded-lg border border-slate-300 pl-8 pr-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-56"
           />
         </div>
-        <select
+        <Combobox
+          options={companies.map((c) => ({ value: c.id, label: c.name }))}
           value={filterCompany}
-          onChange={(e) => { setFilterCompany(e.target.value); setPage(0); }}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-        >
-          <option value="">All companies</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+          onChange={(v) => { setFilterCompany(v); setPage(0); }}
+          placeholder="All companies"
+          clearLabel="All companies"
+          className="w-48"
+        />
         <select
           value={filterCategory}
           onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
@@ -423,16 +422,13 @@ export default function ProspectsPage() {
             <div className="space-y-4">
               <div>
                 <label className="form-label">Company</label>
-                <select
-                  className="form-input"
+                <Combobox
+                  options={companies.map((c) => ({ value: c.id, label: c.name }))}
                   value={form.company_id}
-                  onChange={(e) => f('company_id', e.target.value)}
-                >
-                  <option value="">No company</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => f('company_id', v)}
+                  placeholder="No company"
+                  clearLabel="No company"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

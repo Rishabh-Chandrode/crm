@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Document, EmailTemplate, Company, Prospect, TemplateVariable } from '@/lib/types';
+import Combobox from '@/components/Combobox';
 
 type Step = 'select' | 'customize' | 'preview' | 'result';
 type TargetMode = 'company' | 'search';
@@ -292,19 +293,23 @@ export default function SendPage() {
           {/* Template */}
           <div>
             <label className="form-label">Email Template *</label>
-            <select className="form-input" value={selectedTemplate} onChange={(e) => {
-              const tId = e.target.value;
-              setSelectedTemplate(tId);
-              const t = templates.find((t) => t.id === tId);
-              if (t?.document_ids?.length) {
-                setSelectedDocumentIds((prev) => [...new Set([...t.document_ids, ...prev])]);
-              }
-            }}>
-              <option value="">Choose a template…</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}{t.job_description ? ` — ${t.job_description}` : ''}</option>
-              ))}
-            </select>
+            <Combobox
+              options={templates.map((t) => ({
+                value: t.id,
+                label: t.name,
+                sublabel: t.job_description ?? undefined,
+              }))}
+              value={selectedTemplate}
+              onChange={(tId) => {
+                setSelectedTemplate(tId);
+                const t = templates.find((t) => t.id === tId);
+                if (t?.document_ids?.length) {
+                  setSelectedDocumentIds((prev) => [...new Set([...t.document_ids, ...prev])]);
+                }
+              }}
+              placeholder="Choose a template…"
+              clearLabel="— no template —"
+            />
             {template && (
               <p className="text-xs text-slate-400 mt-1">Subject: {template.subject}</p>
             )}
@@ -335,16 +340,13 @@ export default function SendPage() {
             {/* By Company */}
             {targetMode === 'company' && (
               <div className="space-y-4">
-                <select
-                  className="form-input"
+                <Combobox
+                  options={companies.map((c) => ({ value: c.id, label: c.name }))}
                   value={selectedCompany}
-                  onChange={(e) => setSelectedCompany(e.target.value)}
-                >
-                  <option value="">Choose a company…</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  onChange={setSelectedCompany}
+                  placeholder="Choose a company…"
+                  clearLabel="— no company —"
+                />
 
                 {companyProspects.length > 0 && (
                   <div>
@@ -492,12 +494,17 @@ export default function SendPage() {
           {activeProspects.length > 0 && (
             <div>
               <label className="form-label">Preview for prospect</label>
-              <select className="form-input" value={previewProspect} onChange={(e) => setPreviewProspect(e.target.value)}>
-                <option value="">Choose a prospect to preview…</option>
-                {targetProspects.map((p) => (
-                  <option key={p.id} value={p.id}>{prospectFullName(p)} ({p.email})</option>
-                ))}
-              </select>
+              <Combobox
+                options={targetProspects.map((p) => ({
+                  value: p.id,
+                  label: prospectFullName(p),
+                  sublabel: p.email,
+                }))}
+                value={previewProspect}
+                onChange={setPreviewProspect}
+                placeholder="Choose a prospect to preview…"
+                clearLabel="— no preview —"
+              />
             </div>
           )}
 

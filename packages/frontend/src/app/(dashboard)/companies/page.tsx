@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { Company } from '@/lib/types';
+import Combobox from '@/components/Combobox';
 
 interface CompanyFormData {
   name: string;
@@ -202,18 +203,15 @@ export default function CompaniesPage() {
             <div className="space-y-4">
               <div>
                 <label className="form-label">Merge <span className="font-semibold text-slate-700">{mergeSource.name}</span> into…</label>
-                <select
-                  className="form-input"
-                  value={mergeTargetId}
-                  onChange={(e) => setMergeTargetId(e.target.value)}
-                >
-                  <option value="">Choose target company…</option>
-                  {companies
+                <Combobox
+                  options={companies
                     .filter((c) => c.id !== mergeSource.id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                </select>
+                    .map((c) => ({ value: c.id, label: c.name }))}
+                  value={mergeTargetId}
+                  onChange={setMergeTargetId}
+                  placeholder="Choose target company…"
+                  clearLabel="— no target —"
+                />
               </div>
 
               {mergeTarget && (

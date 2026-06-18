@@ -61,6 +61,11 @@ export const api = {
       }),
     delete: (id: string) =>
       request<{ data: { id: string } }>(`/companies/${id}`, { method: 'DELETE' }),
+    merge: (targetId: string, sourceId: string) =>
+      request<{ data: { targetId: string; sourceId: string; merged: boolean } }>(`/companies/${targetId}/merge`, {
+        method: 'POST',
+        body: JSON.stringify({ sourceId }),
+      }),
   },
 
   prospects: {

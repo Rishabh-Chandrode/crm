@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { EmailTemplate, TemplateVariable, VariablePreset, VariableSource } from '@/lib/types';
+import type { Document, EmailTemplate, TemplateVariable, VariablePreset, VariableSource } from '@/lib/types';
 import { PROSPECT_FIELDS, COMPANY_FIELDS, buildVariableFromKey } from '@/lib/types';
 
 interface TemplateForm {
@@ -12,6 +12,7 @@ interface TemplateForm {
   subject: string;
   body: string;
   variables: TemplateVariable[];
+  document_ids: string[];
 }
 
 const EMPTY_FORM: TemplateForm = {
@@ -21,6 +22,7 @@ const EMPTY_FORM: TemplateForm = {
   subject: '',
   body: '',
   variables: [],
+  document_ids: [],
 };
 
 const SOURCE_LABELS: Record<VariableSource, string> = {
@@ -33,6 +35,7 @@ const SOURCE_LABELS: Record<VariableSource, string> = {
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [presets, setPresets] = useState<VariablePreset[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEditor, setShowEditor] = useState(false);
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
@@ -42,12 +45,14 @@ export default function TemplatesPage() {
   const [detecting, setDetecting] = useState(false);
 
   async function load() {
-    const [tRes, pRes] = await Promise.all([
+    const [tRes, pRes, dRes] = await Promise.all([
       api.templates.list(),
       api.variablePresets.list(),
+      api.documents.list(),
     ]);
     setTemplates(tRes.data as EmailTemplate[]);
     setPresets(pRes.data);
+    setDocuments(dRes.data);
     setLoading(false);
   }
 
@@ -69,6 +74,7 @@ export default function TemplatesPage() {
       subject: t.subject,
       body: t.body,
       variables: t.variables,
+      document_ids: t.document_ids ?? [],
     });
     setError('');
     setShowEditor(true);
@@ -117,6 +123,15 @@ export default function TemplatesPage() {
     }));
   }
 
+  function toggleDocument(id: string) {
+    setForm((prev) => ({
+      ...prev,
+      document_ids: prev.document_ids.includes(id)
+        ? prev.document_ids.filter((d) => d !== id)
+        : [...prev.document_ids, id],
+    }));
+  }
+
   function addVariable() {
     const key = `var_${Date.now()}`;
     setForm((prev) => ({
@@ -139,6 +154,7 @@ export default function TemplatesPage() {
         subject: form.subject.trim(),
         body: form.body,
         variables: form.variables,
+        document_ids: form.document_ids,
       };
       if (editing) {
         await api.templates.update(editing.id, payload);
@@ -203,6 +219,14 @@ export default function TemplatesPage() {
                         {`{{${v.key}}}`}
                       </span>
                     ))}
+                    {(t.document_ids ?? []).length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        {t.document_ids.length} attachment{t.document_ids.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-4 flex-shrink-0">
@@ -369,6 +393,32 @@ export default function TemplatesPage() {
                   </div>
                 )}
               </div>
+
+              {/* Default Attachments */}
+              {documents.length > 0 && (
+                <div>
+                  <div className="mb-2">
+                    <label className="form-label mb-0">Default Attachments</label>
+                    <p className="text-xs text-slate-400 mt-0.5">Documents checked here are automatically attached every time this template is used</p>
+                  </div>
+                  <div className="space-y-1.5 border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto">
+                    {documents.map((doc) => (
+                      <label key={doc.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1">
+                        <input
+                          type="checkbox"
+                          checked={form.document_ids.includes(doc.id)}
+                          onChange={() => toggleDocument(doc.id)}
+                          className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <span className="text-sm text-slate-700">{doc.name}</span>
+                          <span className="text-xs text-slate-400 ml-2">{doc.filename}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {error && <p className="text-red-500 text-sm px-6 pb-4">{error}</p>}

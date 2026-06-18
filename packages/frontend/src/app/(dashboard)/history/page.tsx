@@ -1,22 +1,42 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { EmailSend } from '@/lib/types';
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
-  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   return (
-    <span className="relative inline-flex" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
-      {children}
-      {visible && (
-        <span className="absolute bottom-full left-0 mb-1.5 z-50 w-64 rounded-md bg-slate-800 px-3 py-2 text-xs text-white shadow-lg whitespace-normal">
-          {text}
-          <span className="absolute top-full left-3 border-4 border-transparent border-t-slate-800" />
-        </span>
+    <>
+      <span
+        className="inline-flex"
+        onMouseEnter={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setPos({ x: r.left, y: r.top });
+        }}
+        onMouseLeave={() => setPos(null)}
+      >
+        {children}
+      </span>
+      {pos && typeof document !== 'undefined' && createPortal(
+        (() => {
+          const clampedLeft = Math.min(pos.x, window.innerWidth - 256 - 8);
+          const arrowLeft = pos.x - clampedLeft + 8;
+          return (
+            <span
+              className="fixed z-[9999] w-64 rounded-md bg-slate-800 px-3 py-2 text-xs text-white shadow-lg whitespace-normal pointer-events-none"
+              style={{ top: pos.y - 8, transform: 'translateY(-100%)', left: clampedLeft }}
+            >
+              {text}
+              <span className="absolute top-full border-4 border-transparent border-t-slate-800" style={{ left: arrowLeft }} />
+            </span>
+          );
+        })(),
+        document.body
       )}
-    </span>
+    </>
   );
 }
 
@@ -133,7 +153,7 @@ function SendCard({
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Prospect</p>
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                  {send.prospect?.first_name[0]?.toUpperCase()}
+                  {send.prospect?.first_name?.[0]?.toUpperCase()}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-800">{send.prospect ? prospectFullName(send.prospect) : '—'}</p>

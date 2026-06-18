@@ -45,6 +45,7 @@ export interface EmailTemplate {
   body: string;
   job_description: string | null;
   variables: TemplateVariable[];
+  document_ids: string[];
   created_at: Date;
   updated_at: Date;
 }

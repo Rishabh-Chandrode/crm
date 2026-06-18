@@ -19,7 +19,7 @@ router.get('/', async (_req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { name, description, subject, body, job_description, variables } =
+    const { name, description, subject, body, job_description, variables, document_ids } =
       req.body as Partial<EmailTemplate>;
 
     if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
@@ -27,8 +27,8 @@ router.post('/', async (req, res, next) => {
     if (!body?.trim()) { res.status(400).json({ error: 'body is required' }); return; }
 
     const result = await pool.query<EmailTemplate>(
-      `INSERT INTO email_templates (name, description, subject, body, job_description, variables)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      `INSERT INTO email_templates (name, description, subject, body, job_description, variables, document_ids)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [
         name.trim(),
         description ?? null,
@@ -36,6 +36,7 @@ router.post('/', async (req, res, next) => {
         body,
         job_description ?? null,
         JSON.stringify(variables ?? []),
+        document_ids ?? [],
       ]
     );
     res.status(201).json({ data: result.rows[0] });
@@ -64,7 +65,7 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, description, subject, body, job_description, variables } =
+    const { name, description, subject, body, job_description, variables, document_ids } =
       req.body as Partial<EmailTemplate>;
 
     const fields: string[] = [];
@@ -81,6 +82,7 @@ router.patch('/:id', async (req, res, next) => {
     if (body !== undefined) add('body', body);
     if (job_description !== undefined) add('job_description', job_description);
     if (variables !== undefined) add('variables', JSON.stringify(variables));
+    if (document_ids !== undefined) add('document_ids', document_ids);
 
     if (fields.length === 0) {
       res.status(400).json({ error: 'No fields to update' });

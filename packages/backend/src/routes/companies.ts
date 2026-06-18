@@ -99,6 +99,38 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
+router.post('/:id/merge', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const targetId = req.params['id'];
+    const { sourceId } = req.body as { sourceId: string };
+
+    if (!sourceId) { res.status(400).json({ error: 'sourceId is required' }); return; }
+    if (sourceId === targetId) { res.status(400).json({ error: 'Cannot merge a company into itself' }); return; }
+
+    const [targetRes, sourceRes] = await Promise.all([
+      client.query<Company>('SELECT * FROM companies WHERE id = $1', [targetId]),
+      client.query<Company>('SELECT * FROM companies WHERE id = $1', [sourceId]),
+    ]);
+    if (!targetRes.rows[0]) { res.status(404).json({ error: 'Target company not found' }); return; }
+    if (!sourceRes.rows[0]) { res.status(404).json({ error: 'Source company not found' }); return; }
+
+    await client.query('BEGIN');
+    await client.query('UPDATE prospects    SET company_id = $1 WHERE company_id = $2', [targetId, sourceId]);
+    await client.query('UPDATE email_sends  SET company_id = $1 WHERE company_id = $2', [targetId, sourceId]);
+    await client.query('UPDATE email_schedules SET company_id = $1 WHERE company_id = $2', [targetId, sourceId]);
+    await client.query('DELETE FROM companies WHERE id = $1', [sourceId]);
+    await client.query('COMMIT');
+
+    res.json({ data: { targetId, sourceId, merged: true } });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;

@@ -199,7 +199,8 @@ router.post('/send', async (req, res, next) => {
     const resolvedSubject = resolveTemplate(template.subject, template.variables, context);
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
 
-    const attachments = await getAttachments(documentIds);
+    const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
+    const attachments = await getAttachments(allDocumentIds);
 
     const sendRecord = await pool.query<EmailSend>(
       `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status)
@@ -281,7 +282,8 @@ router.post('/send-company', async (req, res, next) => {
       return;
     }
 
-    const attachments = await getAttachments(documentIds);
+    const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
+    const attachments = await getAttachments(allDocumentIds);
     const provider = getEmailProvider();
 
     const results = await Promise.allSettled(

@@ -120,6 +120,7 @@ export default function SendPage() {
 
   const template = templates.find((t) => t.id === selectedTemplate);
   const customVars = template?.variables.filter((v) => v.source === 'custom') ?? [];
+  const templateDocIds = template?.document_ids ?? [];
 
   async function handlePreview() {
     if (!selectedTemplate || !previewProspect) return;
@@ -236,7 +237,14 @@ export default function SendPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
           <div>
             <label className="form-label">Email Template *</label>
-            <select className="form-input" value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value)}>
+            <select className="form-input" value={selectedTemplate} onChange={(e) => {
+              const tId = e.target.value;
+              setSelectedTemplate(tId);
+              const t = templates.find((t) => t.id === tId);
+              if (t?.document_ids?.length) {
+                setSelectedDocumentIds((prev) => [...new Set([...t.document_ids, ...prev])]);
+              }
+            }}>
               <option value="">Choose a template…</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}{t.job_description ? ` — ${t.job_description}` : ''}</option>
@@ -376,22 +384,35 @@ export default function SendPage() {
 
           {documents.length > 0 && (
             <div>
-              <label className="form-label">Attach documents <span className="text-slate-400 font-normal">(optional)</span></label>
+              <label className="form-label">
+                Attach documents
+                {templateDocIds.length > 0 && (
+                  <span className="text-amber-600 font-normal ml-1">({templateDocIds.length} from template)</span>
+                )}
+                {templateDocIds.length === 0 && <span className="text-slate-400 font-normal"> (optional)</span>}
+              </label>
               <div className="space-y-1.5 border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto">
-                {documents.map((doc) => (
-                  <label key={doc.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedDocumentIds.includes(doc.id)}
-                      onChange={() => toggleDocument(doc.id)}
-                      className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <span className="text-sm text-slate-700">{doc.name}</span>
-                      <span className="text-xs text-slate-400 ml-2">{doc.filename}</span>
-                    </div>
-                  </label>
-                ))}
+                {documents.map((doc) => {
+                  const fromTemplate = templateDocIds.includes(doc.id);
+                  return (
+                    <label key={doc.id} className={`flex items-center gap-3 rounded px-1 py-1 ${fromTemplate ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedDocumentIds.includes(doc.id)}
+                        onChange={() => !fromTemplate && toggleDocument(doc.id)}
+                        disabled={fromTemplate}
+                        className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0 disabled:opacity-60"
+                      />
+                      <div className="min-w-0 flex items-center gap-2">
+                        <span className="text-sm text-slate-700">{doc.name}</span>
+                        <span className="text-xs text-slate-400">{doc.filename}</span>
+                        {fromTemplate && (
+                          <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0">template</span>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -566,6 +587,9 @@ export default function SendPage() {
                       </svg>
                       <span className="font-medium">{d.name}</span>
                       <span className="text-slate-400">({d.filename})</span>
+                      {templateDocIds.includes(d.id) && (
+                        <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full">template</span>
+                      )}
                     </div>
                   ))}
               </div>

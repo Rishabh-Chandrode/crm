@@ -213,5 +213,8 @@ export async function migrate(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name  ON companies  (LOWER(name));
   `);
   await pool.query(MIGRATE_VARIABLE_PRESETS);
+  await pool.query(`
+    ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS document_ids UUID[] NOT NULL DEFAULT '{}';
+  `);
   console.log('Database migration completed successfully');
 }

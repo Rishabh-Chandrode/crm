@@ -45,13 +45,16 @@ export const api = {
       first_name?: string | null; last_name?: string | null; email?: string | null;
       current_company?: string | null; job_title?: string | null; phone?: string | null;
       website?: string | null; bio?: string | null;
-      gmail_user?: string | null; gmail_app_password?: string | null;
       from_name?: string | null; reply_to_email?: string | null;
     }) =>
       request<{ user: import('./types').CrmUser }>('/auth/profile', {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+    gmailConnect: () =>
+      request<{ url: string }>('/auth/gmail/connect'),
+    gmailDisconnect: () =>
+      request<{ ok: boolean }>('/auth/gmail/disconnect', { method: 'DELETE' }),
     signup: (username: string, password: string, email?: string) =>
       request<{ token: string; user: { id: string; username: string; email: string | null; role: string } }>('/auth/signup', {
         method: 'POST',

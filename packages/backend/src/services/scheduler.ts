@@ -76,7 +76,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const userRes = schedule.created_by
     ? await pool.query(
         `SELECT first_name, last_name, email, current_company, job_title, phone, website,
-                gmail_user, gmail_app_password, from_name
+                gmail_user, gmail_refresh_token, from_name
          FROM users WHERE id = $1`,
         [schedule.created_by]
       )
@@ -84,10 +84,10 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   const userRow = userRes.rows[0];
 
-  if (!userRow || !userRow.gmail_user || !userRow.gmail_app_password) {
+  if (!userRow || !userRow.gmail_user || !userRow.gmail_refresh_token) {
     await pool.query(
       `UPDATE email_schedules SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
-      ['Gmail credentials not configured. Go to Settings → Profile and add your Gmail address and App Password.', schedule.id]
+      ['Gmail not connected. Go to Settings → Profile and connect your Gmail account.', schedule.id]
     );
     return;
   }
@@ -105,7 +105,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const fullName = [userRow.first_name, userRow.last_name].filter(Boolean).join(' ');
   const provider = getEmailProviderForUser({
     gmailUser: userRow.gmail_user as string,
-    gmailAppPassword: userRow.gmail_app_password as string,
+    refreshToken: userRow.gmail_refresh_token as string,
     fromName: ((userRow.from_name as string | null) ?? fullName) || 'CRM',
   });
 

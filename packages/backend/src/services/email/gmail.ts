@@ -1,11 +1,12 @@
 import nodemailer from 'nodemailer';
 import type { EmailProvider, SendEmailOptions, SendEmailResult } from './types.js';
+import { CONFIG } from '../../config.js';
 
 const STALE_CONNECTION_CODES = new Set(['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ESOCKET']);
 
 export interface GmailCredentials {
   gmailUser: string;
-  gmailAppPassword: string;
+  refreshToken: string;
   fromName: string;
 }
 
@@ -24,11 +25,14 @@ export class GmailEmailProvider implements EmailProvider {
       pool: true,
       maxConnections: 3,
       maxMessages: Infinity,
-      // Close idle pool connections after 90 s — before Gmail drops them (~2 min)
+      // Close idle connections after 90 s — before Gmail drops them (~2 min)
       socketTimeout: 90_000,
       auth: {
+        type: 'OAuth2',
         user: this.credentials.gmailUser,
-        pass: this.credentials.gmailAppPassword,
+        clientId: CONFIG.googleClientId,
+        clientSecret: CONFIG.googleClientSecret,
+        refreshToken: this.credentials.refreshToken,
       },
     });
   }

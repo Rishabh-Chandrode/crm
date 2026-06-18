@@ -251,10 +251,11 @@ export async function migrate(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS bio           TEXT;
   `);
   await pool.query(`
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_user        VARCHAR(255);
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_app_password TEXT;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS from_name         VARCHAR(255);
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS reply_to_email    VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_user          VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_app_password  TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS from_name           VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS reply_to_email      VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT;
   `);
   /* Assign pre-existing rows (created before auth existed) to the first admin */
   await pool.query(`

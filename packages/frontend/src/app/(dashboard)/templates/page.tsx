@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { Document, EmailTemplate, TemplateVariable, VariablePreset, VariableSource } from '@/lib/types';
-import { PROSPECT_FIELDS, COMPANY_FIELDS, buildVariableFromKey } from '@/lib/types';
+import { PROSPECT_FIELDS, COMPANY_FIELDS, SENDER_FIELDS, buildVariableFromKey } from '@/lib/types';
 
 interface TemplateForm {
   name: string;
@@ -180,6 +180,7 @@ export default function TemplatesPage() {
   function getFieldOptions(source: VariableSource) {
     if (source === 'prospect') return PROSPECT_FIELDS;
     if (source === 'company') return COMPANY_FIELDS;
+    if (source === 'sender') return SENDER_FIELDS;
     return [];
   }
 
@@ -351,7 +352,7 @@ export default function TemplatesPage() {
                               </select>
                             </div>
                             <div>
-                              {(v.source === 'prospect' || v.source === 'company') ? (
+                              {(v.source === 'prospect' || v.source === 'company' || v.source === 'sender') ? (
                                 <>
                                   <label className="form-label text-xs">Field</label>
                                   <select

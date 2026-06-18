@@ -9,7 +9,7 @@ import type { EmailTemplate, Prospect, Company, EmailSend, SenderProfile } from 
 interface UserEmailConfig {
   senderProfile: SenderProfile;
   gmailUser: string | null;
-  gmailAppPassword: string | null;
+  gmailRefreshToken: string | null;
   fromName: string | null;
   replyToEmail: string | null;
 }
@@ -17,7 +17,7 @@ interface UserEmailConfig {
 async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | null> {
   const r = await pool.query(
     `SELECT first_name, last_name, email, current_company, job_title, phone, website,
-            gmail_user, gmail_app_password, from_name, reply_to_email
+            gmail_user, gmail_refresh_token, from_name, reply_to_email
      FROM users WHERE id = $1`,
     [userId]
   );
@@ -34,20 +34,20 @@ async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | nu
       website: row.website as string | null,
     },
     gmailUser: row.gmail_user as string | null,
-    gmailAppPassword: row.gmail_app_password as string | null,
+    gmailRefreshToken: row.gmail_refresh_token as string | null,
     fromName: row.from_name as string | null,
     replyToEmail: row.reply_to_email as string | null,
   };
 }
 
 function resolveEmailProvider(config: UserEmailConfig) {
-  if (!config.gmailUser || !config.gmailAppPassword) {
-    throw new Error('Gmail credentials not configured. Go to Settings → Profile and add your Gmail address and App Password.');
+  if (!config.gmailUser || !config.gmailRefreshToken) {
+    throw new Error('Gmail not connected. Go to Settings → Profile and connect your Gmail account.');
   }
   const fullName = [config.senderProfile.first_name, config.senderProfile.last_name].filter(Boolean).join(' ');
   return getEmailProviderForUser({
     gmailUser: config.gmailUser,
-    gmailAppPassword: config.gmailAppPassword,
+    refreshToken: config.gmailRefreshToken,
     fromName: (config.fromName ?? fullName) || 'CRM',
   });
 }

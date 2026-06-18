@@ -97,6 +97,8 @@ router.get('/me', authMiddleware, async (req, res) => {
   const result = await pool.query<User>(
     `SELECT id, username, email, role, is_active,
             first_name, last_name, current_company, job_title, phone, website, bio,
+            gmail_user, from_name, reply_to_email,
+            (gmail_user IS NOT NULL AND gmail_app_password IS NOT NULL) AS has_gmail_configured,
             created_at
      FROM users WHERE id = $1`,
     [req.user!.id]
@@ -114,6 +116,8 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     first_name?: unknown; last_name?: unknown; email?: unknown;
     current_company?: unknown; job_title?: unknown; phone?: unknown;
     website?: unknown; bio?: unknown;
+    gmail_user?: unknown; gmail_app_password?: unknown;
+    from_name?: unknown; reply_to_email?: unknown;
   };
 
   const updates: string[] = [];
@@ -131,6 +135,10 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   if (body.phone !== undefined)          add('phone',          typeof body.phone === 'string' ? body.phone.trim() || null : null);
   if (body.website !== undefined)        add('website',        typeof body.website === 'string' ? body.website.trim() || null : null);
   if (body.bio !== undefined)            add('bio',            typeof body.bio === 'string' ? body.bio.trim() || null : null);
+  if (body.gmail_user !== undefined)     add('gmail_user',     typeof body.gmail_user === 'string' ? body.gmail_user.trim() || null : null);
+  if (body.gmail_app_password !== undefined) add('gmail_app_password', typeof body.gmail_app_password === 'string' ? body.gmail_app_password.trim() || null : null);
+  if (body.from_name !== undefined)      add('from_name',      typeof body.from_name === 'string' ? body.from_name.trim() || null : null);
+  if (body.reply_to_email !== undefined) add('reply_to_email', typeof body.reply_to_email === 'string' ? body.reply_to_email.trim() || null : null);
 
   if (updates.length === 0) {
     res.status(400).json({ error: 'No fields to update' });
@@ -143,7 +151,9 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   const result = await pool.query<User>(
     `UPDATE users SET ${updates.join(', ')} WHERE id = $${values.length}
      RETURNING id, username, email, role, is_active,
-               first_name, last_name, current_company, job_title, phone, website, bio`,
+               first_name, last_name, current_company, job_title, phone, website, bio,
+               gmail_user, from_name, reply_to_email,
+               (gmail_user IS NOT NULL AND gmail_app_password IS NOT NULL) AS has_gmail_configured`,
     values
   );
   res.json({ user: result.rows[0] });

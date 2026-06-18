@@ -247,9 +247,15 @@ function ProfileSection() {
     first_name: '', last_name: '', email: '',
     current_company: '', job_title: '', phone: '', website: '', bio: '',
   });
+  const [gmailForm, setGmailForm] = useState({
+    gmail_user: '', gmail_app_password: '', from_name: '', reply_to_email: '',
+  });
   const [saving, setSaving] = useState(false);
+  const [gmailSaving, setGmailSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [gmailError, setGmailError] = useState('');
+  const [gmailSuccess, setGmailSuccess] = useState('');
 
   useEffect(() => {
     api.auth.me().then((r) => {
@@ -263,6 +269,12 @@ function ProfileSection() {
         phone:            r.user.phone            ?? '',
         website:          r.user.website          ?? '',
         bio:              r.user.bio              ?? '',
+      });
+      setGmailForm({
+        gmail_user:        r.user.gmail_user        ?? '',
+        gmail_app_password: '',
+        from_name:         r.user.from_name         ?? '',
+        reply_to_email:    r.user.reply_to_email    ?? '',
       });
     }).catch(console.error);
   }, []);
@@ -285,6 +297,30 @@ function ProfileSection() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally { setSaving(false); }
+  }
+
+  async function handleGmailSave() {
+    if (!gmailForm.gmail_user.trim()) {
+      setGmailError('Gmail address is required');
+      return;
+    }
+    setGmailSaving(true); setGmailError(''); setGmailSuccess('');
+    try {
+      const body: Parameters<typeof api.auth.updateProfile>[0] = {
+        gmail_user:     gmailForm.gmail_user.trim()     || null,
+        from_name:      gmailForm.from_name.trim()      || null,
+        reply_to_email: gmailForm.reply_to_email.trim() || null,
+      };
+      if (gmailForm.gmail_app_password.trim()) {
+        body.gmail_app_password = gmailForm.gmail_app_password.trim();
+      }
+      const r = await api.auth.updateProfile(body);
+      setUser(r.user);
+      setGmailForm((prev) => ({ ...prev, gmail_app_password: '' }));
+      setGmailSuccess('Gmail settings saved.');
+    } catch (err) {
+      setGmailError(err instanceof Error ? err.message : 'Save failed');
+    } finally { setGmailSaving(false); }
   }
 
   function field(id: keyof typeof form, label: string, placeholder?: string, multiline?: boolean) {
@@ -365,6 +401,100 @@ function ProfileSection() {
         >
           {saving ? 'Saving…' : 'Save profile'}
         </button>
+      </div>
+
+      {/* Gmail sending credentials */}
+      <div className="mt-8 pt-6 border-t border-slate-200">
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+            </svg>
+            <h3 className="text-sm font-semibold text-slate-800">Gmail sending account</h3>
+            {user?.has_gmail_configured && (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Configured</span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">
+            {user?.has_gmail_configured
+              ? 'Emails are sent from your Gmail account.'
+              : 'Required before you can send emails. Each user needs their own Gmail App Password.'}
+          </p>
+        </div>
+
+        {gmailError && <Alert type="error" message={gmailError} />}
+        {gmailSuccess && <Alert type="success" message={gmailSuccess} />}
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Gmail address *</label>
+              <input
+                className="form-input"
+                type="email"
+                placeholder="you@gmail.com"
+                value={gmailForm.gmail_user}
+                onChange={(e) => setGmailForm((prev) => ({ ...prev, gmail_user: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="form-label">
+                App Password
+                {user?.has_gmail_configured && <span className="text-slate-400 font-normal ml-1">(leave blank to keep current)</span>}
+              </label>
+              <input
+                className="form-input font-mono tracking-widest"
+                type="password"
+                placeholder={user?.has_gmail_configured ? '••••••••••••••••' : 'xxxx xxxx xxxx xxxx'}
+                value={gmailForm.gmail_app_password}
+                onChange={(e) => setGmailForm((prev) => ({ ...prev, gmail_app_password: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Display name</label>
+              <input
+                className="form-input"
+                placeholder="Jane Smith"
+                value={gmailForm.from_name}
+                onChange={(e) => setGmailForm((prev) => ({ ...prev, from_name: e.target.value }))}
+              />
+              <p className="text-xs text-slate-400 mt-1">Shown as the sender name in recipients' inboxes</p>
+            </div>
+            <div>
+              <label className="form-label">Reply-to address</label>
+              <input
+                className="form-input"
+                type="email"
+                placeholder="you@example.com"
+                value={gmailForm.reply_to_email}
+                onChange={(e) => setGmailForm((prev) => ({ ...prev, reply_to_email: e.target.value }))}
+              />
+              <p className="text-xs text-slate-400 mt-1">Optional — defaults to your Gmail address</p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
+            <p className="text-xs font-medium text-amber-700 mb-1">How to get a Gmail App Password</p>
+            <ol className="text-xs text-amber-600 space-y-0.5 list-decimal list-inside">
+              <li>Go to your Google Account → Security</li>
+              <li>Enable 2-Step Verification if not already on</li>
+              <li>Search for "App Passwords" and create one for Mail</li>
+              <li>Paste the 16-character password above</li>
+            </ol>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <button
+            onClick={() => void handleGmailSave()}
+            disabled={gmailSaving}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            {gmailSaving ? 'Saving…' : 'Save Gmail settings'}
+          </button>
+        </div>
       </div>
     </div>
   );

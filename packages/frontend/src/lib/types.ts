@@ -11,6 +11,10 @@ export interface CrmUser {
   phone: string | null;
   website: string | null;
   bio: string | null;
+  gmail_user: string | null;
+  from_name: string | null;
+  reply_to_email: string | null;
+  has_gmail_configured: boolean;
   created_at: string;
   updated_at: string;
 }

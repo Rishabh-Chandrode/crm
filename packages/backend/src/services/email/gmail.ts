@@ -1,13 +1,20 @@
 import nodemailer from 'nodemailer';
 import type { EmailProvider, SendEmailOptions, SendEmailResult } from './types.js';
-import { CONFIG } from '../../config.js';
 
 const STALE_CONNECTION_CODES = new Set(['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ESOCKET']);
 
+export interface GmailCredentials {
+  gmailUser: string;
+  gmailAppPassword: string;
+  fromName: string;
+}
+
 export class GmailEmailProvider implements EmailProvider {
   private transporter: nodemailer.Transporter;
+  private readonly credentials: GmailCredentials;
 
-  constructor() {
+  constructor(credentials: GmailCredentials) {
+    this.credentials = credentials;
     this.transporter = this.createTransporter();
   }
 
@@ -20,15 +27,15 @@ export class GmailEmailProvider implements EmailProvider {
       // Close idle pool connections after 90 s — before Gmail drops them (~2 min)
       socketTimeout: 90_000,
       auth: {
-        user: CONFIG.gmailUser,
-        pass: CONFIG.gmailAppPassword,
+        user: this.credentials.gmailUser,
+        pass: this.credentials.gmailAppPassword,
       },
     });
   }
 
   private buildMailOptions(options: SendEmailOptions) {
     return {
-      from: `${CONFIG.fromName} <${CONFIG.gmailUser}>`,
+      from: `${this.credentials.fromName} <${this.credentials.gmailUser}>`,
       to: options.to,
       subject: options.subject,
       html: options.html,

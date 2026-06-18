@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { pool } from '../db/index.js';
-import { getEmailProvider } from './email/index.js';
+import { getEmailProviderForUser } from './email/index.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from './templateEngine.js';
 
 function pixelUrl(sendId: string): string {
@@ -72,17 +72,44 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   }
 
   let sender: SenderProfile | null = null;
-  if (schedule.created_by) {
-    const senderRes = await pool.query<SenderProfile>(
-      `SELECT first_name, last_name, email, current_company, job_title, phone, website
-       FROM users WHERE id = $1`,
-      [schedule.created_by]
+
+  const userRes = schedule.created_by
+    ? await pool.query(
+        `SELECT first_name, last_name, email, current_company, job_title, phone, website,
+                gmail_user, gmail_app_password, from_name
+         FROM users WHERE id = $1`,
+        [schedule.created_by]
+      )
+    : { rows: [] };
+
+  const userRow = userRes.rows[0];
+
+  if (!userRow || !userRow.gmail_user || !userRow.gmail_app_password) {
+    await pool.query(
+      `UPDATE email_schedules SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
+      ['Gmail credentials not configured. Go to Settings → Profile and add your Gmail address and App Password.', schedule.id]
     );
-    sender = senderRes.rows[0] ?? null;
+    return;
   }
 
+  sender = {
+    first_name: userRow.first_name as string | null,
+    last_name: userRow.last_name as string | null,
+    email: userRow.email as string | null,
+    current_company: userRow.current_company as string | null,
+    job_title: userRow.job_title as string | null,
+    phone: userRow.phone as string | null,
+    website: userRow.website as string | null,
+  };
+
+  const fullName = [userRow.first_name, userRow.last_name].filter(Boolean).join(' ');
+  const provider = getEmailProviderForUser({
+    gmailUser: userRow.gmail_user as string,
+    gmailAppPassword: userRow.gmail_app_password as string,
+    fromName: ((userRow.from_name as string | null) ?? fullName) || 'CRM',
+  });
+
   const attachments = await getAttachments(schedule.document_ids);
-  const provider = getEmailProvider();
   let sentCount = 0;
   let failedCount = 0;
   const errorMessages: string[] = [];

@@ -1,18 +1,55 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
-import { getEmailProvider } from '../services/email/index.js';
+import { getEmailProviderForUser } from '../services/email/index.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from '../services/templateEngine.js';
 import { getAttachments } from '../services/attachmentHelper.js';
 import type { EmailTemplate, Prospect, Company, EmailSend, SenderProfile } from '../types/index.js';
 
-async function loadSenderProfile(userId: string): Promise<SenderProfile | null> {
-  const r = await pool.query<SenderProfile>(
-    `SELECT first_name, last_name, email, current_company, job_title, phone, website
+interface UserEmailConfig {
+  senderProfile: SenderProfile;
+  gmailUser: string | null;
+  gmailAppPassword: string | null;
+  fromName: string | null;
+  replyToEmail: string | null;
+}
+
+async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | null> {
+  const r = await pool.query(
+    `SELECT first_name, last_name, email, current_company, job_title, phone, website,
+            gmail_user, gmail_app_password, from_name, reply_to_email
      FROM users WHERE id = $1`,
     [userId]
   );
-  return r.rows[0] ?? null;
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    senderProfile: {
+      first_name: row.first_name as string | null,
+      last_name: row.last_name as string | null,
+      email: row.email as string | null,
+      current_company: row.current_company as string | null,
+      job_title: row.job_title as string | null,
+      phone: row.phone as string | null,
+      website: row.website as string | null,
+    },
+    gmailUser: row.gmail_user as string | null,
+    gmailAppPassword: row.gmail_app_password as string | null,
+    fromName: row.from_name as string | null,
+    replyToEmail: row.reply_to_email as string | null,
+  };
+}
+
+function resolveEmailProvider(config: UserEmailConfig) {
+  if (!config.gmailUser || !config.gmailAppPassword) {
+    throw new Error('Gmail credentials not configured. Go to Settings → Profile and add your Gmail address and App Password.');
+  }
+  const fullName = [config.senderProfile.first_name, config.senderProfile.last_name].filter(Boolean).join(' ');
+  return getEmailProviderForUser({
+    gmailUser: config.gmailUser,
+    gmailAppPassword: config.gmailAppPassword,
+    fromName: (config.fromName ?? fullName) || 'CRM',
+  });
 }
 
 const router: ReturnType<typeof Router> = Router();
@@ -108,10 +145,22 @@ router.post('/retry/:id', async (req, res, next) => {
       [id]
     );
 
+    const userConfig = await loadUserEmailConfig(req.user!.id);
+    if (!userConfig) { res.status(500).json({ error: 'User not found' }); return; }
+
+    let provider;
+    try {
+      provider = resolveEmailProvider(userConfig);
+    } catch (cfgErr) {
+      const msg = cfgErr instanceof Error ? cfgErr.message : 'Email not configured';
+      await pool.query(`UPDATE email_sends SET status = 'failed', error_message = $1 WHERE id = $2`, [msg, id]);
+      res.status(400).json({ error: msg });
+      return;
+    }
+
     const html = wrapEmailHtml(plainTextToHtml(send.body), pixelUrl(id));
 
     try {
-      const provider = getEmailProvider();
       const result = await provider.send({
         to: send.prospect_email,
         subject: send.subject,
@@ -170,7 +219,8 @@ router.post('/preview', async (req, res, next) => {
     const template = templateRes.rows[0];
     const prospect = prospectRes.rows[0];
     const company = (prospect as unknown as { company: Company | null }).company;
-    const sender = await loadSenderProfile(req.user!.id);
+    const userConfig = await loadUserEmailConfig(req.user!.id);
+    const sender = userConfig?.senderProfile ?? null;
 
     const context = { prospect, company, custom: customValues, sender };
     const resolvedSubject = resolveTemplate(template.subject, template.variables, context);
@@ -224,8 +274,18 @@ router.post('/send', async (req, res, next) => {
     const template = templateRes.rows[0];
     const prospect = prospectRes.rows[0];
     const company = (prospect as unknown as { company: Company | null }).company;
-    const sender = await loadSenderProfile(req.user!.id);
+    const userConfig = await loadUserEmailConfig(req.user!.id);
+    if (!userConfig) { res.status(500).json({ error: 'User not found' }); return; }
 
+    let provider;
+    try {
+      provider = resolveEmailProvider(userConfig);
+    } catch (cfgErr) {
+      res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
+      return;
+    }
+
+    const sender = userConfig.senderProfile;
     const context = { prospect, company, custom: customValues, sender };
     const resolvedSubject = resolveTemplate(template.subject, template.variables, context);
     const resolvedBody = resolveTemplate(template.body, template.variables, context);
@@ -242,7 +302,6 @@ router.post('/send', async (req, res, next) => {
     const html = wrapEmailHtml(plainTextToHtml(resolvedBody), pixelUrl(sendId));
 
     try {
-      const provider = getEmailProvider();
       const result = await provider.send({
         to: prospect.email,
         subject: resolvedSubject,
@@ -324,11 +383,21 @@ router.post('/send-company', async (req, res, next) => {
       return;
     }
 
+    const userId = req.user!.id;
+    const userConfig = await loadUserEmailConfig(userId);
+    if (!userConfig) { res.status(500).json({ error: 'User not found' }); return; }
+
+    let provider;
+    try {
+      provider = resolveEmailProvider(userConfig);
+    } catch (cfgErr) {
+      res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
+      return;
+    }
+
     const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
     const attachments = await getAttachments(allDocumentIds);
-    const provider = getEmailProvider();
-    const userId = req.user!.id;
-    const sender = await loadSenderProfile(userId);
+    const sender = userConfig.senderProfile;
 
     const results = await Promise.allSettled(
       prospects.map(async (prospect) => {

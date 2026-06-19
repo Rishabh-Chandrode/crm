@@ -183,6 +183,48 @@ router.post('/quick-add', async (req, res, next) => {
   }
 });
 
+router.get('/lookup', async (req, res, next) => {
+  try {
+    const { linkedin_url, email } = req.query as { linkedin_url?: string; email?: string };
+    const userId = req.user!.id;
+
+    if (!linkedin_url && !email) {
+      res.status(400).json({ error: 'linkedin_url or email is required' });
+      return;
+    }
+
+    const conditions: string[] = [];
+    const values: unknown[] = [userId];
+
+    if (linkedin_url?.trim()) {
+      const normalized = linkedin_url.trim().split('?')[0]!.toLowerCase().replace(/\/+$/, '');
+      conditions.push(`LOWER(TRIM(TRAILING '/' FROM p.linkedin_url)) = $${values.length + 1}`);
+      values.push(normalized);
+    }
+    if (email?.trim()) {
+      conditions.push(`p.email = $${values.length + 1}`);
+      values.push(email.trim().toLowerCase());
+    }
+
+    const result = await pool.query<Prospect & { company_name: string | null }>(
+      `SELECT p.*, c.name AS company_name
+       FROM prospects p
+       LEFT JOIN companies c ON c.id = p.company_id
+       WHERE p.created_by = $1 AND (${conditions.join(' OR ')})
+       LIMIT 1`,
+      values
+    );
+
+    if (!result.rows[0]) {
+      res.json({ data: null });
+      return;
+    }
+    res.json({ data: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;

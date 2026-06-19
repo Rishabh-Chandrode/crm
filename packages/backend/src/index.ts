@@ -25,7 +25,8 @@ async function start(): Promise<void> {
   await migrate();
   startScheduler();
   app.listen(CONFIG.port, () => {
-    console.log(`Backend running on port ${CONFIG.port} [${CONFIG.nodeEnv}]`);
+    const time = new Date().toLocaleTimeString();
+    console.log(`[${time}] Server restarted — running on port ${CONFIG.port} [${CONFIG.nodeEnv}]`);
   });
 }
 

@@ -97,6 +97,10 @@ router.get('/me', authMiddleware, async (req, res) => {
   const result = await pool.query<User>(
     `SELECT id, username, email, role, is_active,
             first_name, last_name, current_company, job_title, phone, website, bio,
+            linkedin_url, github_url, city, state, country, work_authorization, location,
+            hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
+            education, college_name, graduation_year, skills, projects, work_experiences,
+            gender,
             gmail_user, from_name, reply_to_email,
             (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,
             (gmail_app_password IS NOT NULL AND gmail_user IS NOT NULL) AS has_gmail_app_password,
@@ -117,6 +121,14 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     first_name?: unknown; last_name?: unknown; email?: unknown;
     current_company?: unknown; job_title?: unknown; phone?: unknown;
     website?: unknown; bio?: unknown;
+    linkedin_url?: unknown; github_url?: unknown;
+    city?: unknown; state?: unknown; country?: unknown;
+    work_authorization?: unknown; location?: unknown;
+    hometown?: unknown; years_of_experience?: unknown; notice_period?: unknown;
+    current_ctc?: unknown; expected_ctc?: unknown;
+    education?: unknown; college_name?: unknown;
+    graduation_year?: unknown; skills?: unknown; projects?: unknown; work_experiences?: unknown;
+    gender?: unknown;
     from_name?: unknown; reply_to_email?: unknown;
   };
 
@@ -135,8 +147,27 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   if (body.phone !== undefined)          add('phone',          typeof body.phone === 'string' ? body.phone.trim() || null : null);
   if (body.website !== undefined)        add('website',        typeof body.website === 'string' ? body.website.trim() || null : null);
   if (body.bio !== undefined)            add('bio',            typeof body.bio === 'string' ? body.bio.trim() || null : null);
-  if (body.from_name !== undefined)      add('from_name',      typeof body.from_name === 'string' ? body.from_name.trim() || null : null);
-  if (body.reply_to_email !== undefined) add('reply_to_email', typeof body.reply_to_email === 'string' ? body.reply_to_email.trim() || null : null);
+  if (body.linkedin_url !== undefined)     add('linkedin_url',      typeof body.linkedin_url === 'string' ? body.linkedin_url.trim() || null : null);
+  if (body.github_url !== undefined)       add('github_url',        typeof body.github_url === 'string' ? body.github_url.trim() || null : null);
+  if (body.city !== undefined)             add('city',              typeof body.city === 'string' ? body.city.trim() || null : null);
+  if (body.state !== undefined)            add('state',             typeof body.state === 'string' ? body.state.trim() || null : null);
+  if (body.country !== undefined)          add('country',           typeof body.country === 'string' ? body.country.trim() || null : null);
+  if (body.work_authorization !== undefined) add('work_authorization', typeof body.work_authorization === 'string' ? body.work_authorization.trim() || null : null);
+  if (body.location !== undefined)           add('location',           typeof body.location === 'string' ? body.location.trim() || null : null);
+  if (body.hometown !== undefined)           add('hometown',           typeof body.hometown === 'string' ? body.hometown.trim() || null : null);
+  if (body.years_of_experience !== undefined) add('years_of_experience', typeof body.years_of_experience === 'string' ? body.years_of_experience.trim() || null : null);
+  if (body.notice_period !== undefined)      add('notice_period',      typeof body.notice_period === 'string' ? body.notice_period.trim() || null : null);
+  if (body.current_ctc !== undefined)        add('current_ctc',        typeof body.current_ctc === 'string' ? body.current_ctc.trim() || null : null);
+  if (body.expected_ctc !== undefined)       add('expected_ctc',       typeof body.expected_ctc === 'string' ? body.expected_ctc.trim() || null : null);
+  if (body.education !== undefined)          add('education',          typeof body.education === 'string' ? body.education.trim() || null : null);
+  if (body.college_name !== undefined)       add('college_name',       typeof body.college_name === 'string' ? body.college_name.trim() || null : null);
+  if (body.graduation_year !== undefined)    add('graduation_year',    typeof body.graduation_year === 'string' ? body.graduation_year.trim() || null : null);
+  if (body.gender !== undefined)                                                   add('gender',            typeof body.gender === 'string' ? body.gender.trim() || null : null);
+  if (body.skills !== undefined && Array.isArray(body.skills))                   add('skills',            JSON.stringify(body.skills));
+  if (body.projects !== undefined && Array.isArray(body.projects))               add('projects',          JSON.stringify(body.projects));
+  if (body.work_experiences !== undefined && Array.isArray(body.work_experiences)) add('work_experiences', JSON.stringify(body.work_experiences));
+  if (body.from_name !== undefined)        add('from_name',         typeof body.from_name === 'string' ? body.from_name.trim() || null : null);
+  if (body.reply_to_email !== undefined)   add('reply_to_email',    typeof body.reply_to_email === 'string' ? body.reply_to_email.trim() || null : null);
 
   if (updates.length === 0) {
     res.status(400).json({ error: 'No fields to update' });
@@ -150,6 +181,10 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     `UPDATE users SET ${updates.join(', ')} WHERE id = $${values.length}
      RETURNING id, username, email, role, is_active,
                first_name, last_name, current_company, job_title, phone, website, bio,
+               linkedin_url, github_url, city, state, country, work_authorization, location,
+               hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
+               education, college_name, graduation_year, skills, projects, work_experiences,
+               gender,
                gmail_user, from_name, reply_to_email,
                (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,
                (gmail_app_password IS NOT NULL AND gmail_user IS NOT NULL) AS has_gmail_app_password`,

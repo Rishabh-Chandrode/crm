@@ -278,6 +278,27 @@ export async function migrate(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id) WHERE google_id IS NOT NULL;
   `);
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_url        VARCHAR(500);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS github_url          VARCHAR(500);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS city                VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS state               VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS country             VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS work_authorization  VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS location            VARCHAR(500);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS hometown            VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS years_of_experience VARCHAR(50);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS notice_period       VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS current_ctc         VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS expected_ctc        VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS education           VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS college_name        VARCHAR(255);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS graduation_year     VARCHAR(10);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS skills              JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS projects            JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS work_experiences    JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS gender              VARCHAR(50);
+  `);
   console.log('Database migration completed successfully');
 }
 

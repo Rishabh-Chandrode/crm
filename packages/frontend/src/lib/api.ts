@@ -45,6 +45,16 @@ export const api = {
       first_name?: string | null; last_name?: string | null; email?: string | null;
       current_company?: string | null; job_title?: string | null; phone?: string | null;
       website?: string | null; bio?: string | null;
+      linkedin_url?: string | null; github_url?: string | null;
+      location?: string | null; city?: string | null; state?: string | null;
+      country?: string | null; work_authorization?: string | null;
+      gender?: string | null;
+      hometown?: string | null; years_of_experience?: string | null;
+      notice_period?: string | null; current_ctc?: string | null; expected_ctc?: string | null;
+      education?: string | null; college_name?: string | null;
+      graduation_year?: string | null;
+      skills?: string[]; projects?: import('./types').Project[];
+      work_experiences?: import('./types').WorkExperience[];
       from_name?: string | null; reply_to_email?: string | null;
     }) =>
       request<{ user: import('./types').CrmUser }>('/auth/profile', {

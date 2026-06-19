@@ -1,3 +1,22 @@
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  tech: string;
+  url: string;
+  role: string;
+}
+
+export interface WorkExperience {
+  id: string;
+  company: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  location: string;
+  description: string;
+}
+
 export interface CrmUser {
   id: string;
   username: string;
@@ -11,6 +30,25 @@ export interface CrmUser {
   phone: string | null;
   website: string | null;
   bio: string | null;
+  linkedin_url: string | null;
+  github_url: string | null;
+  location: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  work_authorization: string | null;
+  gender: string | null;
+  hometown: string | null;
+  years_of_experience: string | null;
+  notice_period: string | null;
+  current_ctc: string | null;
+  expected_ctc: string | null;
+  education: string | null;
+  college_name: string | null;
+  graduation_year: string | null;
+  skills: string[];
+  projects: Project[];
+  work_experiences: WorkExperience[];
   gmail_user: string | null;
   from_name: string | null;
   reply_to_email: string | null;
@@ -21,13 +59,27 @@ export interface CrmUser {
 }
 
 export const SENDER_FIELDS: { value: string; label: string }[] = [
-  { value: 'first_name',       label: 'First Name' },
-  { value: 'last_name',        label: 'Last Name' },
-  { value: 'email',            label: 'Email' },
-  { value: 'current_company',  label: 'Current Company' },
-  { value: 'job_title',        label: 'Job Title' },
-  { value: 'phone',            label: 'Phone' },
-  { value: 'website',          label: 'Website' },
+  { value: 'first_name',         label: 'First Name' },
+  { value: 'last_name',          label: 'Last Name' },
+  { value: 'email',              label: 'Email' },
+  { value: 'current_company',    label: 'Current Company' },
+  { value: 'job_title',          label: 'Job Title' },
+  { value: 'phone',              label: 'Phone' },
+  { value: 'website',            label: 'Website' },
+  { value: 'linkedin_url',       label: 'LinkedIn URL' },
+  { value: 'github_url',         label: 'GitHub URL' },
+  { value: 'location',           label: 'Location (combined)' },
+  { value: 'city',               label: 'City' },
+  { value: 'state',              label: 'State / Province' },
+  { value: 'country',            label: 'Country' },
+  { value: 'work_authorization', label: 'Work Authorization' },
+  { value: 'hometown',           label: 'Hometown' },
+  { value: 'years_of_experience', label: 'Years of Experience' },
+  { value: 'notice_period',      label: 'Notice Period' },
+  { value: 'current_ctc',        label: 'Current CTC / Salary' },
+  { value: 'expected_ctc',       label: 'Expected CTC / Salary' },
+  { value: 'education',          label: 'Education' },
+  { value: 'college_name',       label: 'College / University' },
 ];
 
 export interface Company {

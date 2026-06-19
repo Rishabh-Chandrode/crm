@@ -99,6 +99,7 @@ router.get('/me', authMiddleware, async (req, res) => {
             first_name, last_name, current_company, job_title, phone, website, bio,
             gmail_user, from_name, reply_to_email,
             (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,
+            (gmail_app_password IS NOT NULL AND gmail_user IS NOT NULL) AS has_gmail_app_password,
             created_at
      FROM users WHERE id = $1`,
     [req.user!.id]
@@ -150,7 +151,8 @@ router.patch('/profile', authMiddleware, async (req, res) => {
      RETURNING id, username, email, role, is_active,
                first_name, last_name, current_company, job_title, phone, website, bio,
                gmail_user, from_name, reply_to_email,
-               (gmail_refresh_token IS NOT NULL) AS has_gmail_configured`,
+               (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,
+               (gmail_app_password IS NOT NULL AND gmail_user IS NOT NULL) AS has_gmail_app_password`,
     values
   );
   res.json({ user: result.rows[0] });

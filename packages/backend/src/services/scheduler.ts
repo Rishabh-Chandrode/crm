@@ -76,7 +76,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const userRes = schedule.created_by
     ? await pool.query(
         `SELECT username, first_name, last_name, email, current_company, job_title, phone, website,
-                gmail_user, gmail_refresh_token, from_name
+                gmail_user, gmail_refresh_token, gmail_app_password, from_name
          FROM users WHERE id = $1`,
         [schedule.created_by]
       )
@@ -84,10 +84,13 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   const userRow = userRes.rows[0];
 
-  if (!userRow || !userRow.gmail_user || !userRow.gmail_refresh_token) {
+  const hasOAuth = userRow?.gmail_user && userRow?.gmail_refresh_token;
+  const hasAppPassword = userRow?.gmail_user && userRow?.gmail_app_password;
+
+  if (!userRow || (!hasOAuth && !hasAppPassword)) {
     await pool.query(
       `UPDATE email_schedules SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
-      ['Gmail not connected. Go to Settings → Profile and connect your Gmail account.', schedule.id]
+      ['Gmail not connected. Go to Settings → Gmail to connect your account.', schedule.id]
     );
     return;
   }
@@ -103,11 +106,17 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   };
 
   const fullName = [userRow.first_name, userRow.last_name].filter(Boolean).join(' ');
-  const provider = getEmailProviderForUser({
-    gmailUser: userRow.gmail_user as string,
-    refreshToken: userRow.gmail_refresh_token as string,
-    fromName: (userRow.from_name as string | null) || fullName || (userRow.username as string) || 'CRM',
-  });
+  const fromName = (userRow.from_name as string | null) || fullName || (userRow.username as string) || 'CRM';
+
+  const provider = hasOAuth
+    ? getEmailProviderForUser({
+        method: 'oauth',
+        creds: { gmailUser: userRow.gmail_user as string, refreshToken: userRow.gmail_refresh_token as string, fromName },
+      })
+    : getEmailProviderForUser({
+        method: 'app_password',
+        creds: { gmailUser: userRow.gmail_user as string, appPassword: userRow.gmail_app_password as string, fromName },
+      });
 
   const attachments = await getAttachments(schedule.document_ids);
   let sentCount = 0;

@@ -5,14 +5,8 @@ import { CONFIG } from '../config.js';
 
 const router: ReturnType<typeof Router> = Router();
 
-// Request Gmail scopes alongside login so one consent screen handles both.
-// If the user approves, we log them in AND connect Gmail automatically.
-const LOGIN_SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  'https://mail.google.com/',
-].join(' ');
+// Login-only scopes — no Gmail. Gmail access is a separate opt-in from Settings.
+const LOGIN_SCOPES = ['openid', 'email', 'profile'].join(' ');
 
 router.get('/connect', (req, res) => {
   if (!CONFIG.googleClientId || !CONFIG.googleClientSecret) {
@@ -31,8 +25,7 @@ router.get('/connect', (req, res) => {
     redirect_uri: CONFIG.googleRedirectUri,
     response_type: 'code',
     scope: LOGIN_SCOPES,
-    access_type: 'offline',
-    prompt: 'consent',
+    access_type: 'online',
     state,
   });
 

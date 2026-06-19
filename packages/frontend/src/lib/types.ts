@@ -14,7 +14,8 @@ export interface CrmUser {
   gmail_user: string | null;
   from_name: string | null;
   reply_to_email: string | null;
-  has_gmail_configured: boolean;
+  has_gmail_configured: boolean;   // OAuth token present
+  has_gmail_app_password: boolean; // App password present
   created_at: string;
   updated_at: string;
 }

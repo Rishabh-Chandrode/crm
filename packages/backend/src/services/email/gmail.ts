@@ -4,6 +4,8 @@ import { CONFIG } from '../../config.js';
 
 const STALE_CONNECTION_CODES = new Set(['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ESOCKET']);
 
+// ─── OAuth2 provider ──────────────────────────────────────────────────────────
+
 export interface GmailCredentials {
   gmailUser: string;
   refreshToken: string;
@@ -25,7 +27,6 @@ export class GmailEmailProvider implements EmailProvider {
       pool: true,
       maxConnections: 3,
       maxMessages: Infinity,
-      // Close idle connections after 90 s — before Gmail drops them (~2 min)
       socketTimeout: 90_000,
       auth: {
         type: 'OAuth2',
@@ -53,7 +54,64 @@ export class GmailEmailProvider implements EmailProvider {
       const info = await this.transporter.sendMail(this.buildMailOptions(options));
       return { id: info.messageId as string };
     } catch (err) {
-      // Stale pool connection — close it, get a fresh one, retry once
+      if (STALE_CONNECTION_CODES.has((err as { code?: string }).code ?? '')) {
+        this.transporter.close();
+        this.transporter = this.createTransporter();
+        const info = await this.transporter.sendMail(this.buildMailOptions(options));
+        return { id: info.messageId as string };
+      }
+      throw err;
+    }
+  }
+}
+
+// ─── App Password provider ────────────────────────────────────────────────────
+
+export interface GmailAppPasswordCredentials {
+  gmailUser: string;
+  appPassword: string;
+  fromName: string;
+}
+
+export class GmailAppPasswordProvider implements EmailProvider {
+  private transporter: nodemailer.Transporter;
+  private readonly credentials: GmailAppPasswordCredentials;
+
+  constructor(credentials: GmailAppPasswordCredentials) {
+    this.credentials = credentials;
+    this.transporter = this.createTransporter();
+  }
+
+  private createTransporter(): nodemailer.Transporter {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      pool: true,
+      maxConnections: 3,
+      maxMessages: Infinity,
+      socketTimeout: 90_000,
+      auth: {
+        user: this.credentials.gmailUser,
+        pass: this.credentials.appPassword,
+      },
+    });
+  }
+
+  private buildMailOptions(options: SendEmailOptions) {
+    return {
+      from: `${this.credentials.fromName} <${this.credentials.gmailUser}>`,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      replyTo: options.replyTo,
+      attachments: options.attachments,
+    };
+  }
+
+  async send(options: SendEmailOptions): Promise<SendEmailResult> {
+    try {
+      const info = await this.transporter.sendMail(this.buildMailOptions(options));
+      return { id: info.messageId as string };
+    } catch (err) {
       if (STALE_CONNECTION_CODES.has((err as { code?: string }).code ?? '')) {
         this.transporter.close();
         this.transporter = this.createTransporter();

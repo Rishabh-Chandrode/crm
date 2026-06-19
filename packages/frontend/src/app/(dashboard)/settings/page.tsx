@@ -252,14 +252,18 @@ function ProfileSection() {
     current_company: '', job_title: '', phone: '', website: '', bio: '',
   });
   const [gmailForm, setGmailForm] = useState({ from_name: '', reply_to_email: '' });
+  const [appPwForm, setAppPwForm] = useState({ gmail_user: '', app_password: '' });
   const [saving, setSaving] = useState(false);
   const [gmailSaving, setGmailSaving] = useState(false);
+  const [appPwSaving, setAppPwSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [removingAppPw, setRemovingAppPw] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [gmailError, setGmailError] = useState('');
   const [gmailSuccess, setGmailSuccess] = useState('');
+  const [showAppPwGuide, setShowAppPwGuide] = useState(false);
 
   const loadUser = useCallback(() => {
     api.auth.me().then((r) => {
@@ -346,15 +350,39 @@ function ProfileSection() {
   }
 
   async function handleGmailDisconnect() {
-    if (!confirm('Disconnect Gmail? You will not be able to send emails until you reconnect.')) return;
+    if (!confirm('Disconnect Gmail OAuth? You will not be able to send emails via OAuth until you reconnect.')) return;
     setDisconnecting(true); setGmailError('');
     try {
       await api.auth.gmailDisconnect();
-      setGmailSuccess('Gmail disconnected.');
+      setGmailSuccess('Gmail OAuth disconnected.');
       loadUser();
     } catch (err) {
       setGmailError(err instanceof Error ? err.message : 'Disconnect failed');
     } finally { setDisconnecting(false); }
+  }
+
+  async function handleAppPwSave() {
+    setAppPwSaving(true); setGmailError(''); setGmailSuccess('');
+    try {
+      await api.auth.gmailSaveAppPassword(appPwForm.gmail_user.trim(), appPwForm.app_password.trim());
+      setGmailSuccess('App password saved. Gmail is now connected via App Password.');
+      setAppPwForm({ gmail_user: '', app_password: '' });
+      loadUser();
+    } catch (err) {
+      setGmailError(err instanceof Error ? err.message : 'Save failed');
+    } finally { setAppPwSaving(false); }
+  }
+
+  async function handleAppPwRemove() {
+    if (!confirm('Remove app password? You will not be able to send emails until you reconnect.')) return;
+    setRemovingAppPw(true); setGmailError('');
+    try {
+      await api.auth.gmailRemoveAppPassword();
+      setGmailSuccess('App password removed.');
+      loadUser();
+    } catch (err) {
+      setGmailError(err instanceof Error ? err.message : 'Remove failed');
+    } finally { setRemovingAppPw(false); }
   }
 
   function field(id: keyof typeof form, label: string, placeholder?: string, multiline?: boolean) {
@@ -437,69 +465,214 @@ function ProfileSection() {
         </button>
       </div>
 
-      {/* Gmail OAuth */}
+      {/* Gmail sending */}
       <div className="mt-8 pt-6 border-t border-slate-200">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
-              </svg>
-              <h3 className="text-sm font-semibold text-slate-800">Gmail sending account</h3>
-              {user?.has_gmail_configured
-                ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Connected</span>
-                : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Not connected</span>
-              }
-            </div>
-            <p className="text-xs text-slate-500">
-              {user?.has_gmail_configured
-                ? <>Sending as <span className="font-medium text-slate-700">{user.gmail_user}</span></>
-                : 'Connect your Gmail account to send emails. Required before sending.'}
-            </p>
-          </div>
-          <div className="flex-shrink-0 ml-4">
-            {user?.has_gmail_configured ? (
-              <button
-                onClick={() => void handleGmailDisconnect()}
-                disabled={disconnecting}
-                className="text-sm text-red-600 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-              </button>
-            ) : (
-              <button
-                onClick={() => void handleGmailConnect()}
-                disabled={connecting}
-                className="flex items-center gap-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {connecting ? 'Redirecting…' : (
-                  <>
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
-                    </svg>
-                    Connect Gmail
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+        <div className="flex items-center gap-2 mb-1">
+          <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+          </svg>
+          <h3 className="text-sm font-semibold text-slate-800">Gmail sending</h3>
+          {user?.has_gmail_configured
+            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active · OAuth</span>
+            : user?.has_gmail_app_password
+            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active · App Password</span>
+            : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Not connected</span>
+          }
         </div>
+        <p className="text-xs text-slate-500 mb-5">
+          {user?.has_gmail_app_password && !user?.has_gmail_configured
+            ? <>Sending via <strong>App Password</strong> as <span className="font-medium text-slate-700">{user.gmail_user}</span>.</>
+            : user?.has_gmail_configured && !user?.has_gmail_app_password
+            ? <>Sending via <strong>OAuth</strong> as <span className="font-medium text-slate-700">{user.gmail_user}</span>.</>
+            : user?.has_gmail_configured && user?.has_gmail_app_password
+            ? <>Sending via <strong>OAuth</strong> as <span className="font-medium text-slate-700">{user.gmail_user}</span>. OAuth takes priority when both are set.</>
+            : 'Connect Gmail to enable email sending.'}
+        </p>
 
         {gmailError && <Alert type="error" message={gmailError} />}
         {gmailSuccess && <Alert type="success" message={gmailSuccess} />}
 
-        {user?.has_gmail_configured && (
-          <div className="space-y-3 mt-4 pt-4 border-t border-slate-100">
+        {/* Option 1 — App Password (recommended) */}
+        <div className="border-2 border-indigo-200 bg-indigo-50/30 rounded-xl p-4 mb-3">
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <p className="text-sm font-medium text-slate-800">Option 1 — Gmail App Password</p>
+                <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-medium">Recommended</span>
+                {user?.has_gmail_app_password && !user?.has_gmail_configured && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active</span>
+                )}
+                {user?.has_gmail_app_password && user?.has_gmail_configured && (
+                  <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">Saved (inactive)</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">No app verification needed. Works immediately with any Google account that has 2-Step Verification enabled.</p>
+            </div>
+            {user?.has_gmail_app_password && (
+              <button
+                onClick={() => void handleAppPwRemove()}
+                disabled={removingAppPw}
+                className="flex-shrink-0 text-xs text-red-600 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {removingAppPw ? 'Removing…' : 'Remove'}
+              </button>
+            )}
+          </div>
+
+          {/* Setup guide */}
+          <button
+            onClick={() => setShowAppPwGuide((v) => !v)}
+            className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium mb-3 transition-colors"
+          >
+            <svg className={`w-3.5 h-3.5 transition-transform ${showAppPwGuide ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            {showAppPwGuide ? 'Hide setup guide' : 'How to set up an App Password'}
+          </button>
+
+          {showAppPwGuide && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4 space-y-3">
+              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Setup guide — takes ~2 minutes</p>
+              {[
+                {
+                  n: 1,
+                  title: 'Enable 2-Step Verification',
+                  body: 'App Passwords require 2-Step Verification to be turned on. Go to your Google Account → Security → 2-Step Verification and enable it if you haven\'t already.',
+                  link: 'https://myaccount.google.com/security',
+                  linkLabel: 'Open Google Security settings →',
+                },
+                {
+                  n: 2,
+                  title: 'Open App Passwords',
+                  body: 'In the same Security page, search for "App passwords" or go directly to the link below. You may need to sign in again.',
+                  link: 'https://myaccount.google.com/apppasswords',
+                  linkLabel: 'Open App Passwords →',
+                },
+                {
+                  n: 3,
+                  title: 'Create a new App Password',
+                  body: 'In the "App name" field type something like "Outreach CRM", then click Create. Google will show you a 16-character password.',
+                },
+                {
+                  n: 4,
+                  title: 'Paste it below',
+                  body: 'Copy the 16-character password (spaces are optional) and paste it into the App Password field below along with your Gmail address. Click Save.',
+                },
+              ].map((step) => (
+                <div key={step.n} className="flex gap-3">
+                  <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                    {step.n}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-700 mb-0.5">{step.title}</p>
+                    <p className="text-xs text-slate-500">{step.body}</p>
+                    {step.link && (
+                      <a
+                        href={step.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-indigo-600 hover:underline mt-0.5 inline-block"
+                      >
+                        {step.linkLabel}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* App password form */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">Gmail address</label>
+                <input
+                  className="form-input"
+                  type="email"
+                  placeholder="you@gmail.com"
+                  value={appPwForm.gmail_user}
+                  onChange={(e) => setAppPwForm((prev) => ({ ...prev, gmail_user: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="form-label">App Password</label>
+                <input
+                  className="form-input font-mono tracking-widest"
+                  type="password"
+                  placeholder="xxxx xxxx xxxx xxxx"
+                  value={appPwForm.app_password}
+                  onChange={(e) => setAppPwForm((prev) => ({ ...prev, app_password: e.target.value }))}
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+            <button
+              onClick={() => void handleAppPwSave()}
+              disabled={appPwSaving || !appPwForm.gmail_user.trim() || !appPwForm.app_password.trim()}
+              className="bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              {appPwSaving ? 'Saving…' : user?.has_gmail_app_password ? 'Update App Password' : 'Save App Password'}
+            </button>
+          </div>
+        </div>
+
+        {/* Option 2 — OAuth */}
+        <div className="border border-slate-200 rounded-xl p-4 mb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <p className="text-sm font-medium text-slate-800">Option 2 — Google OAuth</p>
+                {user?.has_gmail_configured && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mb-2">Connects directly via your Google account. Requires going through Google's consent screen.</p>
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-xs text-amber-700">
+                  This app is <strong>not verified by Google</strong>. You will see a warning screen. Click <strong>"Advanced"</strong> → <strong>"Go to [app name] (unsafe)"</strong> to continue. This is normal for personal/self-hosted apps.
+                </p>
+              </div>
+            </div>
+            <div className="flex-shrink-0 ml-2">
+              {user?.has_gmail_configured ? (
+                <button
+                  onClick={() => void handleGmailDisconnect()}
+                  disabled={disconnecting}
+                  className="text-xs text-red-600 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {disconnecting ? 'Removing…' : 'Disconnect'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => void handleGmailConnect()}
+                  disabled={connecting}
+                  className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {connecting ? 'Redirecting…' : 'Connect via Google'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Display name / reply-to — shown when any method is active */}
+        {(user?.has_gmail_configured || user?.has_gmail_app_password) && (
+          <div className="space-y-3 pt-4 border-t border-slate-100">
+            <p className="text-xs font-medium text-slate-600">Sending preferences</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Display name</label>
                 <input
                   className="form-input"
-                  placeholder="Jane Smith"
+                  placeholder={user?.username ?? 'Your Name'}
                   value={gmailForm.from_name}
                   onChange={(e) => setGmailForm((prev) => ({ ...prev, from_name: e.target.value }))}
                 />
-                <p className="text-xs text-slate-400 mt-1">Shown as sender name in recipients' inboxes</p>
+                <p className="text-xs text-slate-400 mt-1">Shown as sender name — defaults to your username</p>
               </div>
               <div>
                 <label className="form-label">Reply-to address</label>
@@ -518,7 +691,7 @@ function ProfileSection() {
               disabled={gmailSaving}
               className="bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
             >
-              {gmailSaving ? 'Saving…' : 'Save Gmail settings'}
+              {gmailSaving ? 'Saving…' : 'Save preferences'}
             </button>
           </div>
         )}

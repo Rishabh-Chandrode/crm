@@ -92,7 +92,6 @@ async function handleLoginCallback(
 
     const tokens = await tokenRes.json() as {
       access_token?: string;
-      refresh_token?: string;
       error?: string;
       error_description?: string;
     };
@@ -126,15 +125,9 @@ async function handleLoginCallback(
     )).rows[0];
 
     if (user) {
-      // Link google_id and update gmail token if we got one
       await pool.query(
-        `UPDATE users SET
-           google_id = COALESCE(google_id, $1),
-           gmail_user = COALESCE($2, gmail_user),
-           gmail_refresh_token = COALESCE($3, gmail_refresh_token),
-           updated_at = NOW()
-         WHERE id = $4`,
-        [googleUser.sub, tokens.refresh_token ? googleUser.email : null, tokens.refresh_token ?? null, user.id]
+        `UPDATE users SET google_id = COALESCE(google_id, $1), updated_at = NOW() WHERE id = $2`,
+        [googleUser.sub, user.id]
       );
     } else {
       const base = googleUser.email.split('@')[0]!.toLowerCase().replace(/[^a-z0-9_]/g, '_');
@@ -150,15 +143,10 @@ async function handleLoginCallback(
       const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 12);
 
       const created = await pool.query<User>(
-        `INSERT INTO users (username, email, password_hash, role, google_id, first_name, last_name, gmail_user, gmail_refresh_token)
-         VALUES ($1, $2, $3, 'user', $4, $5, $6, $7, $8)
+        `INSERT INTO users (username, email, password_hash, role, google_id, first_name, last_name)
+         VALUES ($1, $2, $3, 'user', $4, $5, $6)
          RETURNING id, username, email, role`,
-        [
-          username, googleUser.email, passwordHash, googleUser.sub,
-          googleUser.given_name ?? null, googleUser.family_name ?? null,
-          tokens.refresh_token ? googleUser.email : null,
-          tokens.refresh_token ?? null,
-        ]
+        [username, googleUser.email, passwordHash, googleUser.sub, googleUser.given_name ?? null, googleUser.family_name ?? null]
       );
       user = created.rows[0]!;
     }
@@ -229,11 +217,46 @@ async function handleGmailCallback(
   }
 }
 
-// DELETE /api/auth/gmail/disconnect
+// DELETE /api/auth/gmail/disconnect — clears OAuth tokens
 router.delete('/disconnect', authMiddleware, async (req, res, next) => {
   try {
     await pool.query(
       `UPDATE users SET gmail_user = NULL, gmail_refresh_token = NULL, updated_at = NOW() WHERE id = $1`,
+      [req.user!.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/gmail/app-password — save app password credentials
+router.post('/app-password', authMiddleware, async (req, res, next) => {
+  try {
+    const body = req.body as { gmail_user?: unknown; app_password?: unknown };
+    const gmailUser   = typeof body.gmail_user   === 'string' ? body.gmail_user.trim()   : '';
+    const appPassword = typeof body.app_password === 'string' ? body.app_password.trim() : '';
+
+    if (!gmailUser || !appPassword) {
+      res.status(400).json({ error: 'gmail_user and app_password are required' });
+      return;
+    }
+
+    await pool.query(
+      `UPDATE users SET gmail_user = $1, gmail_app_password = $2, updated_at = NOW() WHERE id = $3`,
+      [gmailUser, appPassword, req.user!.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/auth/gmail/app-password — remove app password credentials
+router.delete('/app-password', authMiddleware, async (req, res, next) => {
+  try {
+    await pool.query(
+      `UPDATE users SET gmail_app_password = NULL, updated_at = NOW() WHERE id = $1`,
       [req.user!.id]
     );
     res.json({ ok: true });

@@ -11,6 +11,7 @@ interface UserEmailConfig {
   senderProfile: SenderProfile;
   gmailUser: string | null;
   gmailRefreshToken: string | null;
+  gmailAppPassword: string | null;
   fromName: string | null;
   replyToEmail: string | null;
 }
@@ -18,7 +19,7 @@ interface UserEmailConfig {
 async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | null> {
   const r = await pool.query(
     `SELECT username, first_name, last_name, email, current_company, job_title, phone, website,
-            gmail_user, gmail_refresh_token, from_name, reply_to_email
+            gmail_user, gmail_refresh_token, gmail_app_password, from_name, reply_to_email
      FROM users WHERE id = $1`,
     [userId]
   );
@@ -37,21 +38,30 @@ async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | nu
     },
     gmailUser: row.gmail_user as string | null,
     gmailRefreshToken: row.gmail_refresh_token as string | null,
+    gmailAppPassword: row.gmail_app_password as string | null,
     fromName: row.from_name as string | null,
     replyToEmail: row.reply_to_email as string | null,
   };
 }
 
 function resolveEmailProvider(config: UserEmailConfig) {
-  if (!config.gmailUser || !config.gmailRefreshToken) {
-    throw new Error('Gmail not connected. Go to Settings → Profile and connect your Gmail account.');
-  }
   const fullName = [config.senderProfile.first_name, config.senderProfile.last_name].filter(Boolean).join(' ');
-  return getEmailProviderForUser({
-    gmailUser: config.gmailUser,
-    refreshToken: config.gmailRefreshToken,
-    fromName: config.fromName || fullName || config.username || 'CRM',
-  });
+  const fromName = config.fromName || fullName || config.username || 'CRM';
+
+  // OAuth takes priority over app password
+  if (config.gmailUser && config.gmailRefreshToken) {
+    return getEmailProviderForUser({
+      method: 'oauth',
+      creds: { gmailUser: config.gmailUser, refreshToken: config.gmailRefreshToken, fromName },
+    });
+  }
+  if (config.gmailUser && config.gmailAppPassword) {
+    return getEmailProviderForUser({
+      method: 'app_password',
+      creds: { gmailUser: config.gmailUser, appPassword: config.gmailAppPassword, fromName },
+    });
+  }
+  throw new Error('Gmail not connected. Go to Settings → Gmail to connect your account.');
 }
 
 const router: ReturnType<typeof Router> = Router();

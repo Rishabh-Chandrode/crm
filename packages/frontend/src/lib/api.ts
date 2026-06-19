@@ -55,6 +55,13 @@ export const api = {
       request<{ url: string }>('/auth/gmail/connect'),
     gmailDisconnect: () =>
       request<{ ok: boolean }>('/auth/gmail/disconnect', { method: 'DELETE' }),
+    gmailSaveAppPassword: (gmail_user: string, app_password: string) =>
+      request<{ ok: boolean }>('/auth/gmail/app-password', {
+        method: 'POST',
+        body: JSON.stringify({ gmail_user, app_password }),
+      }),
+    gmailRemoveAppPassword: () =>
+      request<{ ok: boolean }>('/auth/gmail/app-password', { method: 'DELETE' }),
     googleLoginUrl: () =>
       request<{ url: string }>('/auth/google/connect'),
     signup: (username: string, password: string, email?: string) =>

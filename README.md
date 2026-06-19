@@ -1,6 +1,6 @@
 # Outreach CRM
 
-A personal CRM for managing job-search email outreach. Store target companies and their contacts (prospects), write reusable templates with dynamic `{{variables}}`, and blast personalised emails to every prospect at a company in one action. Includes a Chrome extension for scraping LinkedIn profiles directly into the CRM.
+A personal CRM for managing job-search email outreach. Store target companies and their contacts (prospects), write reusable templates with dynamic `{{variables}}`, and blast personalised emails to every prospect at a company in one action. Includes a Chrome side panel extension that detects existing CRM contacts while browsing LinkedIn and scrapes new profiles directly into the CRM.
 
 ---
 
@@ -14,7 +14,7 @@ A personal CRM for managing job-search email outreach. Store target companies an
 | Database | PostgreSQL 16 |
 | Email | Gmail via OAuth2 (or Resend as fallback) |
 | Containers | Docker + Docker Compose |
-| Extension | Chrome MV3, TypeScript |
+| Extension | Chrome MV3 side panel, TypeScript |
 
 ---
 

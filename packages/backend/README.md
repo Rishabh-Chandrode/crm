@@ -154,6 +154,7 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 |---|---|---|
 | GET | `/api/prospects` | List — query params: `company_id`, `role_category`, `search`, `sort_by`, `sort_dir`, `limit`, `offset` |
 | POST | `/api/prospects` | Create |
+| GET | `/api/prospects/lookup` | Look up by `linkedin_url` and/or `email` — returns first match for current user (used by extension match card) |
 | GET | `/api/prospects/:id` | Single prospect with nested `company` |
 | PATCH | `/api/prospects/:id` | Partial update |
 | DELETE | `/api/prospects/:id` | Delete |

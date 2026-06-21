@@ -298,6 +298,10 @@ export async function migrate(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS projects            JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS work_experiences    JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS gender              VARCHAR(50);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS veteran_status      VARCHAR(100);
+  `);
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_country_code VARCHAR(10);
   `);
   console.log('Database migration completed successfully');
 }

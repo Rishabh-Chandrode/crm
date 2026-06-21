@@ -23,6 +23,17 @@ async function request<T>(
   const json = (await res.json()) as unknown;
 
   if (!res.ok) {
+    if (
+      typeof json === 'object' && json !== null &&
+      'error' in json && 'fields' in json &&
+      typeof (json as { fields: unknown }).fields === 'object'
+    ) {
+      const fields = (json as { fields: Record<string, string> }).fields;
+      const lines = Object.entries(fields).map(([f, m]) => `${f}: ${m}`).join('\n');
+      const err = new Error(lines) as Error & { fields: Record<string, string> };
+      err.fields = fields;
+      throw err;
+    }
     const msg =
       typeof json === 'object' && json !== null && 'error' in json
         ? String((json as { error: unknown }).error)
@@ -43,12 +54,12 @@ export const api = {
     me: () => request<{ user: import('./types').CrmUser }>('/auth/me'),
     updateProfile: (body: {
       first_name?: string | null; last_name?: string | null; email?: string | null;
-      current_company?: string | null; job_title?: string | null; phone?: string | null;
+      current_company?: string | null; job_title?: string | null; phone?: string | null; phone_country_code?: string | null;
       website?: string | null; bio?: string | null;
       linkedin_url?: string | null; github_url?: string | null;
       location?: string | null; city?: string | null; state?: string | null;
       country?: string | null; work_authorization?: string | null;
-      gender?: string | null;
+      gender?: string | null; veteran_status?: string | null;
       hometown?: string | null; years_of_experience?: string | null;
       notice_period?: string | null; current_ctc?: string | null; expected_ctc?: string | null;
       education?: string | null; college_name?: string | null;
@@ -235,12 +246,13 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ templateId, prospectIds, customValues, documentIds }),
       }),
-    history: (limit = 50, offset = 0, filters?: { status?: string; search?: string; company_id?: string; template_id?: string }) => {
+    history: (limit = 50, offset = 0, filters?: { status?: string; search?: string; company_id?: string; template_id?: string; prospect_id?: string }) => {
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
       if (filters?.status && filters.status !== 'all') params.set('status', filters.status);
       if (filters?.search) params.set('search', filters.search);
       if (filters?.company_id) params.set('company_id', filters.company_id);
       if (filters?.template_id) params.set('template_id', filters.template_id);
+      if (filters?.prospect_id) params.set('prospect_id', filters.prospect_id);
       return request<{ data: import('./types').EmailSend[]; total: number }>(`/email/history?${params.toString()}`);
     },
     retry: (id: string) =>

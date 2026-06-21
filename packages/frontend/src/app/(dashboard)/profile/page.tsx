@@ -54,9 +54,11 @@ function Alert({ type, message }: { type: 'error' | 'success'; message: string }
   return <div className={`border rounded-lg px-4 py-3 text-sm mb-4 ${s}`}>{message}</div>;
 }
 
-function SaveRow({ saving, onSave }: { saving: boolean; onSave: () => void }) {
+function SaveRow({ saving, onSave, error, success }: { saving: boolean; onSave: () => void; error?: string; success?: string }) {
   return (
     <div className="mt-6 pt-4 border-t border-slate-100">
+      {error   && <Alert type="error"   message={error} />}
+      {success && <Alert type="success" message={success} />}
       <button
         onClick={onSave}
         disabled={saving}
@@ -84,12 +86,14 @@ function formatBytes(bytes: number | null): string {
 function PersonalTab({ user }: { user: CrmUser }) {
   const [form, setForm] = useState({
     first_name: user.first_name ?? '', last_name: user.last_name ?? '',
-    email: user.email ?? '', phone: user.phone ?? '', website: user.website ?? '',
+    email: user.email ?? '', phone: user.phone ?? '', phone_country_code: user.phone_country_code ?? '',
+    website: user.website ?? '',
     linkedin_url: user.linkedin_url ?? '', github_url: user.github_url ?? '',
     location: user.location ?? '', city: user.city ?? '',
     state: user.state ?? '', country: user.country ?? '',
     hometown: user.hometown ?? '', work_authorization: user.work_authorization ?? '',
     gender: user.gender ?? '',
+    veteran_status: user.veteran_status ?? '',
     bio: user.bio ?? '',
   });
   const [saving, setSaving] = useState(false);
@@ -99,12 +103,14 @@ function PersonalTab({ user }: { user: CrmUser }) {
   useEffect(() => {
     setForm({
       first_name: user.first_name ?? '', last_name: user.last_name ?? '',
-      email: user.email ?? '', phone: user.phone ?? '', website: user.website ?? '',
+      email: user.email ?? '', phone: user.phone ?? '', phone_country_code: user.phone_country_code ?? '',
+      website: user.website ?? '',
       linkedin_url: user.linkedin_url ?? '', github_url: user.github_url ?? '',
       location: user.location ?? '', city: user.city ?? '',
       state: user.state ?? '', country: user.country ?? '',
       hometown: user.hometown ?? '', work_authorization: user.work_authorization ?? '',
       gender: user.gender ?? '',
+      veteran_status: user.veteran_status ?? '',
       bio: user.bio ?? '',
     });
   }, [user]);
@@ -130,6 +136,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
         last_name:  form.last_name.trim()  || null,
         email:      form.email.trim()      || null,
         phone:      form.phone.trim()      || null,
+        phone_country_code: form.phone_country_code.trim() || null,
         website:    form.website.trim()    || null,
         linkedin_url: form.linkedin_url.trim() || null,
         github_url:   form.github_url.trim()   || null,
@@ -139,20 +146,24 @@ function PersonalTab({ user }: { user: CrmUser }) {
         country:    form.country.trim()    || null,
         hometown:   form.hometown.trim()   || null,
         work_authorization: form.work_authorization.trim() || null,
-        gender:     form.gender || null,
+        gender:         form.gender || null,
+        veteran_status: form.veteran_status || null,
         bio:        form.bio.trim()        || null,
       });
       setSuccess('Saved.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      if (e instanceof Error && 'fields' in e) {
+        const fields = (e as Error & { fields: Record<string, string> }).fields;
+        setError(Object.entries(fields).map(([f, m]) => `${f.replace(/_/g, ' ')}: ${m}`).join(' · '));
+      } else {
+        setError(e instanceof Error ? e.message : 'Save failed');
+      }
     } finally { setSaving(false); }
   }
 
   return (
     <div>
       <SectionHeader title="Personal Info" description="Your identity and contact details — used by the extension to fill job application forms." />
-      {error   && <Alert type="error"   message={error} />}
-      {success && <Alert type="success" message={success} />}
 
       <div className="space-y-4">
         <FieldGroup label="Name" />
@@ -160,25 +171,58 @@ function PersonalTab({ user }: { user: CrmUser }) {
           {inp('first_name', 'First name', 'Jane')}
           {inp('last_name',  'Last name',  'Smith')}
         </div>
-        <div>
-          <label className="form-label">Gender</label>
-          <select
-            className="form-input"
-            value={form.gender}
-            onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
-          >
-            <option value="">Prefer not to say</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Non-binary">Non-binary</option>
-            <option value="Other">Other</option>
-          </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Gender</label>
+            <select
+              className="form-input"
+              value={form.gender}
+              onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
+            >
+              <option value="">Prefer not to say</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Non-binary">Non-binary</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Veteran status</label>
+            <select
+              className="form-input"
+              value={form.veteran_status}
+              onChange={e => setForm(p => ({ ...p, veteran_status: e.target.value }))}
+            >
+              <option value="">Prefer not to say</option>
+              <option value="I am not a protected veteran">I am not a protected veteran</option>
+              <option value="I identify as one or more of the classifications of a protected veteran">I am a protected veteran</option>
+              <option value="I don't wish to answer">I don&apos;t wish to answer</option>
+            </select>
+          </div>
         </div>
 
         <FieldGroup label="Contact" />
         {inp('email', 'Email address', 'jane@example.com', 'email')}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {inp('phone',   'Phone',   '+1 555-000-0000', 'tel')}
+          <div>
+            <label className="form-label">Phone</label>
+            <div className="flex gap-2">
+              <input
+                className="form-input w-24 shrink-0"
+                type="text"
+                placeholder="+1"
+                value={form.phone_country_code}
+                onChange={e => setForm(p => ({ ...p, phone_country_code: e.target.value }))}
+              />
+              <input
+                className="form-input flex-1"
+                type="tel"
+                placeholder="555-000-0000"
+                value={form.phone}
+                onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+              />
+            </div>
+          </div>
           {inp('website', 'Website', 'https://yoursite.com', 'url')}
         </div>
 
@@ -213,7 +257,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
         </div>
       </div>
 
-      <SaveRow saving={saving} onSave={() => void save()} />
+      <SaveRow saving={saving} onSave={() => void save()} error={error} success={success} />
     </div>
   );
 }
@@ -417,8 +461,6 @@ function WorkTab({ user }: { user: CrmUser }) {
   return (
     <div>
       <SectionHeader title="Work Experience" description="Your employment history and job search details — used to autofill job application forms." />
-      {error   && <Alert type="error"   message={error} />}
-      {success && <Alert type="success" message={success} />}
 
       {/* Experience list */}
       <div className="space-y-3 mb-4">
@@ -492,6 +534,8 @@ function WorkTab({ user }: { user: CrmUser }) {
           </div>
         </div>
         <div className="mt-6 pt-4 border-t border-slate-100">
+          {error   && <Alert type="error"   message={error} />}
+          {success && <Alert type="success" message={success} />}
           <button
             onClick={() => void saveJob()}
             disabled={savingJob}
@@ -548,15 +592,18 @@ function EducationTab({ user }: { user: CrmUser }) {
       });
       setSuccess('Saved.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      if (e instanceof Error && 'fields' in e) {
+        const fields = (e as Error & { fields: Record<string, string> }).fields;
+        setError(Object.entries(fields).map(([f, m]) => `${f.replace(/_/g, ' ')}: ${m}`).join(' · '));
+      } else {
+        setError(e instanceof Error ? e.message : 'Save failed');
+      }
     } finally { setSaving(false); }
   }
 
   return (
     <div>
       <SectionHeader title="Education" description="Your academic background — used to fill education fields in job applications." />
-      {error   && <Alert type="error"   message={error} />}
-      {success && <Alert type="success" message={success} />}
 
       <div className="space-y-4">
         {inp('education',       'Degree / Qualification', 'B.Tech · B.E. · Masters · MBA')}
@@ -564,7 +611,7 @@ function EducationTab({ user }: { user: CrmUser }) {
         {inp('graduation_year', 'Graduation year',        '2022')}
       </div>
 
-      <SaveRow saving={saving} onSave={() => void save()} />
+      <SaveRow saving={saving} onSave={() => void save()} error={error} success={success} />
     </div>
   );
 }
@@ -612,8 +659,6 @@ function ResumeTab() {
   return (
     <div>
       <SectionHeader title="Resume Files" description="Upload your resume and cover letter files. These can be attached when sending outreach emails." />
-      {error   && <Alert type="error"   message={error} />}
-      {success && <Alert type="success" message={success} />}
 
       <div className="border border-dashed border-slate-300 rounded-xl p-5 mb-5 bg-slate-50 space-y-3">
         <p className="text-sm font-medium text-slate-700">Upload a file</p>
@@ -627,20 +672,30 @@ function ResumeTab() {
           }}
         />
         {uploadFile && (
-          <div className="flex gap-2">
-            <input
-              className="form-input flex-1"
-              placeholder="Display name"
-              value={uploadName}
-              onChange={e => setUploadName(e.target.value)}
-            />
-            <button
-              onClick={() => void upload()}
-              disabled={uploading}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg shrink-0 transition-colors"
-            >
-              {uploading ? 'Uploading…' : 'Upload'}
-            </button>
+          <div className="space-y-2">
+            {error   && <Alert type="error"   message={error} />}
+            {success && <Alert type="success" message={success} />}
+            <div className="flex gap-2">
+              <input
+                className="form-input flex-1"
+                placeholder="Display name"
+                value={uploadName}
+                onChange={e => setUploadName(e.target.value)}
+              />
+              <button
+                onClick={() => void upload()}
+                disabled={uploading}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg shrink-0 transition-colors"
+              >
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+          </div>
+        )}
+        {!uploadFile && (error || success) && (
+          <div>
+            {error   && <Alert type="error"   message={error} />}
+            {success && <Alert type="success" message={success} />}
           </div>
         )}
       </div>
@@ -771,7 +826,6 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
       <SectionHeader title="Projects" description="Highlight your notable work. Used to fill project-related fields in job applications." />
       {error   && <Alert type="error"   message={error} />}
       {success && <Alert type="success" message={success} />}
-
       <div className="space-y-3 mb-4">
         {projects.map(p => (
           <div key={p.id} className="border border-slate-200 rounded-xl overflow-hidden">

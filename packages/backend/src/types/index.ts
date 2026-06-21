@@ -11,6 +11,7 @@ export interface User {
   current_company: string | null;
   job_title: string | null;
   phone: string | null;
+  phone_country_code: string | null;
   website: string | null;
   bio: string | null;
   created_at: Date;

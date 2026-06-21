@@ -73,7 +73,7 @@ function pixelUrl(sendId: string): string {
 
 router.get('/history', async (req, res, next) => {
   try {
-    const { limit = '50', offset = '0', status, search, company_id, template_id } = req.query as Record<string, string>;
+    const { limit = '50', offset = '0', status, search, company_id, template_id, prospect_id } = req.query as Record<string, string>;
 
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -89,6 +89,10 @@ router.get('/history', async (req, res, next) => {
     if (template_id) {
       params.push(template_id);
       conditions.push(`es.template_id = $${params.length}`);
+    }
+    if (prospect_id) {
+      params.push(prospect_id);
+      conditions.push(`es.prospect_id = $${params.length}`);
     }
     if (search) {
       params.push(`%${search}%`);

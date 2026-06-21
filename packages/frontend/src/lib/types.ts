@@ -28,6 +28,7 @@ export interface CrmUser {
   current_company: string | null;
   job_title: string | null;
   phone: string | null;
+  phone_country_code: string | null;
   website: string | null;
   bio: string | null;
   linkedin_url: string | null;
@@ -38,6 +39,7 @@ export interface CrmUser {
   country: string | null;
   work_authorization: string | null;
   gender: string | null;
+  veteran_status: string | null;
   hometown: string | null;
   years_of_experience: string | null;
   notice_period: string | null;

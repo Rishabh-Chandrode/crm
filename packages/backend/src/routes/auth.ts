@@ -96,11 +96,11 @@ router.post('/signup', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   const result = await pool.query<User>(
     `SELECT id, username, email, role, is_active,
-            first_name, last_name, current_company, job_title, phone, website, bio,
+            first_name, last_name, current_company, job_title, phone, phone_country_code, website, bio,
             linkedin_url, github_url, city, state, country, work_authorization, location,
             hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
             education, college_name, graduation_year, skills, projects, work_experiences,
-            gender,
+            gender, veteran_status,
             gmail_user, from_name, reply_to_email,
             (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,
             (gmail_app_password IS NOT NULL AND gmail_user IS NOT NULL) AS has_gmail_app_password,
@@ -119,7 +119,7 @@ router.get('/me', authMiddleware, async (req, res) => {
 router.patch('/profile', authMiddleware, async (req, res) => {
   const body = req.body as {
     first_name?: unknown; last_name?: unknown; email?: unknown;
-    current_company?: unknown; job_title?: unknown; phone?: unknown;
+    current_company?: unknown; job_title?: unknown; phone?: unknown; phone_country_code?: unknown;
     website?: unknown; bio?: unknown;
     linkedin_url?: unknown; github_url?: unknown;
     city?: unknown; state?: unknown; country?: unknown;
@@ -128,9 +128,102 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     current_ctc?: unknown; expected_ctc?: unknown;
     education?: unknown; college_name?: unknown;
     graduation_year?: unknown; skills?: unknown; projects?: unknown; work_experiences?: unknown;
-    gender?: unknown;
+    gender?: unknown; veteran_status?: unknown;
     from_name?: unknown; reply_to_email?: unknown;
   };
+
+  // ── validation ────────────────────────────────────────────────────────────
+  const s = (v: unknown) => (typeof v === 'string' ? v.trim() : null);
+  const fieldErrors: Record<string, string> = {};
+
+  const EMAIL_RE    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const PHONE_RE    = /^[+\d\s\-().]{1,25}$/;
+  const PHONE_CC_RE = /^\+\d{1,4}$/;
+  const URL_RE      = /^https?:\/\/.+/;
+  const YEAR_RE     = /^\d{4}$/;
+  const THIS_YEAR   = new Date().getFullYear();
+
+  const GENDER_VALUES   = new Set(['', 'Male', 'Female', 'Non-binary', 'Other']);
+  const VETERAN_VALUES  = new Set([
+    '',
+    'I am not a protected veteran',
+    'I identify as one or more of the classifications of a protected veteran',
+    "I don't wish to answer",
+  ]);
+
+  if (body.email !== undefined) {
+    const v = s(body.email);
+    if (v && !EMAIL_RE.test(v)) fieldErrors['email'] = 'Invalid email address';
+  }
+  if (body.phone !== undefined) {
+    const v = s(body.phone);
+    if (v && !PHONE_RE.test(v)) fieldErrors['phone'] = 'Phone may only contain digits, spaces, +, -, (, ) and .';
+  }
+  if (body.phone_country_code !== undefined) {
+    const v = s(body.phone_country_code);
+    if (v && !PHONE_CC_RE.test(v)) fieldErrors['phone_country_code'] = 'Country code must be + followed by 1–4 digits (e.g. +1, +91)';
+  }
+  if (body.website !== undefined) {
+    const v = s(body.website);
+    if (v && !URL_RE.test(v)) fieldErrors['website'] = 'Must be a valid http/https URL';
+  }
+  if (body.linkedin_url !== undefined) {
+    const v = s(body.linkedin_url);
+    if (v && !URL_RE.test(v)) fieldErrors['linkedin_url'] = 'Must be a valid http/https URL';
+  }
+  if (body.github_url !== undefined) {
+    const v = s(body.github_url);
+    if (v && !URL_RE.test(v)) fieldErrors['github_url'] = 'Must be a valid http/https URL';
+  }
+  if (body.from_name !== undefined) {
+    // no format restriction — just length (handled below)
+  }
+  if (body.reply_to_email !== undefined) {
+    const v = s(body.reply_to_email);
+    if (v && !EMAIL_RE.test(v)) fieldErrors['reply_to_email'] = 'Invalid email address';
+  }
+  if (body.graduation_year !== undefined) {
+    const v = s(body.graduation_year);
+    if (v) {
+      if (!YEAR_RE.test(v)) {
+        fieldErrors['graduation_year'] = 'Must be a 4-digit year';
+      } else {
+        const y = parseInt(v, 10);
+        if (y < 1950 || y > THIS_YEAR + 10) fieldErrors['graduation_year'] = `Must be between 1950 and ${THIS_YEAR + 10}`;
+      }
+    }
+  }
+  if (body.gender !== undefined) {
+    const v = s(body.gender) ?? '';
+    if (!GENDER_VALUES.has(v)) fieldErrors['gender'] = 'Invalid value';
+  }
+  if (body.veteran_status !== undefined) {
+    const v = s(body.veteran_status) ?? '';
+    if (!VETERAN_VALUES.has(v)) fieldErrors['veteran_status'] = 'Invalid value';
+  }
+
+  // Length limits
+  const LENGTH_LIMITS: [string, number][] = [
+    ['first_name', 100], ['last_name', 100], ['from_name', 255],
+    ['current_company', 255], ['job_title', 255],
+    ['city', 255], ['state', 255], ['country', 255], ['hometown', 255],
+    ['location', 500], ['work_authorization', 255], ['notice_period', 100],
+    ['education', 255], ['college_name', 255],
+    ['current_ctc', 100], ['expected_ctc', 100], ['years_of_experience', 50],
+    ['bio', 2000],
+    ['website', 500], ['linkedin_url', 500], ['github_url', 500],
+  ];
+  for (const [field, max] of LENGTH_LIMITS) {
+    if (field in fieldErrors) continue; // already flagged
+    const v = s((body as Record<string, unknown>)[field]);
+    if (v && v.length > max) fieldErrors[field] = `Must be ${max} characters or fewer`;
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    res.status(400).json({ error: 'Validation failed', fields: fieldErrors });
+    return;
+  }
+  // ── end validation ────────────────────────────────────────────────────────
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -145,6 +238,7 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   if (body.current_company !== undefined) add('current_company', typeof body.current_company === 'string' ? body.current_company.trim() || null : null);
   if (body.job_title !== undefined)      add('job_title',      typeof body.job_title === 'string' ? body.job_title.trim() || null : null);
   if (body.phone !== undefined)          add('phone',          typeof body.phone === 'string' ? body.phone.trim() || null : null);
+  if (body.phone_country_code !== undefined) add('phone_country_code', typeof body.phone_country_code === 'string' ? body.phone_country_code.trim() || null : null);
   if (body.website !== undefined)        add('website',        typeof body.website === 'string' ? body.website.trim() || null : null);
   if (body.bio !== undefined)            add('bio',            typeof body.bio === 'string' ? body.bio.trim() || null : null);
   if (body.linkedin_url !== undefined)     add('linkedin_url',      typeof body.linkedin_url === 'string' ? body.linkedin_url.trim() || null : null);
@@ -162,7 +256,8 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   if (body.education !== undefined)          add('education',          typeof body.education === 'string' ? body.education.trim() || null : null);
   if (body.college_name !== undefined)       add('college_name',       typeof body.college_name === 'string' ? body.college_name.trim() || null : null);
   if (body.graduation_year !== undefined)    add('graduation_year',    typeof body.graduation_year === 'string' ? body.graduation_year.trim() || null : null);
-  if (body.gender !== undefined)                                                   add('gender',            typeof body.gender === 'string' ? body.gender.trim() || null : null);
+  if (body.gender !== undefined)          add('gender',          typeof body.gender === 'string' ? body.gender.trim() || null : null);
+  if (body.veteran_status !== undefined)  add('veteran_status',  typeof body.veteran_status === 'string' ? body.veteran_status.trim() || null : null);
   if (body.skills !== undefined && Array.isArray(body.skills))                   add('skills',            JSON.stringify(body.skills));
   if (body.projects !== undefined && Array.isArray(body.projects))               add('projects',          JSON.stringify(body.projects));
   if (body.work_experiences !== undefined && Array.isArray(body.work_experiences)) add('work_experiences', JSON.stringify(body.work_experiences));
@@ -180,11 +275,11 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   const result = await pool.query<User>(
     `UPDATE users SET ${updates.join(', ')} WHERE id = $${values.length}
      RETURNING id, username, email, role, is_active,
-               first_name, last_name, current_company, job_title, phone, website, bio,
+               first_name, last_name, current_company, job_title, phone, phone_country_code, website, bio,
                linkedin_url, github_url, city, state, country, work_authorization, location,
                hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
                education, college_name, graduation_year, skills, projects, work_experiences,
-               gender,
+               gender, veteran_status,
                gmail_user, from_name, reply_to_email,
                (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,
                (gmail_app_password IS NOT NULL AND gmail_user IS NOT NULL) AS has_gmail_app_password`,

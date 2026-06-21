@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Prospect, Company } from '@/lib/types';
@@ -320,7 +321,9 @@ export default function ProspectsPage() {
                 {prospects.map((p) => (
                   <tr key={p.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">
-                      <div>{prospectFullName(p)}</div>
+                      <Link href={`/prospects/${p.id}`} className="hover:text-indigo-600 transition-colors">
+                        {prospectFullName(p)}
+                      </Link>
                       {p.phone && <div className="text-slate-400 text-xs">{p.phone}</div>}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{p.email}</td>

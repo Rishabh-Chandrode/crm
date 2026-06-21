@@ -77,6 +77,29 @@ router.post('/', upload.single('document'), async (req, res, next) => {
   }
 });
 
+router.get('/:id/download', async (req, res, next) => {
+  try {
+    const { sql, value } = ownerFilter(req.user!, 'documents', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [req.params['id']];
+    if (value) params.push(value);
+
+    const result = await pool.query<{ path: string; filename: string }>(
+      `SELECT path, filename FROM documents WHERE id = $1 ${ownerWhere}`,
+      params
+    );
+    const doc = result.rows[0];
+    if (!doc) { res.status(404).json({ error: 'Document not found' }); return; }
+    if (!fs.existsSync(doc.path)) { res.status(404).json({ error: 'File not found on disk' }); return; }
+
+    res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(path.resolve(doc.path));
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/:id', async (req, res, next) => {
   try {
     const { sql, value } = ownerFilter(req.user!, 'documents', 2);

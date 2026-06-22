@@ -19,12 +19,15 @@ src/
 │       ├── layout.tsx             # Renders <Sidebar> + <main>
 │       ├── dashboard/page.tsx     # Stats overview + charts + recent activity
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
-│       ├── prospects/page.tsx     # Prospect CRUD (table + filters + pagination)
+│       ├── prospects/page.tsx     # Prospect list (table + filters + pagination)
+│       ├── prospects/[id]/page.tsx# Prospect detail view — full profile + email history
 │       ├── templates/page.tsx     # Template CRUD + variable manager
 │       ├── send/page.tsx          # Multi-step send wizard
 │       ├── history/page.tsx       # Paginated email send log
 │       ├── scheduled/page.tsx     # Email schedule list + cancel
-│       ├── settings/page.tsx      # Profile, Gmail connection, Documents, Template Variables
+│       ├── applications/page.tsx  # Job application tracker — CRUD + status/search filters
+│       ├── profile/page.tsx       # Full profile editor — personal, professional, preferences
+│       ├── settings/page.tsx      # Gmail connection, Documents, Template Variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/
 │   └── Sidebar.tsx                # Left nav with user info + sign-out
@@ -92,11 +95,17 @@ api.email.retry(id)
 
 // Schedules, Documents, Variable Presets, Stats, Import
 api.schedules.list() / .create() / .get(id) / .cancel(id)
-api.documents.list() / .upload(file, name) / .delete(id)
+api.documents.list() / .upload(file, name) / .delete(id) / .download(id)
 api.variablePresets.list() / .create() / .update() / .delete()
 api.stats.get()
 api.import.parse(file)
 api.import.prospects(body)
+
+// Job Applications
+api.applications.list(filters?)       // GET  /api/applications — status, search, limit, offset
+api.applications.create(body)         // POST /api/applications
+api.applications.update(id, body)     // PATCH /api/applications/:id
+api.applications.delete(id)           // DELETE /api/applications/:id
 ```
 
 **To add a new resource:**
@@ -113,8 +122,9 @@ Key exports:
 
 | Export | Purpose |
 |---|---|
-| `CrmUser` | User account with profile fields, `has_gmail_configured` flag |
+| `CrmUser` | User account with full profile, `has_gmail_configured` flag |
 | `Company`, `Prospect`, `EmailTemplate`, `EmailSend`, `EmailSchedule` | Core data interfaces |
+| `JobApplication` | Job application record (`company_name`, `job_title`, `job_url`, `platform`, `status`, `applied_at`) |
 | `VariableSource` | `'prospect' \| 'company' \| 'sender' \| 'static' \| 'custom'` |
 | `TemplateVariable`, `VariablePreset` | Template variable types |
 | `PROSPECT_FIELDS` | Field options for the variable mapper (prospect source) |
@@ -134,14 +144,31 @@ Both pages offer two sign-in paths:
 - **Continue with Google** — initiates the Google OAuth2 flow. On success, logs the user in and (if Gmail access was granted) connects Gmail automatically.
 - **Username + password** — classic form-based login below a divider.
 
+### Profile (`/profile`)
+
+Full profile editor with three sections:
+
+- **Personal** — `first_name`, `last_name`, `email`, `phone` + `phone_country_code`, `city`, `state`, `country`, `location`, `hometown`.
+- **Professional** — `current_company`, `job_title`, `work_authorization`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `linkedin_url`, `github_url`, `website`, `skills`.
+- **Preferences** — `gender`, `veteran_status`.
+
+Profile values are available in email templates via the `sender` variable source and are used by the Chrome extension's form autofiller.
+
 ### Settings (`/settings`)
 
-Four sections:
+Three sections (profile editing was moved to `/profile`):
 
-- **Profile** — edit your sender details (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`, `from_name`, `reply_to_email`). These values are available in email templates via the `sender` variable source. `from_name` sets the email display name; if blank it falls back to your full name, then username.
-- **Gmail sending account** — connect or disconnect your Gmail via OAuth2. Shows the connected address when active. Also configures `from_name` and `reply_to_email` overrides for outgoing mail.
+- **Gmail sending account** — connect or disconnect your Gmail via OAuth2. Shows the connected address when active. Configures `from_name` and `reply_to_email` overrides for outgoing mail.
 - **Documents** — upload PDF/DOC files to attach to outreach emails. Stored server-side, referenced by ID in templates or at send time.
 - **Template Variables** — configure variable presets. Map a `{{key}}` once (e.g. `{{myName}}` → sender → `first_name`) and it auto-wires in every template.
+
+### Applications (`/applications`)
+
+Tracks job applications auto-recorded by the Chrome extension when you submit a form, or added manually. Shows `company_name`, `job_title`, `platform`, `status` (applied / screening / interview / offer / rejected / withdrawn), and `applied_at`. Filterable by status and full-text search. Inline editing and delete.
+
+### Prospects (`/prospects` + `/prospects/[id]`)
+
+The list view shows a filterable, paginated table. Each row links to the detail page (`/prospects/[id]`) which shows the full prospect profile, company info, notes, and email history for that contact.
 
 ### Templates (`/templates`)
 
@@ -177,7 +204,7 @@ Use these on form elements instead of repeating Tailwind utilities.
 ## Adding a new page
 
 1. Create `src/app/(dashboard)/my-page/page.tsx` — mark it `'use client'` if it needs state
-2. Add a nav entry in `src/components/Sidebar.tsx` (the `NAV` array at the top)
+2. Add a nav entry in `src/components/Sidebar.tsx` (the `NAV` array at the top; use `ADMIN_NAV` for admin-only items)
 
 All pages inside `(dashboard)/` automatically get the sidebar layout.
 

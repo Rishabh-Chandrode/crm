@@ -73,7 +73,7 @@ JWT-based. Every protected route requires `Authorization: Bearer <token>`.
 | POST | `/api/auth/login` | public | `{ username, password }` → `{ token, user }` |
 | POST | `/api/auth/signup` | public | `{ username, password, email? }` → `{ token, user }` |
 | GET | `/api/auth/me` | required | Returns current user with all profile fields |
-| PATCH | `/api/auth/profile` | required | Update profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`, `bio`, `from_name`, `reply_to_email`) |
+| PATCH | `/api/auth/profile` | required | Update profile — accepts `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `city`, `state`, `country`, `location`, `hometown`, `work_authorization`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `linkedin_url`, `github_url`, `website`, `bio`, `gender`, `veteran_status`, `skills`, `projects`, `work_experiences`, `from_name`, `reply_to_email` |
 
 ### Google sign-in (login / signup)
 
@@ -190,14 +190,6 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 | GET | `/api/schedules/:id` | Detail with nested `prospects[]` |
 | DELETE | `/api/schedules/:id` | Cancel (pending only) |
 
-### Documents
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/documents` | List |
-| POST | `/api/documents` | Upload (multipart/form-data: `document` file + `name` field) |
-| DELETE | `/api/documents/:id` | Delete |
-
 ### Variable presets
 
 | Method | Path | Description |
@@ -206,6 +198,24 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 | POST | `/api/variable-presets` | Create `{ key, label, source, field?, default_value }` |
 | PUT | `/api/variable-presets/:id` | Replace |
 | DELETE | `/api/variable-presets/:id` | Delete |
+
+### Job Applications
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/applications` | List — query params: `status`, `search`, `limit`, `offset` |
+| POST | `/api/applications` | Create `{ company_name, job_title, job_url, platform?, status?, notes? }` |
+| PATCH | `/api/applications/:id` | Partial update — `status`, `notes`, or any field |
+| DELETE | `/api/applications/:id` | Delete |
+
+### Documents
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/documents` | List |
+| POST | `/api/documents` | Upload (multipart/form-data: `document` file + `name` field) |
+| GET | `/api/documents/:id/download` | Download file (used by extension to fetch resume for autofill) |
+| DELETE | `/api/documents/:id` | Delete |
 
 ### Other
 
@@ -224,11 +234,24 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 
 ```sql
 users (id UUID PK, username, email, password_hash, role, is_active,
-       first_name, last_name, current_company, job_title, phone, website, bio,
+       first_name, last_name, current_company, job_title,
+       phone, phone_country_code,          -- local number + dial-code prefix (e.g. "+91")
+       city, state, country, location, hometown,
+       work_authorization, years_of_experience, notice_period,
+       current_ctc, expected_ctc,
+       education, college_name, graduation_year,
+       linkedin_url, github_url, website, bio,
+       gender, veteran_status,
+       skills JSONB, projects JSONB, work_experiences JSONB,
        google_id,                          -- links Google OAuth account
        gmail_user, gmail_refresh_token,    -- per-user Gmail OAuth2 credentials
        from_name, reply_to_email,          -- email display name / reply-to overrides
        created_at, updated_at)
+
+job_applications (id UUID PK, user_id→users,
+                  company_name, job_title, job_url, platform,
+                  status,       -- applied|screening|interview|offer|rejected|withdrawn
+                  notes, applied_at, created_at, updated_at)
 
 companies      (id, name, website, industry, created_by→users, created_at, updated_at)
 prospects      (id, company_id→companies, first_name, last_name, email,

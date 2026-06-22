@@ -1,6 +1,6 @@
 # Outreach CRM
 
-A personal CRM for managing job-search email outreach. Store target companies and their contacts (prospects), write reusable templates with dynamic `{{variables}}`, and blast personalised emails to every prospect at a company in one action. Includes a Chrome side panel extension that detects existing CRM contacts while browsing LinkedIn and scrapes new profiles directly into the CRM.
+A personal CRM for managing job-search email outreach. Store target companies and their contacts (prospects), write reusable templates with dynamic `{{variables}}`, and blast personalised emails to every prospect at a company in one action. Includes a Chrome side panel extension that detects existing CRM contacts while browsing LinkedIn, scrapes new profiles into the CRM, and autofills job application forms (Greenhouse, Lever, Workday, Google Forms, and generic sites) with your stored profile.
 
 ---
 
@@ -117,7 +117,9 @@ crm/
 ## Database schema (overview)
 
 ```
-users           ← accounts (username, password_hash, role, profile fields,
+users           ← accounts (username, password_hash, role, full profile fields,
+                             phone_country_code, gender, veteran_status,
+                             skills/projects/work_experiences JSONB,
                              gmail_user, gmail_refresh_token, google_id,
                              from_name, reply_to_email)
 
@@ -139,7 +141,10 @@ email_sends     ← log of every sent / failed email
 email_schedules ← future sends processed by the scheduler
   └── created_by  → users.id
 
-documents       ← uploaded PDF/DOC attachments
+job_applications← applications tracked by extension or entered manually
+  └── user_id   → users.id
+
+documents       ← uploaded PDF/DOC attachments (downloadable by extension for autofill)
 variable_presets← saved template variable mappings
 settings        ← key/value store
 ```
@@ -173,3 +178,5 @@ Variable presets (Settings → Template Variables) let you wire up a key once an
 | New frontend page | Add folder under `frontend/src/app/(dashboard)/`, add nav entry in `Sidebar.tsx` |
 | New template variable source | `backend/src/services/templateEngine.ts` + `backend/src/types/index.ts` + `frontend/src/lib/types.ts` |
 | Swap email provider | Implement `EmailProvider` interface in `backend/src/services/email/` |
+| New autofill platform | Add a file in `extension/src/formFiller/platforms/`, register in `extension/src/formFiller/index.ts` |
+| New autofill field type | Add to `FieldType` in `extension/src/formFiller/types.ts`, add selectors in platform maps, handle in `fillElement` |

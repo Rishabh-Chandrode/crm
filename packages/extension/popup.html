@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Outreach CRM</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <div class="header-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      <span>Outreach CRM</span>
+    </div>
+    <button id="settingsToggle" class="icon-btn" title="Settings">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <!-- ── Settings panel ── -->
+  <div id="settingsPanel" class="settings-panel" style="display:none">
+
+    <!-- Logged-in: user card + logout -->
+    <div id="settingsUserInfo" style="display:none">
+      <div class="settings-user-card">
+        <div class="settings-user-avatar" id="settingsUserAvatar"></div>
+        <div class="settings-user-meta">
+          <div class="settings-user-name" id="settingsUserName"></div>
+          <div class="settings-user-email" id="settingsUserEmail"></div>
+          <span class="settings-user-role" id="settingsUserRole"></span>
+        </div>
+      </div>
+      <button id="logoutBtn" class="btn btn-ghost btn-sm settings-logout-btn">Sign out</button>
+    </div>
+
+    <!-- Logged-out: Google sign-in shortcut -->
+    <div id="settingsSignIn" style="display:none">
+      <button id="googleSignInSettingsBtn" class="btn google-btn btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ── Login gate ── -->
+  <div id="loginGate" style="display:none">
+    <div class="login-box">
+      <p class="login-title">Sign in to CRM</p>
+
+      <button id="loginGoogleBtn" class="btn google-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+
+      <div class="login-divider">or</div>
+
+      <div class="field">
+        <label class="label" for="loginUsername">Username</label>
+        <input id="loginUsername" class="input" type="text" placeholder="Your username" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label class="label" for="loginPassword">Password</label>
+        <input id="loginPassword" class="input" type="password" placeholder="Your password" autocomplete="current-password" />
+      </div>
+      <div id="loginError" class="status status--error" style="display:none"></div>
+      <button id="loginBtn" class="btn btn-primary" style="width:100%">Sign in</button>
+    </div>
+  </div>
+
+  <!-- ── Authenticated shell (tabs + content) ── -->
+  <div id="authShell" style="display:none">
+
+    <!-- ── Tab bar ── -->
+    <div class="tab-bar">
+      <button class="tab tab--active" data-tab="contact">Contact</button>
+      <button class="tab" data-tab="send">Send Email</button>
+      <button class="tab" data-tab="apply">Autofill</button>
+    </div>
+
+    <!-- ── Contact Tab ── -->
+    <div id="tab-contact" class="tab-pane">
+
+      <!-- Existing prospect match card (shown after scrape if already in DB) -->
+      <div id="existingProspectCard" style="display:none">
+        <div class="match-card">
+          <div class="match-card-header">
+            <span class="match-badge">Already in CRM</span>
+            <div class="match-card-actions">
+              <button id="matchSendEmailBtn" class="match-action-btn match-action-btn--email">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Send Email
+              </button>
+              <a id="matchViewLink" class="match-action-btn match-action-btn--view" target="_blank">View →</a>
+            </div>
+          </div>
+          <div class="match-name" id="matchName"></div>
+          <div class="match-meta" id="matchMeta"></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label class="label" for="firstName">First Name *</label>
+          <input id="firstName" class="input" type="text" placeholder="Jane" />
+        </div>
+        <div class="field">
+          <label class="label" for="lastName">Last Name</label>
+          <input id="lastName" class="input" type="text" placeholder="Smith" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="email">Email *</label>
+        <div class="input-row">
+          <input id="email" class="input" type="email" placeholder="jane@company.com" />
+          <button id="pasteBtn" class="btn btn-outline btn-sm">Paste</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="company">Company</label>
+        <input id="company" class="input" type="text" placeholder="Acme Corp" />
+      </div>
+
+      <div class="field">
+        <label class="label" for="jobTitle">Job Title</label>
+        <input id="jobTitle" class="input" type="text" placeholder="HR Manager" />
+      </div>
+
+      <div class="field">
+        <label class="label" for="linkedinUrl">LinkedIn URL</label>
+        <input id="linkedinUrl" class="input" type="url" placeholder="https://linkedin.com/in/…" />
+      </div>
+
+      <div id="status" class="status" style="display:none"></div>
+
+      <div class="actions">
+        <button id="scrapeBtn" class="btn btn-outline btn-sm">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+          Scrape LinkedIn
+        </button>
+        <div class="actions-right">
+          <button id="clearBtn" class="btn btn-ghost btn-sm">Clear</button>
+          <button id="addBtn" class="btn btn-primary btn-sm">Add to CRM</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Send Email Tab ── -->
+    <div id="tab-send" class="tab-pane" style="display:none">
+
+      <!-- Step 1: search for a prospect from the backend -->
+      <div id="prospectSearch">
+        <div class="field">
+          <label class="label">Recipient</label>
+          <div class="search-wrap">
+            <span class="search-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input id="prospectSearchInput" class="input" type="text" placeholder="Name, email, or company…" autocomplete="off" />
+          </div>
+          <div id="prospectResults" class="prospect-results" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Step 2: compose (shown after prospect selected) -->
+      <div id="sendContent" style="display:none">
+
+        <!-- Recipient card -->
+        <div class="recipient-card">
+          <div class="recipient-avatar" id="recipientAvatar"></div>
+          <div class="recipient-info">
+            <div class="recipient-name" id="recipientName"></div>
+            <div class="recipient-email" id="recipientEmail"></div>
+          </div>
+          <button id="clearProspectBtn" class="recipient-edit-btn" title="Change recipient">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <!-- Template selector -->
+        <div class="field">
+          <label class="label">Template</label>
+          <select id="templateSelect" class="input select-input">
+            <option value="">Choose a template…</option>
+          </select>
+        </div>
+
+        <!-- Custom variable inputs -->
+        <div id="customVarsSection" style="display:none">
+          <div class="section-label">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Fill in variables
+          </div>
+          <div id="customVarsFields" class="custom-vars-fields"></div>
+        </div>
+
+        <!-- Email preview -->
+        <div id="emailPreviewArea" style="display:none">
+          <div class="section-label">Preview</div>
+          <div class="email-preview">
+            <div class="preview-subject" id="emailPreviewSubject"></div>
+            <iframe id="emailPreviewFrame" class="preview-frame" sandbox="allow-same-origin"></iframe>
+          </div>
+        </div>
+
+        <div id="sendStatus" class="status" style="display:none"></div>
+
+      </div>
+
+      <!-- Action bar (always visible in send tab) -->
+      <div class="send-actions">
+        <button id="previewEmailBtn" class="btn btn-outline" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Preview
+        </button>
+        <button id="sendEmailBtn" class="btn btn-primary" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send Email
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ── Apply / Autofill Tab ── -->
+    <div id="tab-apply" class="tab-pane" style="display:none">
+
+      <!-- Action buttons -->
+      <div class="apply-btn-row" style="padding:10px 12px 0">
+        <button id="autofillBtn" class="btn btn-primary" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Autofill This Page
+        </button>
+        <button id="trackJobBtn" class="btn btn-outline" title="Manually track this job application">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>
+          Track Job
+        </button>
+      </div>
+
+      <!-- Resume picker -->
+      <div style="padding:8px 12px 0">
+        <div class="apply-section-label">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Resume to attach
+        </div>
+        <select id="resumePicker" class="input select-input" style="width:100%;margin-top:4px;margin-bottom:4px">
+          <option value="">Don't attach a resume</option>
+        </select>
+        <div id="resumePickerNote" class="apply-note" style="display:none">
+          Upload resume files in the CRM → Profile → Resume Files tab.
+        </div>
+      </div>
+
+      <!-- Autofill status + result chips -->
+      <div id="autofillStatus" class="status" style="display:none;margin:6px 12px 0"></div>
+      <div id="autofillResult" style="display:none;padding:4px 12px">
+        <div class="apply-section-label" style="margin-top:4px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Fields filled
+        </div>
+        <div id="autofillFilledList" class="autofill-chip-list"></div>
+        <div id="autofillSkippedWrap" style="display:none">
+          <div class="apply-section-label" style="margin-top:6px;color:#94a3b8">
+            Skipped (no value in profile)
+          </div>
+          <div id="autofillSkippedList" class="autofill-chip-list autofill-chip-list--muted"></div>
+        </div>
+      </div>
+
+      <!-- Copy hint + profile card -->
+      <div class="copy-hint-banner">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span>Click any field below to copy it!</span>
+      </div>
+      <div id="applyProfileCard" class="apply-profile-card">
+        <div class="apply-profile-loading">Loading profile…</div>
+      </div>
+      <div id="profileIncompleteNote" class="apply-note" style="display:none">
+        Some fields are empty — fill them in the CRM to improve autofill accuracy.
+      </div>
+
+    </div>
+
+  </div><!-- /authShell -->
+
+  <!-- ── Track Job Panel (bottom-sheet overlay) ── -->
+  <div id="trackJobPanel" class="track-job-overlay" style="display:none">
+    <div class="track-job-sheet">
+
+      <div class="track-job-header">
+        <div class="track-job-title-row">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>
+          <span class="track-job-title">Track This Application</span>
+        </div>
+        <span id="trackJobPlatform" class="track-platform-badge"></span>
+      </div>
+
+      <div class="track-job-body">
+        <div class="field">
+          <label class="label" for="trackCompany">Company</label>
+          <input id="trackCompany" class="input" type="text" placeholder="e.g. Acme Corp" />
+        </div>
+        <div class="field">
+          <label class="label" for="trackTitle">Job Title</label>
+          <input id="trackTitle" class="input" type="text" placeholder="e.g. Software Engineer" />
+        </div>
+        <div class="field">
+          <label class="label" for="trackUrl">Job URL</label>
+          <input id="trackUrl" class="input" type="url" placeholder="https://…" />
+        </div>
+        <div class="field">
+          <label class="label" for="trackNotes">Notes <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
+          <textarea id="trackNotes" class="input" rows="2" placeholder="Recruiter name, interview date, etc."></textarea>
+        </div>
+
+        <div id="trackJobError" class="status status--error" style="display:none"></div>
+
+        <div class="track-job-actions">
+          <button id="trackCancelBtn" class="btn btn-ghost btn-sm">Don't Track</button>
+          <button id="trackSaveBtn" class="btn btn-primary btn-sm">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Save to Tracker
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="dist/popup.js"></script>
+</body>
+</html>

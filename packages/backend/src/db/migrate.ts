@@ -303,6 +303,23 @@ export async function migrate(): Promise<void> {
   await pool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_country_code VARCHAR(10);
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS job_applications (
+      id           UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id      UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      company_name TEXT         NOT NULL,
+      job_title    TEXT         NOT NULL,
+      job_url      TEXT         NOT NULL,
+      platform     TEXT         NOT NULL DEFAULT 'Generic',
+      status       TEXT         NOT NULL DEFAULT 'applied',
+      notes        TEXT,
+      applied_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_applications_user_id ON job_applications(user_id);
+    CREATE INDEX IF NOT EXISTS idx_job_applications_applied_at ON job_applications(applied_at DESC);
+  `);
   console.log('Database migration completed successfully');
 }
 

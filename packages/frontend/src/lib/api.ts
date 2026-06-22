@@ -387,4 +387,24 @@ export const api = {
         body: JSON.stringify(body),
       }),
   },
+
+  applications: {
+    list: (params?: { status?: string; search?: string; limit?: number; offset?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.status)  q.set('status',  params.status);
+      if (params?.search)  q.set('search',  params.search);
+      if (params?.limit)   q.set('limit',   String(params.limit));
+      if (params?.offset)  q.set('offset',  String(params.offset));
+      const qs = q.toString();
+      return request<{ applications: import('./types').JobApplication[]; total: number }>(
+        `/applications${qs ? `?${qs}` : ''}`,
+      );
+    },
+    create: (body: { company_name: string; job_title: string; job_url: string; platform?: string; notes?: string }) =>
+      request<import('./types').JobApplication>('/applications', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: { status?: string; notes?: string }) =>
+      request<import('./types').JobApplication>(`/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      request<{ success: boolean }>(`/applications/${id}`, { method: 'DELETE' }),
+  },
 };

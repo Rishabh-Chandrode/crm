@@ -14,6 +14,7 @@ import documentsRouter from './documents.js';
 import trackRouter from './track.js';
 import variablePresetsRouter from './variable-presets.js';
 import statsRouter from './stats.js';
+import applicationsRouter from './applications.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -34,5 +35,6 @@ router.use('/settings',   authMiddleware, settingsRouter);
 router.use('/documents',         authMiddleware, documentsRouter);
 router.use('/variable-presets',  authMiddleware, variablePresetsRouter);
 router.use('/stats',             authMiddleware, statsRouter);
+router.use('/applications',      authMiddleware, applicationsRouter);
 
 export default router;

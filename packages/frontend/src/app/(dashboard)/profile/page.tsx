@@ -917,9 +917,12 @@ function SkillsTab({ initialSkills }: { initialSkills: string[] }) {
   }
 
   function addSkill() {
-    const trimmed = input.trim();
-    if (!trimmed || skills.includes(trimmed)) { setInput(''); return; }
-    void persist([...skills, trimmed]);
+    const newSkills = input
+      .split(/[,;]+/)
+      .map(s => s.trim())
+      .filter(s => s && !skills.includes(s));
+    if (!newSkills.length) { setInput(''); return; }
+    void persist([...skills, ...newSkills]);
     setInput('');
   }
 

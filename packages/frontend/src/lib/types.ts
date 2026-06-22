@@ -240,3 +240,17 @@ export const COMPANY_FIELDS: { value: string; label: string }[] = [
   { value: 'website', label: 'Website' },
   { value: 'industry', label: 'Industry' },
 ];
+
+export interface JobApplication {
+  id: string;
+  user_id: string;
+  company_name: string;
+  job_title: string;
+  job_url: string;
+  platform: string;
+  status: 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+  notes: string | null;
+  applied_at: string;
+  created_at: string;
+  updated_at: string;
+}

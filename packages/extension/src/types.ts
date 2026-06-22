@@ -8,6 +8,7 @@ export interface TemplateVariable {
   defaultValue?: string;
 }
 
+
 export interface TemplateInfo {
   id: string;
   name: string;

@@ -304,6 +304,10 @@ export async function migrate(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_country_code VARCHAR(10);
   `);
   await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS address_line1 VARCHAR(500);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS postal_code   VARCHAR(20);
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS job_applications (
       id           UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id      UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -319,6 +323,12 @@ export async function migrate(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_job_applications_user_id ON job_applications(user_id);
     CREATE INDEX IF NOT EXISTS idx_job_applications_applied_at ON job_applications(applied_at DESC);
+  `);
+  await pool.query(`
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_url        TEXT;
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_file_id    TEXT;
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_synced_at  TIMESTAMPTZ;
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_sync_error TEXT;
   `);
   console.log('Database migration completed successfully');
 }

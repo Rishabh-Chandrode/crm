@@ -535,6 +535,9 @@ export default function SendPage() {
                         {fromTemplate && (
                           <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0">template</span>
                         )}
+                        {doc.drive_url && (
+                          <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full flex-shrink-0">Drive</span>
+                        )}
                       </div>
                     </label>
                   );

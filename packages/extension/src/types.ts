@@ -72,6 +72,8 @@ export interface UserProfile {
   city: string | null;
   state: string | null;
   country: string | null;
+  address_line1: string | null;
+  postal_code: string | null;
   linkedin_url: string | null;
   github_url: string | null;
   website: string | null;

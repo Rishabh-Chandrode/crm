@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { pool } from '../db/index.js';
 import { getEmailProviderForUser } from './email/index.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from './templateEngine.js';
+import { syncDriveDocuments } from './driveSync.js';
 
 function pixelUrl(sendId: string): string {
   const base = (process.env['TRACKING_BASE_URL'] ?? 'http://localhost:3001').replace(/\/$/, '');
@@ -196,5 +197,19 @@ export function startScheduler(): void {
       console.error('Scheduler poll error:', err);
     }
   });
+  // Sync Drive-linked documents every 2 hours
+  cron.schedule('0 */2 * * *', () => {
+    syncDriveDocuments().catch((err: unknown) => {
+      console.error('Drive sync error:', err);
+    });
+  });
+  // Also sync once at startup (after a short delay to let the DB settle)
+  setTimeout(() => {
+    syncDriveDocuments().catch((err: unknown) => {
+      console.error('Drive sync (startup) error:', err);
+    });
+  }, 10_000);
+
   console.log('Email scheduler started (polling every minute)');
+  console.log('Drive sync scheduled every 2 hours');
 }

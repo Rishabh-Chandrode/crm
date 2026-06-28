@@ -37,6 +37,8 @@ export interface CrmUser {
   city: string | null;
   state: string | null;
   country: string | null;
+  address_line1: string | null;
+  postal_code: string | null;
   work_authorization: string | null;
   gender: string | null;
   veteran_status: string | null;
@@ -187,6 +189,9 @@ export interface Document {
   name: string;
   filename: string;
   size: number | null;
+  drive_url: string | null;
+  drive_synced_at: string | null;
+  drive_sync_error: string | null;
   created_at: string;
 }
 

@@ -61,6 +61,7 @@ const profileIncompleteEl = $<HTMLDivElement>('profileIncompleteNote');
 const resumePickerEl      = $<HTMLSelectElement>('resumePicker');
 const resumePickerNoteEl  = $<HTMLDivElement>('resumePickerNote');
 const autofillBtn         = $<HTMLButtonElement>('autofillBtn');
+const autofillSpinnerEl   = $<HTMLDivElement>('autofillSpinner');
 const autofillStatusEl    = $<HTMLDivElement>('autofillStatus');
 const autofillResultEl    = $<HTMLDivElement>('autofillResult');
 const autofillFilledEl    = $<HTMLDivElement>('autofillFilledList');
@@ -579,6 +580,83 @@ trackJobBtn.addEventListener('click', () => {
   });
 });
 
+// ── Autofill result accumulator ───────────────────────────────────────────────
+// The content script runs in allFrames. Each frame sends its own autofillResult
+// as soon as it finishes — but async fields (city dropdowns, etc.) can take many
+// seconds, so frames finish at very different times.
+//
+// Strategy: keep the spinner alive and live-update the chips on every incoming
+// message. Only hide the spinner after 4 s of silence (no new frames reporting).
+
+let autofillAccTimer: ReturnType<typeof setTimeout> | null = null;
+let autofillAccFilled: string[] = [];
+let autofillAccSkipped: string[] = [];
+let autofillAccPlatform = '';
+let autofillAccActive = false;
+let autofillExpectedFrames = 0;
+let autofillCompletedFrames = 0;
+
+function finishAutofill(): void {
+  if (autofillAccTimer) { clearTimeout(autofillAccTimer); autofillAccTimer = null; }
+  autofillAccActive = false;
+  const combined: AutofillResultMessage = {
+    action:   'autofillResult',
+    filled:   autofillAccFilled,
+    skipped:  autofillAccSkipped,
+    platform: autofillAccPlatform || 'Generic',
+  };
+  setAutofillLoading(false);
+  if (combined.filled.length === 0) {
+    showAutofillStatus(`No fields matched on this page (${combined.platform})`, 'info');
+  } else {
+    showAutofillStatus(`Done — filled ${combined.filled.length} field${combined.filled.length === 1 ? '' : 's'} on ${combined.platform}`, 'success');
+  }
+  renderAutofillResult(combined);
+  autofillAccFilled   = [];
+  autofillAccSkipped  = [];
+  autofillAccPlatform = '';
+}
+
+function accumulateAutofillResult(msg: AutofillResultMessage): void {
+  if (!autofillAccActive) return; // stale message after reset
+
+  autofillCompletedFrames++;
+
+  if (msg.error) {
+    if (autofillAccFilled.length === 0 && autofillExpectedFrames > 0 && autofillCompletedFrames >= autofillExpectedFrames) {
+      if (autofillAccTimer) { clearTimeout(autofillAccTimer); autofillAccTimer = null; }
+      autofillAccActive = false;
+      setAutofillLoading(false);
+      showAutofillStatus(msg.error, 'error');
+    }
+  } else {
+    // Merge this frame's results (deduplicate)
+    for (const f of msg.filled)  { if (!autofillAccFilled.includes(f))  autofillAccFilled.push(f); }
+    for (const s of msg.skipped) { if (!autofillAccSkipped.includes(s)) autofillAccSkipped.push(s); }
+    if (msg.platform && msg.platform !== 'unknown') autofillAccPlatform = msg.platform;
+
+    // Live-update chips while spinner is still running so the user sees progress
+    if (autofillAccFilled.length > 0) {
+      autofillResultEl.style.display = 'block';
+      autofillFilledEl.innerHTML = autofillAccFilled
+        .map(f => `<span class="autofill-chip">${FIELD_LABEL_MAP[f] ?? f}</span>`)
+        .join('');
+      autofillSkippedWrap.style.display = 'none';
+    }
+  }
+
+  // If we know how many frames we injected into, check if we're done
+  if (autofillExpectedFrames > 0 && autofillCompletedFrames >= autofillExpectedFrames) {
+    finishAutofill();
+  } else {
+    // Fallback: reset the quiet-period timer — hide spinner only after 10 s of silence
+    if (autofillAccTimer) clearTimeout(autofillAccTimer);
+    autofillAccTimer = setTimeout(() => {
+      finishAutofill();
+    }, 10000);
+  }
+}
+
 chrome.runtime.onMessage.addListener((message: ScrapeMessage | AutofillResultMessage | { action: 'scrapeError'; error: string } | { action: 'tabUrlChanged'; url: string } | { action: 'applicationSubmitted'; company_name: string; job_title: string; job_url: string; platform: string }) => {
   if (message.action === 'applicationSubmitted') {
     const msg = message as { action: string; company_name: string; job_title: string; job_url: string; platform: string };
@@ -587,15 +665,7 @@ chrome.runtime.onMessage.addListener((message: ScrapeMessage | AutofillResultMes
   }
   if (message.action === 'autofillResult') {
     const msg = message as AutofillResultMessage;
-    setAutofillLoading(false);
-    if (msg.error) {
-      showAutofillStatus(msg.error, 'error');
-    } else if (msg.filled.length === 0) {
-      showAutofillStatus(`No fields matched on this page (${msg.platform})`, 'info');
-    } else {
-      showAutofillStatus(`Done — filled ${msg.filled.length} field${msg.filled.length === 1 ? '' : 's'} on ${msg.platform}`, 'success');
-    }
-    renderAutofillResult(msg);
+    accumulateAutofillResult(msg);
     return;
   }
   if (message.action === 'tabUrlChanged') {
@@ -699,6 +769,8 @@ const PERSONAL_FIELDS: Array<{ key: FlatKey; label: string }> = [
   { key: 'city',         label: 'City' },
   { key: 'state',        label: 'State' },
   { key: 'country',      label: 'Country' },
+  { key: 'address_line1', label: 'Address' },
+  { key: 'postal_code',  label: 'Postal code' },
   { key: 'hometown',     label: 'Hometown' },
   { key: 'linkedin_url', label: 'LinkedIn' },
   { key: 'github_url',   label: 'GitHub' },
@@ -936,6 +1008,7 @@ async function onEnterApplyTab(): Promise<void> {
   if (!currentToken) return;
   autofillResultEl.style.display  = 'none';
   autofillStatusEl.style.display  = 'none';
+  autofillSpinnerEl.style.display = 'none';
   autofillBtn.disabled  = false;
   autofillBtn.innerHTML = AUTOFILL_BTN_DEFAULT_HTML;
 
@@ -968,17 +1041,15 @@ const AUTOFILL_BTN_LOADING_HTML = `
 
 function setAutofillLoading(on: boolean): void {
   if (on) {
-    // Use pointer-events:none + class instead of disabled so opacity stays 1
-    // and the spinner SVG inside the button is fully visible.
     autofillBtn.classList.add('btn--loading');
-    autofillBtn.innerHTML  = AUTOFILL_BTN_LOADING_HTML;
-    autofillStatusEl.innerHTML = '<span class="status-spinner"></span>Filling form fields…';
-    autofillStatusEl.className = 'status status--loading';
-    autofillStatusEl.style.display = 'block';
-    autofillResultEl.style.display = 'none';
+    autofillBtn.innerHTML = AUTOFILL_BTN_LOADING_HTML;
+    autofillSpinnerEl.style.display = 'flex';
+    autofillStatusEl.style.display  = 'none';
+    autofillResultEl.style.display  = 'none';
   } else {
     autofillBtn.classList.remove('btn--loading');
-    autofillBtn.innerHTML = AUTOFILL_BTN_DEFAULT_HTML;
+    autofillBtn.innerHTML           = AUTOFILL_BTN_DEFAULT_HTML;
+    autofillSpinnerEl.style.display = 'none';
   }
 }
 
@@ -1021,6 +1092,15 @@ autofillBtn.addEventListener('click', () => {
     return;
   }
 
+  // Reset accumulator for this new run
+  if (autofillAccTimer) { clearTimeout(autofillAccTimer); autofillAccTimer = null; }
+  autofillAccFilled   = [];
+  autofillAccSkipped  = [];
+  autofillAccPlatform = '';
+  autofillAccActive   = true;
+  autofillExpectedFrames = 0;
+  autofillCompletedFrames = 0;
+
   setAutofillLoading(true);
 
   void (async () => {
@@ -1055,10 +1135,15 @@ autofillBtn.addEventListener('click', () => {
 
       await chrome.storage.local.set({ autofillProfile: cachedProfile, autofillResume });
 
-      await chrome.scripting.executeScript({
+      const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id, allFrames: true },
         files:  ['dist/formFiller/index.js'],
       });
+      
+      autofillExpectedFrames = results.length;
+      if (autofillAccActive && autofillCompletedFrames >= autofillExpectedFrames) {
+        finishAutofill();
+      }
     } catch (err) {
       setAutofillLoading(false);
       showAutofillStatus(`Error: ${String(err)}`, 'error');

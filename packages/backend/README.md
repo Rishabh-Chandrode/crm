@@ -55,7 +55,8 @@ src/
 │   │   └── index.ts             # Factory — picks provider per user
 │   ├── templateEngine.ts        # {{variable}} resolution + plain-text → HTML
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
-│   └── scheduler.ts             # node-cron job — processes pending email_schedules
+│   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
+│   └── scheduler.ts             # node-cron job — processes pending email_schedules + Drive sync
 └── types/
     └── index.ts                 # Shared TypeScript interfaces
 ```
@@ -73,7 +74,7 @@ JWT-based. Every protected route requires `Authorization: Bearer <token>`.
 | POST | `/api/auth/login` | public | `{ username, password }` → `{ token, user }` |
 | POST | `/api/auth/signup` | public | `{ username, password, email? }` → `{ token, user }` |
 | GET | `/api/auth/me` | required | Returns current user with all profile fields |
-| PATCH | `/api/auth/profile` | required | Update profile — accepts `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `city`, `state`, `country`, `location`, `hometown`, `work_authorization`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `linkedin_url`, `github_url`, `website`, `bio`, `gender`, `veteran_status`, `skills`, `projects`, `work_experiences`, `from_name`, `reply_to_email` |
+| PATCH | `/api/auth/profile` | required | Update profile — accepts `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `city`, `state`, `country`, `address_line1`, `postal_code`, `location`, `hometown`, `work_authorization`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `linkedin_url`, `github_url`, `website`, `bio`, `gender`, `veteran_status`, `skills`, `projects`, `work_experiences`, `from_name`, `reply_to_email` |
 
 ### Google sign-in (login / signup)
 
@@ -212,10 +213,11 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/documents` | List |
+| GET | `/api/documents` | List (includes `drive_url`, `drive_synced_at`, `drive_sync_error`) |
 | POST | `/api/documents` | Upload (multipart/form-data: `document` file + `name` field) |
+| POST | `/api/documents/from-drive` | Link from Drive `{ name, drive_url }` — downloads file immediately |
 | GET | `/api/documents/:id/download` | Download file (used by extension to fetch resume for autofill) |
-| DELETE | `/api/documents/:id` | Delete |
+| DELETE | `/api/documents/:id` | Delete — also removes ID from any templates that reference it |
 
 ### Other
 
@@ -236,7 +238,8 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 users (id UUID PK, username, email, password_hash, role, is_active,
        first_name, last_name, current_company, job_title,
        phone, phone_country_code,          -- local number + dial-code prefix (e.g. "+91")
-       city, state, country, location, hometown,
+       city, state, country, address_line1, postal_code,
+       location, hometown,
        work_authorization, years_of_experience, notice_period,
        current_ctc, expected_ctc,
        education, college_name, graduation_year,
@@ -267,7 +270,12 @@ email_schedules (id, template_id, company_id, prospect_ids UUID[],
                  custom_values JSONB, scheduled_for, status,
                  total_prospects, sent_count, failed_count, document_ids UUID[],
                  created_by→users, created_at, sent_at)
-documents       (id, name, filename, path, size, created_by→users, created_at)
+documents       (id, name, filename, path, size,
+                 drive_url,          -- original Drive share URL (NULL for uploads)
+                 drive_file_id,      -- extracted Drive file ID
+                 drive_synced_at,    -- timestamp of last successful sync
+                 drive_sync_error,   -- last sync error message (NULL if OK)
+                 created_by→users, created_at)
 variable_presets (id, key, label, source, field, default_value,
                   created_by→users, created_at, updated_at)
 ```
@@ -314,7 +322,18 @@ To add a new provider, implement `EmailProvider` and update the factory in `serv
 
 ## Email scheduler
 
-`services/scheduler.ts` runs a `node-cron` job every minute. It picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs in the schedule, and updates counts. The sender profile (including Gmail credentials) is loaded from `created_by` on the schedule row so `{{sender…}}` variables resolve correctly.
+`services/scheduler.ts` runs two `node-cron` jobs:
+
+- **Every minute** — picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs, updates counts. The sender profile (including Gmail credentials) is loaded from `created_by` so `{{sender…}}` variables resolve correctly.
+- **Every 2 hours** (`0 */2 * * *`) — calls `syncDriveDocuments()` from `driveSync.ts`. For each document with a `drive_url`, it re-downloads the file from Google Drive and overwrites the local copy in place. If the file is gone from Drive (403/404), it is deleted from `documents` and its ID is removed from all `email_templates.document_ids` arrays. Sync also runs once 10 seconds after startup.
+
+## Google Drive sync
+
+`services/driveSync.ts` handles Drive-linked documents:
+
+- **`parseDriveUrl(url)`** — extracts the file ID from Drive/Docs/Sheets/Slides share URLs.
+- **`fetchAndSaveFile(driveUrl, existingPath?)`** — downloads the file. If `existingPath` is provided and exists on disk, it overwrites that path (no orphaned files). Handles Google's virus-scan confirmation redirect for large files.
+- **`syncDriveDocuments()`** — iterates all documents with a `drive_url` and refreshes them. Removes deleted ones from the DB and templates.
 
 ---
 

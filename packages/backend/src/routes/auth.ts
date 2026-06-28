@@ -97,7 +97,7 @@ router.get('/me', authMiddleware, async (req, res) => {
   const result = await pool.query<User>(
     `SELECT id, username, email, role, is_active,
             first_name, last_name, current_company, job_title, phone, phone_country_code, website, bio,
-            linkedin_url, github_url, city, state, country, work_authorization, location,
+            linkedin_url, github_url, city, state, country, address_line1, postal_code, work_authorization, location,
             hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
             education, college_name, graduation_year, skills, projects, work_experiences,
             gender, veteran_status,
@@ -123,6 +123,7 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     website?: unknown; bio?: unknown;
     linkedin_url?: unknown; github_url?: unknown;
     city?: unknown; state?: unknown; country?: unknown;
+    address_line1?: unknown; postal_code?: unknown;
     work_authorization?: unknown; location?: unknown;
     hometown?: unknown; years_of_experience?: unknown; notice_period?: unknown;
     current_ctc?: unknown; expected_ctc?: unknown;
@@ -207,6 +208,7 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     ['first_name', 100], ['last_name', 100], ['from_name', 255],
     ['current_company', 255], ['job_title', 255],
     ['city', 255], ['state', 255], ['country', 255], ['hometown', 255],
+    ['address_line1', 500], ['postal_code', 20],
     ['location', 500], ['work_authorization', 255], ['notice_period', 100],
     ['education', 255], ['college_name', 255],
     ['current_ctc', 100], ['expected_ctc', 100], ['years_of_experience', 50],
@@ -246,6 +248,8 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   if (body.city !== undefined)             add('city',              typeof body.city === 'string' ? body.city.trim() || null : null);
   if (body.state !== undefined)            add('state',             typeof body.state === 'string' ? body.state.trim() || null : null);
   if (body.country !== undefined)          add('country',           typeof body.country === 'string' ? body.country.trim() || null : null);
+  if (body.address_line1 !== undefined)    add('address_line1',     typeof body.address_line1 === 'string' ? body.address_line1.trim() || null : null);
+  if (body.postal_code !== undefined)      add('postal_code',       typeof body.postal_code === 'string' ? body.postal_code.trim() || null : null);
   if (body.work_authorization !== undefined) add('work_authorization', typeof body.work_authorization === 'string' ? body.work_authorization.trim() || null : null);
   if (body.location !== undefined)           add('location',           typeof body.location === 'string' ? body.location.trim() || null : null);
   if (body.hometown !== undefined)           add('hometown',           typeof body.hometown === 'string' ? body.hometown.trim() || null : null);
@@ -276,7 +280,7 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     `UPDATE users SET ${updates.join(', ')} WHERE id = $${values.length}
      RETURNING id, username, email, role, is_active,
                first_name, last_name, current_company, job_title, phone, phone_country_code, website, bio,
-               linkedin_url, github_url, city, state, country, work_authorization, location,
+               linkedin_url, github_url, city, state, country, address_line1, postal_code, work_authorization, location,
                hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
                education, college_name, graduation_year, skills, projects, work_experiences,
                gender, veteran_status,

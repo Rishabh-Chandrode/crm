@@ -91,6 +91,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
     linkedin_url: user.linkedin_url ?? '', github_url: user.github_url ?? '',
     location: user.location ?? '', city: user.city ?? '',
     state: user.state ?? '', country: user.country ?? '',
+    address_line1: user.address_line1 ?? '', postal_code: user.postal_code ?? '',
     hometown: user.hometown ?? '', work_authorization: user.work_authorization ?? '',
     gender: user.gender ?? '',
     veteran_status: user.veteran_status ?? '',
@@ -108,6 +109,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
       linkedin_url: user.linkedin_url ?? '', github_url: user.github_url ?? '',
       location: user.location ?? '', city: user.city ?? '',
       state: user.state ?? '', country: user.country ?? '',
+      address_line1: user.address_line1 ?? '', postal_code: user.postal_code ?? '',
       hometown: user.hometown ?? '', work_authorization: user.work_authorization ?? '',
       gender: user.gender ?? '',
       veteran_status: user.veteran_status ?? '',
@@ -141,10 +143,12 @@ function PersonalTab({ user }: { user: CrmUser }) {
         linkedin_url: form.linkedin_url.trim() || null,
         github_url:   form.github_url.trim()   || null,
         location:   form.location.trim()   || null,
-        city:       form.city.trim()       || null,
-        state:      form.state.trim()      || null,
-        country:    form.country.trim()    || null,
-        hometown:   form.hometown.trim()   || null,
+        city:         form.city.trim()         || null,
+        state:        form.state.trim()        || null,
+        country:      form.country.trim()      || null,
+        address_line1: form.address_line1.trim() || null,
+        postal_code:  form.postal_code.trim()  || null,
+        hometown:     form.hometown.trim()     || null,
         work_authorization: form.work_authorization.trim() || null,
         gender:         form.gender || null,
         veteran_status: form.veteran_status || null,
@@ -239,6 +243,11 @@ function PersonalTab({ user }: { user: CrmUser }) {
           {inp('city',    'City',             'San Francisco')}
           {inp('state',   'State / Province', 'California')}
           {inp('country', 'Country',          'United States')}
+        </div>
+        {inp('address_line1', 'Address Line 1', '123 Main St, Apt 4B')}
+        <div className="grid grid-cols-2 gap-3">
+          {inp('postal_code', 'Postal / ZIP Code', '560001')}
+          <div />
         </div>
         {inp('hometown', 'Hometown / birthplace', 'Mumbai, India')}
 

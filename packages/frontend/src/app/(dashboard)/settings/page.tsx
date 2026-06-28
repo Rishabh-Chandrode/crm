@@ -431,6 +431,13 @@ function DocumentsSection() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
+  // Drive link state
+  const [showDrive, setShowDrive]     = useState(false);
+  const [driveName, setDriveName]     = useState('');
+  const [driveUrl, setDriveUrl]       = useState('');
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveError, setDriveError]   = useState('');
+
   useEffect(() => {
     api.documents.list().then((r) => setDocuments(r.data)).catch(console.error);
   }, []);
@@ -457,6 +464,20 @@ function DocumentsSection() {
     } finally { setUploading(false); }
   }
 
+  async function handleAddFromDrive() {
+    if (!driveName.trim() || !driveUrl.trim()) return;
+    setDriveError('');
+    setDriveLoading(true);
+    try {
+      const r = await api.documents.fromDrive(driveName.trim(), driveUrl.trim());
+      setDocuments((prev) => [r.data, ...prev]);
+      setSuccess(`"${r.data.name}" linked from Drive.`);
+      setDriveName(''); setDriveUrl(''); setShowDrive(false);
+    } catch (err) {
+      setDriveError(err instanceof Error ? err.message : 'Failed to fetch from Drive');
+    } finally { setDriveLoading(false); }
+  }
+
   async function handleDelete(id: string, docName: string) {
     if (!confirm(`Remove "${docName}"?`)) return;
     setError(''); setSuccess('');
@@ -473,14 +494,15 @@ function DocumentsSection() {
     <div>
       <SectionHeader
         title="Documents"
-        description="Upload resumes, cover letters, portfolios, or any file you attach to outreach emails."
+        description="Upload resumes, cover letters, and portfolios to attach to outreach emails. Drive-linked files are re-synced every 2 hours automatically."
       />
 
       {error   && <Alert type="error"   message={error} />}
       {success && <Alert type="success" message={success} />}
 
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 mb-5">
-        <p className="text-sm font-medium text-slate-700">Add a document</p>
+      {/* Upload */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 mb-3">
+        <p className="text-sm font-medium text-slate-700">Upload a file</p>
         <div>
           <label className="form-label">Label *</label>
           <input
@@ -526,10 +548,68 @@ function DocumentsSection() {
         </button>
       </div>
 
+      {/* Drive link */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5">
+        <button
+          onClick={() => { setShowDrive((v) => !v); setDriveError(''); }}
+          className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors w-full text-left"
+        >
+          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
+          </svg>
+          Link from Google Drive
+          <svg className={`w-3.5 h-3.5 text-slate-400 ml-auto transition-transform ${showDrive ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showDrive && (
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-slate-500">
+              Paste a public Google Drive or Google Docs link. The file is downloaded now and kept in sync every 2 hours — so updates to your resume on Drive reflect automatically.
+            </p>
+            <div>
+              <label className="form-label">Label *</label>
+              <input
+                className="form-input"
+                placeholder="e.g. My Resume"
+                value={driveName}
+                onChange={(e) => setDriveName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="form-label">Google Drive URL *</label>
+              <input
+                className="form-input"
+                placeholder="https://drive.google.com/file/d/… or docs.google.com/document/d/…"
+                value={driveUrl}
+                onChange={(e) => setDriveUrl(e.target.value)}
+              />
+            </div>
+            {driveError && <p className="text-xs text-red-600">{driveError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleAddFromDrive()}
+                disabled={driveLoading || !driveName.trim() || !driveUrl.trim()}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              >
+                {driveLoading ? 'Fetching…' : 'Fetch & save'}
+              </button>
+              <button
+                onClick={() => { setShowDrive(false); setDriveError(''); setDriveName(''); setDriveUrl(''); }}
+                className="text-slate-500 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleFileChange} />
 
       {documents.length === 0 ? (
-        <p className="text-slate-400 text-sm text-center py-6">No documents uploaded yet.</p>
+        <p className="text-slate-400 text-sm text-center py-6">No documents yet.</p>
       ) : (
         <div className="space-y-2">
           {documents.map((doc) => (
@@ -540,12 +620,26 @@ function DocumentsSection() {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800">{doc.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-800">{doc.name}</p>
+                  {doc.drive_url && (
+                    <span className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
+                      </svg>
+                      Drive
+                    </span>
+                  )}
+                  {doc.drive_sync_error && (
+                    <span className="text-xs text-red-500" title={doc.drive_sync_error}>sync error</span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 truncate">
                   {doc.filename}
                   {doc.size ? ` · ${formatBytes(doc.size)}` : ''}
-                  {' · '}
-                  {new Date(doc.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                  {doc.drive_url && doc.drive_synced_at
+                    ? ` · synced ${new Date(doc.drive_synced_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`
+                    : ` · ${new Date(doc.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}`}
                 </p>
               </div>
               <button

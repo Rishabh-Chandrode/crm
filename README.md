@@ -144,7 +144,7 @@ email_schedules ← future sends processed by the scheduler
 job_applications← applications tracked by extension or entered manually
   └── user_id   → users.id
 
-documents       ← uploaded PDF/DOC attachments (downloadable by extension for autofill)
+documents       ← uploaded PDF/DOC attachments + Drive-linked files (auto-synced every 2 h)
 variable_presets← saved template variable mappings
 settings        ← key/value store
 ```
@@ -169,6 +169,19 @@ Variable presets (Settings → Template Variables) let you wire up a key once an
 
 ---
 
+## Documents & Drive sync
+
+Documents are managed in **Settings → Documents**. Two ways to add:
+
+- **Upload** — upload a PDF/DOC/DOCX from your machine (max 10 MB).
+- **Link from Google Drive** — paste a public Google Drive or Google Docs/Slides/Sheets URL. The file is downloaded immediately and stored locally. Every 2 hours the scheduler re-fetches it so the local copy stays current with whatever is in Drive.
+
+If a Drive-linked file is deleted from Drive (or its sharing is revoked), the next sync automatically removes it from the system and cleans it out of any templates that referenced it.
+
+Attach documents to templates in the template editor (Settings → Documents → pick the template). Attached documents are sent as real file attachments — not links.
+
+---
+
 ## Adding features — where to start
 
 | Task | Files to touch |
@@ -179,4 +192,5 @@ Variable presets (Settings → Template Variables) let you wire up a key once an
 | New template variable source | `backend/src/services/templateEngine.ts` + `backend/src/types/index.ts` + `frontend/src/lib/types.ts` |
 | Swap email provider | Implement `EmailProvider` interface in `backend/src/services/email/` |
 | New autofill platform | Add a file in `extension/src/formFiller/platforms/`, register in `extension/src/formFiller/index.ts` |
-| New autofill field type | Add to `FieldType` in `extension/src/formFiller/types.ts`, add selectors in platform maps, handle in `fillElement` |
+| New autofill field type | Add to `FieldType` + `PATTERNS` in `extension/src/formFiller/detector.ts` (ordering matters — specific before broad), add to `ALL_FIELD_TYPES` in `types.ts`, add field to `UserProfile` in `types.ts` and `extension/src/types.ts` |
+| New user profile field | `backend/src/db/migrate.ts` (ALTER TABLE), `backend/src/routes/auth.ts` (PATCH + GET), `frontend/src/lib/types.ts`, `frontend/src/lib/api.ts`, `frontend/src/app/(dashboard)/profile/page.tsx`, `extension/src/formFiller/types.ts`, `extension/src/types.ts` |

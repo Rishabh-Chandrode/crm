@@ -58,7 +58,8 @@ export const api = {
       website?: string | null; bio?: string | null;
       linkedin_url?: string | null; github_url?: string | null;
       location?: string | null; city?: string | null; state?: string | null;
-      country?: string | null; work_authorization?: string | null;
+      country?: string | null; address_line1?: string | null; postal_code?: string | null;
+      work_authorization?: string | null;
       gender?: string | null; veteran_status?: string | null;
       hometown?: string | null; years_of_experience?: string | null;
       notice_period?: string | null; current_ctc?: string | null; expected_ctc?: string | null;
@@ -305,6 +306,11 @@ export const api = {
       }
       return json as { data: import('./types').Document };
     },
+    fromDrive: (name: string, drive_url: string) =>
+      request<{ data: import('./types').Document }>('/documents/from-drive', {
+        method: 'POST',
+        body: JSON.stringify({ name, drive_url }),
+      }),
     delete: (id: string) =>
       request<{ data: { id: string } }>(`/documents/${id}`, { method: 'DELETE' }),
   },

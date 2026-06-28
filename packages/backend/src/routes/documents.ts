@@ -5,6 +5,7 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
+import { parseDriveUrl, fetchAndSaveFile } from '../services/driveSync.js';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -40,7 +41,7 @@ router.get('/', async (req, res, next) => {
     const where = sql ? `WHERE ${sql}` : '';
     const params = value ? [value] : [];
     const result = await pool.query(
-      `SELECT id, name, filename, size, created_at FROM documents ${where} ORDER BY created_at DESC`,
+      `SELECT id, name, filename, size, drive_url, drive_synced_at, drive_sync_error, created_at FROM documents ${where} ORDER BY created_at DESC`,
       params
     );
     res.json({ data: result.rows });
@@ -73,6 +74,43 @@ router.post('/', upload.single('document'), async (req, res, next) => {
     if (req.file?.path) {
       try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
     }
+    next(err);
+  }
+});
+
+router.post('/from-drive', async (req, res, next) => {
+  try {
+    const { name, drive_url } = req.body as { name?: string; drive_url?: string };
+
+    if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
+    if (!drive_url?.trim()) { res.status(400).json({ error: 'drive_url is required' }); return; }
+
+    const parsed = parseDriveUrl(drive_url.trim());
+    if (!parsed) {
+      res.status(400).json({ error: 'Not a valid Google Drive or Google Docs URL' });
+      return;
+    }
+
+    let filePath: string;
+    let filename: string;
+    let size: number;
+    try {
+      ({ filePath, filename, size } = await fetchAndSaveFile(drive_url.trim()));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to download from Drive';
+      res.status(400).json({ error: msg });
+      return;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO documents (name, filename, path, size, drive_url, drive_file_id, drive_synced_at, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
+       RETURNING id, name, filename, size, drive_url, drive_synced_at, drive_sync_error, created_at`,
+      [name.trim(), filename, filePath, size, drive_url.trim(), parsed.fileId, req.user!.id]
+    );
+
+    res.status(201).json({ data: result.rows[0] });
+  } catch (err) {
     next(err);
   }
 });
@@ -115,9 +153,19 @@ router.delete('/:id', async (req, res, next) => {
       res.status(404).json({ error: 'Document not found' });
       return;
     }
+    const docId = req.params['id']!;
     const filePath = result.rows[0].path;
     try { fs.unlinkSync(filePath); } catch { /* already gone — that's fine */ }
-    res.json({ data: { id: req.params['id'] } });
+
+    // Remove deleted document from any templates that reference it
+    await pool.query(
+      `UPDATE email_templates
+       SET document_ids = array_remove(document_ids, $1::uuid)
+       WHERE $1::uuid = ANY(document_ids)`,
+      [docId]
+    );
+
+    res.json({ data: { id: docId } });
   } catch (err) {
     next(err);
   }

@@ -1,3 +1,12 @@
+export interface WorkExperienceEntry {
+  company: string;
+  title: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  location?: string | null;
+  description?: string | null;
+}
+
 export interface UserProfile {
   first_name: string | null;
   last_name: string | null;
@@ -7,6 +16,8 @@ export interface UserProfile {
   city: string | null;
   state: string | null;
   country: string | null;
+  address_line1: string | null;
+  postal_code: string | null;
   linkedin_url: string | null;
   github_url: string | null;
   website: string | null;
@@ -21,8 +32,11 @@ export interface UserProfile {
   expected_ctc: string | null;
   education: string | null;
   college_name: string | null;
+  graduation_year: string | null;
   gender: string | null;
   veteran_status: string | null;
+  skills: string[] | null;
+  work_experiences: WorkExperienceEntry[] | null;
 }
 
 export type FieldType =
@@ -35,6 +49,8 @@ export type FieldType =
   | 'city'
   | 'state'
   | 'country'
+  | 'address_line1'
+  | 'postal_code'
   | 'linkedin_url'
   | 'github_url'
   | 'website'
@@ -49,16 +65,17 @@ export type FieldType =
   | 'expected_ctc'
   | 'education'
   | 'college_name'
+  | 'graduation_year'
   | 'gender'
   | 'veteran_status';
 
 export const ALL_FIELD_TYPES: FieldType[] = [
   'first_name', 'last_name', 'full_name', 'email', 'phone', 'phone_country_code',
-  'city', 'state', 'country', 'location', 'hometown',
+  'city', 'state', 'country', 'address_line1', 'postal_code', 'location', 'hometown',
   'linkedin_url', 'github_url', 'website',
   'current_company', 'job_title', 'work_authorization',
   'years_of_experience', 'notice_period', 'current_ctc', 'expected_ctc',
-  'education', 'college_name',
+  'education', 'college_name', 'graduation_year',
   'gender', 'veteran_status',
 ];
 

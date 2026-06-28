@@ -397,12 +397,15 @@ export default function TemplatesPage() {
               </div>
 
               {/* Default Attachments */}
-              {documents.length > 0 && (
-                <div>
-                  <div className="mb-2">
-                    <label className="form-label mb-0">Default Attachments</label>
-                    <p className="text-xs text-slate-400 mt-0.5">Documents checked here are automatically attached every time this template is used</p>
-                  </div>
+              <div>
+                <div className="mb-2">
+                  <label className="form-label mb-0">Default Attachments</label>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Attached every time this template is used — manage documents in the{' '}
+                    <a href="/documents" className="text-indigo-600 hover:underline">Documents</a> section.
+                  </p>
+                </div>
+                {documents.length > 0 ? (
                   <div className="space-y-1.5 border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto">
                     {documents.map((doc) => (
                       <label key={doc.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1">
@@ -412,15 +415,25 @@ export default function TemplatesPage() {
                           onChange={() => toggleDocument(doc.id)}
                           className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
                         />
-                        <div className="min-w-0">
-                          <span className="text-sm text-slate-700">{doc.name}</span>
-                          <span className="text-xs text-slate-400 ml-2">{doc.filename}</span>
+                        <div className="min-w-0 flex-1 flex items-center gap-2">
+                          <span className="text-sm text-slate-700 truncate">{doc.name}</span>
+                          <span className="text-xs text-slate-400 truncate">{doc.filename}</span>
+                          {doc.drive_url && (
+                            <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full flex-shrink-0">Drive</span>
+                          )}
+                          {doc.drive_sync_error && (
+                            <span className="text-xs text-red-500 flex-shrink-0" title={doc.drive_sync_error}>sync error</span>
+                          )}
                         </div>
                       </label>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-xs text-slate-400 text-center py-3 border border-dashed border-slate-200 rounded-lg">
+                    No documents yet — add them in the <a href="/documents" className="text-indigo-600 hover:underline">Documents</a> section.
+                  </p>
+                )}
+              </div>
             </div>
 
             {error && <p className="text-red-500 text-sm px-6 pb-4">{error}</p>}

@@ -31,14 +31,14 @@ extension/
 │   ├── types.ts                    # Shared TypeScript interfaces
 │   └── formFiller/                 # Form autofill subsystem
 │       ├── index.ts                # Orchestrator — platform detection, field loop, resume injection
-│       ├── detector.ts             # Generic field detection by label/name/id heuristics
-│       ├── filler.ts               # Low-level fill helpers: text, select, iti phone, resume file
-│       ├── types.ts                # FieldType enum, SelectorMap, UserProfile, FillResult
-│       └── platforms/              # Per-platform selector maps and custom fill functions
-│           ├── generic.ts          # CSS selectors for common job-board patterns
+│       ├── detector.ts             # Label-based field detection: getLabelText, PATTERNS, classifyElement, detectAllFields
+│       ├── filler.ts               # Low-level fill helpers: simulateInput, fillSelect, iti phone, resume file
+│       ├── types.ts                # FieldType union, UserProfile, FillResult, ALL_FIELD_TYPES
+│       └── platforms/              # Per-platform custom fill logic
+│           ├── generic.ts          # Generic fallback — detectAllFields() + fillElement()
 │           ├── greenhouse.ts       # Greenhouse-specific custom fill logic
-│           ├── lever.ts            # Lever selector map
-│           ├── workday.ts          # Workday selector map
+│           ├── lever.ts            # Lever custom fill logic
+│           ├── workday.ts          # Workday multi-step autofill (info → experience → questions → review)
 │           └── google-forms.ts     # Google Forms custom fill logic
 └── dist/                           # Compiled JS output (gitignored)
 ```
@@ -74,13 +74,55 @@ If a prospect is found, a green **Already in CRM** card appears above the form s
 3. Profile and resume data are stored in `chrome.storage.local` under `autofillProfile` and `autofillResume`.
 4. `chrome.scripting.executeScript` injects `dist/formFiller/index.js` into the active tab (all frames).
 5. The form filler detects the platform (Greenhouse, Lever, Workday, Google Forms, or Generic) by hostname/path and picks the matching strategy.
-6. For each recognized field type, it locates the input and calls the appropriate fill helper:
-   - **Text / textarea** — native value setter + `input`/`change`/`blur` events (works with React, Angular, Vue).
-   - **Select** — exact then fuzzy text match against `<option>` elements.
-   - **intl-tel-input phone** — injects a `<script>` tag into the page's JS context to call `iti.setNumber(fullIntlNumber)` via Angular's `$timeout` before firing DOM events, ensuring the country flag stays on India (or whatever `phone_country_code` stores).
-   - **Resume file input** — constructs a `File` object from base64 data, sets `input.files` via `DataTransfer`, fires `change` + `input`.
-7. Results (filled/skipped field list, platform name) are sent back to the side panel via `chrome.runtime.sendMessage({ action: 'autofillResult', ... })`.
-8. When the form is submitted, a `submit` or button-click listener fires `{ action: 'applicationSubmitted', company_name, job_title, job_url, platform }` to the side panel, which auto-POSTs to `POST /api/applications`.
+
+### Field detection — label-based
+
+All field detection uses **label text matching** — never hardcoded CSS selectors for individual field types, which break across ATS versions and can't handle form variants.
+
+`detector.ts` exports:
+
+| Export | Purpose |
+|---|---|
+| `detectAllFields()` | Returns `Map<FieldType, FillableEl[]>` — all matching elements per type. Use when a form shows duplicate variants of the same field (e.g. Workday's `addressLine1` + `addressLine1Local`). |
+| `detectFields()` | Returns `Map<FieldType, FillableEl>` — first match per type. |
+| `classifyElement(el)` | Tests element's `name`, `id`, `placeholder`, and label text against `PATTERNS`. Returns `FieldType` or `null`. |
+| `getLabelText(el)` | Resolves label text: `aria-label` → `aria-labelledby` → `<label for>` → ancestor form-group label. |
+| `PATTERNS` | `Record<FieldType, RegExp[]>` — ordering matters. More-specific patterns must come before broader ones that share keywords (e.g. `address_line1` before `location`). |
+
+### Fill helpers (`filler.ts`)
+
+| Helper | When to use |
+|---|---|
+| `simulateInput(el, value)` | React controlled inputs — fires full mouse→focus→select→beforeinput→input→change→tab→blur→body-click chain. Properly updates React state for step 1 fields (Workday address, name). |
+| `fillElement(el, value)` | Generic fill — `fillSelect` for `<select>`, `simulateInput` for text/textarea. |
+| `fillSelect(el, value)` | `<select>` — exact then fuzzy match against `<option>` text. |
+| `fillItiPhone(el, value, countryCode)` | intl-tel-input phone widget — injects script into page context to call `iti.setNumber()`. |
+| `fillFile(el, base64, filename)` | Resume file inputs — `DataTransfer` + `File` object. |
+
+### Workday multi-step autofill (`platforms/workday.ts`)
+
+Workday (`*.myworkdayjobs.com`) renders a multi-step application. `detectStep()` identifies the current step by what inputs are visible:
+
+| Step | Detection | What fills |
+|---|---|---|
+| `info` | Legal name, address, or phone inputs present | Name, address (all variants incl. Local/English), phone + country code, work authorization, gender, veteran status — via `detectAllFields()` + `simulateInput` |
+| `experience` | `button[data-automation-id="add-button"]` present | Work experience: job title, company, location via `fillWorkdayInput`; start/end dates via `fillWorkdayDateViaPicker`. Education: college name, degree. |
+| `questions` | Checkbox/radio/select questions | Answers matched by label text |
+| `review` | Review/confirm page | No-op |
+
+**`fillWorkdayInput(el, value)`** — for work experience text fields, fires DOM `input`/`change` events first (React event delegation updates state), then calls fiber `onChange`/`onInput`/`onBlur` props directly, then calls `el.blur()` to mark the field as touched.
+
+**`fillWorkdayDateViaPicker(wrapperId, mm, yyyy)`** — clicks the calendar icon, navigates year spinners until the year matches, then clicks the target `li[data-uxi-monthpicker-month]` tile. Avoids React internals entirely.
+
+**Touched state** — Workday's form library only clears required-field validation errors after a real focus→blur cycle. Every fill helper ends with a blur call or `document.body.click()`.
+
+### Resume detection
+
+`detectResumeInputs()` matches `name`, `id`, `data-automation-id`, and label text against resume/CV patterns. If no match, it walks up to 8 ancestor levels looking for a nearby `<h2>–<h6>` or `<legend>` with resume/CV text (needed for Workday's section-heading approach with no `<label>`).
+
+### Application tracking
+
+When the form is submitted, a `submit` or button-click listener fires `{ action: 'applicationSubmitted', company_name, job_title, job_url, platform }` to the side panel, which auto-POSTs to `POST /api/applications`.
 
 ---
 

@@ -135,6 +135,64 @@ export async function fillItiPhone(
   return true;
 }
 
+// Simulate a real user typing into an input: fires the full mouse → focus →
+// keyboard → input → change → blur event sequence that React, Vue, Angular, and
+// vanilla JS forms all expect.
+//
+// Why native setter + InputEvent instead of execCommand:
+//   execCommand('insertText') is deprecated and unreliable in sandboxed contexts.
+//   The native setter bypasses React's synthetic event proxy; pairing it with a
+//   bubbling InputEvent is what React 16/17/18 all listen for to update state.
+export async function simulateInput(
+  el: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+): Promise<boolean> {
+  // 1. Mouse events — activates the field the same way a real click does
+  el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, buttons: 1 }));
+  el.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
+  el.dispatchEvent(new MouseEvent('click',     { bubbles: true, cancelable: true }));
+  el.focus();
+  el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+  await new Promise<void>(r => setTimeout(r, 30));
+
+  // 2. Ctrl+A — select existing content so the insert replaces it
+  el.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', ctrlKey: true, bubbles: true, cancelable: true }));
+  if ('select' in el && typeof el.select === 'function') el.select();
+  el.dispatchEvent(new KeyboardEvent('keyup',   { key: 'a', code: 'KeyA', ctrlKey: true, bubbles: true }));
+
+  // 3. beforeinput — signals to the framework what is about to be inserted
+  el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: value }));
+
+  // 4. Native value setter — writes the value outside React's proxy so the DOM
+  //    reflects the new value before the synthetic events fire
+  const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+  const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+  if (nativeSetter) nativeSetter.call(el, value); else el.value = value;
+
+  // 5. input — primary event React/Vue/Angular/Svelte all use for controlled inputs
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: value }));
+
+  // 6. change — some libraries (and vanilla JS) only listen to change, not input
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+
+  // 7. Tab keydown + synthetic blur
+  el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+  el.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Tab', code: 'Tab', keyCode: 9, bubbles: true }));
+  el.blur();
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+
+  // 8. Click document.body so the browser moves focus away naturally.
+  //    Workday's form library tracks "touched" state via real focus-out events on
+  //    the document; a synthetic blur on the element alone is not enough — an
+  //    external click is what actually flips the field from "untouched" to "touched"
+  //    and clears the required-field validation error on submit.
+  document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  document.body.click();
+
+  await new Promise<void>(r => setTimeout(r, 50));
+  return el.value === value;
+}
+
 export function fillResumeInput(el: HTMLInputElement, base64: string, filename: string, mimeType: string): boolean {
   try {
     const binary = atob(base64);
@@ -156,9 +214,106 @@ function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export async function fillWorkdayListbox(btn: HTMLButtonElement, value: string): Promise<boolean> {
+  // Normalize text for comparison: strip diacritics so "Karnātaka" matches "Karnataka",
+  // "Gujarāt" matches "Gujarat", etc.
+  const normalize = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+  const normValue = normalize(value);
+
+  // Open the dropdown
+  btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  btn.click();
+
+  // Workday sets aria-controls on the button pointing to the listbox id.
+  const listboxId = btn.getAttribute('aria-controls');
+
+  // Find the open dropdown's options.
+  //
+  // Workday has TWO [role="listbox"] elements in the DOM simultaneously:
+  //   1. UL[data-automation-id="selectedItemList"] — the selected-pill display area.
+  //      Its children have role="presentation", not role="option". SKIP THIS ONE.
+  //   2. UL (no data-automation-id, random id like "a2kd1") — the actual open dropdown.
+  //      Its LI children all carry role="option". THIS is what we want.
+  //
+  // document.querySelector('[role="listbox"]') always returns #1 first, which is why
+  // the old code found 0 or 1 wrong options and closed the dropdown immediately.
+  //
+  // Additionally, some Workday versions use data-automation-id="promptOption" on options
+  // inside a data-automation-id="popupContent" portal. Handle both.
+  const OPTION_SEL = '[role="option"], [data-automation-id="promptOption"]';
+
+  const findOptions = (): HTMLElement[] => {
+    // 1. Prefer the listbox identified by aria-controls (most precise)
+    if (listboxId) {
+      const lb = document.getElementById(listboxId);
+      if (lb) {
+        const opts = Array.from(lb.querySelectorAll<HTMLElement>(OPTION_SEL));
+        if (opts.length) return opts;
+      }
+    }
+
+    // 2. Walk ALL [role="listbox"] elements, skipping the selectedItemList pill container.
+    //    Pick the first one that has actual option children.
+    for (const lb of Array.from(document.querySelectorAll<HTMLElement>('[role="listbox"]'))) {
+      if (lb.getAttribute('data-automation-id') === 'selectedItemList') continue;
+      const opts = Array.from(lb.querySelectorAll<HTMLElement>(OPTION_SEL));
+      if (opts.length) return opts;
+    }
+
+    // 3. Modern Workday portal: popupContent wraps promptOption elements
+    const popup = document.querySelector('[data-automation-id="popupContent"]');
+    if (popup) {
+      const opts = Array.from(popup.querySelectorAll<HTMLElement>(OPTION_SEL));
+      if (opts.length) return opts;
+    }
+
+    // 4. Last resort: bare promptOption elements anywhere in the document
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-automation-id="promptOption"]'));
+  };
+
+  let options: HTMLElement[] = [];
+  for (let i = 0; i < 20; i++) {
+    await wait(200);
+    options = findOptions();
+    if (options.length > 0) break;
+  }
+
+  if (options.length === 0) { document.body.click(); return false; }
+
+  // Match with diacritic-normalized text comparison.
+  // Exact match first, then substring (handles "Karnataka" ↔ "Karnātaka").
+  let match = options.find(opt => normalize(opt.textContent ?? '') === normValue);
+  if (!match) {
+    match = options.find(opt => {
+      const t = normalize(opt.textContent ?? '');
+      return t.includes(normValue) || normValue.includes(t);
+    });
+  }
+
+  if (match) {
+    // Fire the full pointer event sequence Workday's React handlers expect.
+    match.dispatchEvent(new MouseEvent('mouseover',  { bubbles: true, cancelable: true }));
+    match.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+    match.dispatchEvent(new MouseEvent('mousedown',  { bubbles: true, cancelable: true, button: 0 }));
+    match.dispatchEvent(new MouseEvent('mouseup',    { bubbles: true, cancelable: true, button: 0 }));
+    match.click();
+    await wait(300);
+    return true;
+  }
+
+  document.body.click();
+  return false;
+}
+
 export async function fillElement(el: Element, value: string): Promise<boolean> {
   if (!value) return false;
 
+  // Workday custom listbox dropdowns (button[aria-haspopup="listbox"])
+  if (el instanceof HTMLButtonElement && el.getAttribute('aria-haspopup') === 'listbox') {
+    return fillWorkdayListbox(el, value);
+  }
   if (isMatSelect(el)) {
     return fillMatSelect(el as HTMLElement, value);
   }
@@ -212,6 +367,18 @@ async function fillMatSelect(el: HTMLElement, value: string): Promise<boolean> {
   document.body.click();
   return false;
 }
+
+// Known city aliases: old/colloquial name → official name used by job-board APIs.
+const CITY_ALIASES: Record<string, string> = {
+  'gurgaon':   'Gurugram',
+  'bombay':    'Mumbai',
+  'calcutta':  'Kolkata',
+  'madras':    'Chennai',
+  'bangalore': 'Bengaluru',
+  'mysore':    'Mysuru',
+  'baroda':    'Vadodara',
+  'poona':     'Pune',
+};
 
 async function fillReactSelect(el: HTMLInputElement, value: string): Promise<boolean> {
   const lower = value.toLowerCase().trim();
@@ -269,13 +436,36 @@ async function fillReactSelect(el: HTMLInputElement, value: string): Promise<boo
     }
   }
 
+  // If the typed query returned nothing, retry with a known alias (e.g. "Gurgaon" → "Gurugram").
+  if (options.length === 0 && didType) {
+    const alias = CITY_ALIASES[lower];
+    if (alias) {
+      el.focus();
+      document.execCommand('selectAll', false, undefined);
+      const didInsert = document.execCommand('insertText', false, alias);
+      if (!didInsert) {
+        const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        if (nativeSetter) nativeSetter.call(el, alias);
+        el.dispatchEvent(new InputEvent('input', { data: alias, inputType: 'insertText', bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      for (let i = 0; i < 15; i++) {
+        await wait(200);
+        options = getOptions();
+        if (options.length > 0) break;
+      }
+    }
+  }
+
   if (options.length === 0) return false;
 
   let match = options.find(opt => (opt.textContent ?? '').toLowerCase().trim() === lower);
   if (!match) {
+    // Only allow option-contains-value (e.g. "United States of America" for "United States"),
+    // not value-contains-option (which fires for short option texts like "In" matching "India").
     match = options.find(opt => {
       const t = (opt.textContent ?? '').toLowerCase().trim();
-      return t.includes(lower) || lower.includes(t);
+      return t.includes(lower);
     });
   }
   // For async search (we typed a query), the API already ranked results by relevance.
@@ -312,16 +502,32 @@ async function fillReactSelect(el: HTMLInputElement, value: string): Promise<boo
 }
 
 function fillTextLike(el: HTMLInputElement | HTMLTextAreaElement, value: string): boolean {
-  const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
-  const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-  if (nativeSetter) {
-    nativeSetter.call(el, value);
-  } else {
-    el.value = value;
+  // Focus first so the element is the active target for execCommand.
+  el.focus();
+
+  // Primary: execCommand('insertText') triggers the browser's native text-insertion
+  // pipeline. React 16/17/18 delegates events to the root container and reads
+  // event.target.value from this pipeline — this is what makes controlled inputs
+  // update their internal state, unlike a bare Event('input') which React can ignore.
+  document.execCommand('selectAll', false);
+  const inserted = document.execCommand('insertText', false, value);
+
+  if (!inserted || el.value !== value) {
+    // execCommand unavailable (e.g. some sandboxed frames) — fall back to native setter
+    // + InputEvent (more specific than Event; carries inputType + data properties that
+    // React's newer event system checks).
+    const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+    const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (nativeSetter) nativeSetter.call(el, value); else el.value = value;
+    el.dispatchEvent(new InputEvent('input', {
+      bubbles: true, cancelable: true, data: value, inputType: 'insertText',
+    }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
-  el.dispatchEvent(new Event('input',  { bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.dispatchEvent(new Event('blur',   { bubbles: true }));
+
+  // Call the real DOM blur() (not just dispatch a blur event) so Workday's
+  // field-level validation listeners fire and mark the field as touched/dirty.
+  el.blur();
   return true;
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { CrmUser, Document, Project, WorkExperience } from '@/lib/types';
@@ -994,7 +994,7 @@ function SkillsTab({ initialSkills }: { initialSkills: string[] }) {
 
 // ─── page ───────────────────────────────────────────────────────────────────────
 
-export default function ProfilePage() {
+function ProfileContent() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const [user,    setUser]    = useState<CrmUser | null>(null);
@@ -1059,5 +1059,13 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
+      <ProfileContent />
+    </Suspense>
   );
 }

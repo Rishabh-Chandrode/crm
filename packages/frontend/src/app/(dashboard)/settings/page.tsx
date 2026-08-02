@@ -867,7 +867,7 @@ function VariablesSection() {
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 
-export default function SettingsPage() {
+function SettingsContent() {
   const searchParams = useSearchParams();
   const router       = useRouter();
 
@@ -928,5 +928,13 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
+      <SettingsContent />
+    </Suspense>
   );
 }

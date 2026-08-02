@@ -33,6 +33,7 @@ export class GmailEmailProvider implements EmailProvider {
       socketTimeout: 90_000,
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,
+      family: 4,
       auth: {
         type: 'OAuth2',
         user: this.credentials.gmailUser,
@@ -40,7 +41,7 @@ export class GmailEmailProvider implements EmailProvider {
         clientSecret: CONFIG.googleClientSecret,
         refreshToken: this.credentials.refreshToken,
       },
-    });
+    } as any);
   }
 
   private buildMailOptions(options: SendEmailOptions) {
@@ -99,11 +100,12 @@ export class GmailAppPasswordProvider implements EmailProvider {
       socketTimeout: 90_000,
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,
+      family: 4,
       auth: {
         user: this.credentials.gmailUser,
         pass: this.credentials.appPassword,
       },
-    });
+    } as any);
   }
 
   private buildMailOptions(options: SendEmailOptions) {

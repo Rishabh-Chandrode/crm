@@ -16,6 +16,7 @@ export class ResendEmailProvider implements EmailProvider {
       subject: options.subject,
       html: options.html,
       replyTo: options.replyTo ?? CONFIG.replyToEmail ?? undefined,
+      attachments: options.attachments,
     });
 
     if (error || !data) {

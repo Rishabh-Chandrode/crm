@@ -1,9 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { randomUUID } from 'crypto';
 import { pool } from '../db/index.js';
-
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+import { getStorageService } from './storage/index.js';
 
 type DriveFileType = 'file' | 'doc' | 'sheet' | 'slides';
 
@@ -112,16 +110,20 @@ export async function fetchAndSaveFile(
   const filename = extractFilename(res.headers.get('content-disposition'), parsed);
   const buffer = Buffer.from(await res.arrayBuffer());
 
-  let filePath: string;
-  if (existingPath && fs.existsSync(existingPath)) {
-    filePath = existingPath;
-  } else {
-    const ext = path.extname(filename) || '.pdf';
-    filePath = path.join(UPLOADS_DIR, `${randomUUID()}${ext}`);
-  }
+  let fileKey: string;
+  const storageService = getStorageService();
 
-  fs.writeFileSync(filePath, buffer);
-  return { filePath, filename, size: buffer.length };
+  if (existingPath) {
+    try {
+      await storageService.delete(existingPath);
+    } catch {
+      /* ignore if not found */
+    }
+  }
+  
+  fileKey = await storageService.upload(buffer, filename);
+
+  return { filePath: fileKey, filename, size: buffer.length };
 }
 
 interface DriveDoc {
@@ -153,7 +155,12 @@ export async function syncDriveDocuments(): Promise<void> {
           [doc.id],
         );
         await pool.query(`DELETE FROM documents WHERE id = $1`, [doc.id]);
-        try { if (doc.path) fs.unlinkSync(doc.path); } catch { /* already gone */ }
+        try { 
+          if (doc.path) {
+            const storageService = getStorageService();
+            await storageService.delete(doc.path);
+          }
+        } catch { /* already gone */ }
         console.log(`Drive sync: removed "${doc.name}" (${doc.id}) — file deleted from Drive`);
       } else {
         await pool.query(

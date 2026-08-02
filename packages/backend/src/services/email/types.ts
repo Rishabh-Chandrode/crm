@@ -1,6 +1,7 @@
 export interface Attachment {
   filename: string;
-  path: string;
+  path?: string;
+  content?: Buffer | string;
 }
 
 export interface SendEmailOptions {

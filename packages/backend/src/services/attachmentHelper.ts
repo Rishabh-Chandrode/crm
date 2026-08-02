@@ -1,5 +1,5 @@
-import fs from 'fs';
 import { pool } from '../db/index.js';
+import { getStorageService } from './storage/index.js';
 import type { Attachment } from './email/types.js';
 
 interface DocRow {
@@ -13,7 +13,21 @@ export async function getAttachments(documentIds: string[]): Promise<Attachment[
     `SELECT filename, path FROM documents WHERE id = ANY($1)`,
     [documentIds]
   );
-  return rows.rows
-    .filter((r) => fs.existsSync(r.path))
-    .map((r) => ({ filename: r.filename, path: r.path }));
+  
+  const storageService = getStorageService();
+  const attachments: Attachment[] = [];
+  
+  for (const row of rows.rows) {
+    try {
+      const content = await storageService.download(row.path);
+      attachments.push({
+        filename: row.filename,
+        content: content,
+      });
+    } catch (err) {
+      console.error(`Failed to download attachment ${row.filename} from storage:`, err);
+    }
+  }
+  
+  return attachments;
 }

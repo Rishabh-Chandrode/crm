@@ -7,18 +7,10 @@ import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
 import { parseDriveUrl, fetchAndSaveFile } from '../services/driveSync.js';
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+import { getStorageService } from '../services/storage/index.js';
 
-const storage = multer.diskStorage({
-  destination: UPLOADS_DIR,
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${randomUUID()}${ext}`);
-  },
-});
+// We no longer need UPLOADS_DIR because we are using object storage
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -59,21 +51,20 @@ router.post('/', upload.single('document'), async (req, res, next) => {
 
     const name = (req.body as { name?: string }).name?.trim();
     if (!name) {
-      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
       res.status(400).json({ error: 'name is required' });
       return;
     }
 
+    const storageService = getStorageService();
+    const fileKey = await storageService.upload(req.file.buffer, req.file.originalname);
+
     const result = await pool.query(
       `INSERT INTO documents (name, filename, path, size, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, filename, size, created_at`,
-      [name, req.file.originalname, req.file.path, req.file.size, req.user!.id]
+      [name, req.file.originalname, fileKey, req.file.size, req.user!.id]
     );
 
     res.status(201).json({ data: result.rows[0] });
   } catch (err) {
-    if (req.file?.path) {
-      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
-    }
     next(err);
   }
 });
@@ -128,11 +119,18 @@ router.get('/:id/download', async (req, res, next) => {
     );
     const doc = result.rows[0];
     if (!doc) { res.status(404).json({ error: 'Document not found' }); return; }
-    if (!fs.existsSync(doc.path)) { res.status(404).json({ error: 'File not found on disk' }); return; }
 
-    res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.sendFile(path.resolve(doc.path));
+    const storageService = getStorageService();
+    try {
+      const buffer = await storageService.download(doc.path);
+      res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      // For binary files, send the buffer directly
+      res.send(buffer);
+    } catch (err) {
+      res.status(404).json({ error: 'File not found in storage' });
+      return;
+    }
   } catch (err) {
     next(err);
   }
@@ -155,7 +153,13 @@ router.delete('/:id', async (req, res, next) => {
     }
     const docId = req.params['id']!;
     const filePath = result.rows[0].path;
-    try { fs.unlinkSync(filePath); } catch { /* already gone — that's fine */ }
+    
+    const storageService = getStorageService();
+    try { 
+      await storageService.delete(filePath); 
+    } catch { 
+      /* already gone from storage — that's fine */ 
+    }
 
     // Remove deleted document from any templates that reference it
     await pool.query(

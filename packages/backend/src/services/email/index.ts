@@ -2,6 +2,7 @@ import type { EmailProvider } from './types.js';
 import {
   GmailEmailProvider, type GmailCredentials,
   GmailAppPasswordProvider, type GmailAppPasswordCredentials,
+  GmailRestApiProvider,
 } from './gmail.js';
 
 export type GmailSendMethod = 'oauth' | 'app_password';
@@ -20,7 +21,7 @@ export function getEmailProviderForUser(input: UserEmailCredentials): EmailProvi
   if (input.method === 'oauth') {
     const { gmailUser, refreshToken, fromName } = input.creds;
     key = `oauth:${gmailUser}:${refreshToken}:${fromName}`;
-    if (!_cache.has(key)) _cache.set(key, new GmailEmailProvider(input.creds));
+    if (!_cache.has(key)) _cache.set(key, new GmailRestApiProvider(input.creds));
   } else {
     const { gmailUser, appPassword, fromName } = input.creds;
     key = `app:${gmailUser}:${appPassword}:${fromName}`;

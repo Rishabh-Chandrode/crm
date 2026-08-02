@@ -134,3 +134,87 @@ export class GmailAppPasswordProvider implements EmailProvider {
     }
   }
 }
+
+// ─── HTTP REST API provider ───────────────────────────────────────────────────
+
+export class GmailRestApiProvider implements EmailProvider {
+  private readonly credentials: GmailCredentials;
+  private readonly mailBuilder: nodemailer.Transporter;
+
+  constructor(credentials: GmailCredentials) {
+    this.credentials = credentials;
+    // Uses streamTransport to compile the raw email (including attachments) to a Buffer
+    this.mailBuilder = nodemailer.createTransport({
+      streamTransport: true,
+      buffer: true,
+    });
+  }
+
+  private buildMailOptions(options: SendEmailOptions) {
+    return {
+      from: `${this.credentials.fromName} <${this.credentials.gmailUser}>`,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      replyTo: options.replyTo,
+      attachments: options.attachments,
+    };
+  }
+
+  async send(options: SendEmailOptions): Promise<SendEmailResult> {
+    const mailOptions = this.buildMailOptions(options);
+    const info = await this.mailBuilder.sendMail(mailOptions);
+    const rawBuffer = info.message as Buffer;
+    const rawBase64Url = rawBuffer.toString('base64url');
+
+    // Fetch fresh access token using the refresh token
+    const tokenParams = new URLSearchParams({
+      client_id: CONFIG.googleClientId.trim(),
+      client_secret: CONFIG.googleClientSecret.trim(),
+      refresh_token: (this.credentials.refreshToken || '').trim(),
+      grant_type: 'refresh_token',
+    });
+
+    console.log('[OAUTH_DEBUG] Requesting access token with:', {
+      client_id: CONFIG.googleClientId ? 'PRESENT' : 'MISSING',
+      client_secret: CONFIG.googleClientSecret ? 'PRESENT' : 'MISSING',
+      refresh_token_preview: this.credentials.refreshToken ? this.credentials.refreshToken.substring(0, 10) + '...' : 'MISSING',
+      encodedBody: tokenParams.toString()
+    });
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString(),
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      throw new Error(`Failed to refresh Google access token: ${errText}`);
+    }
+
+    const tokenData = await tokenRes.json() as { access_token: string };
+    const accessToken = tokenData.access_token;
+
+    // Send the raw email via Gmail REST API
+    const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        raw: rawBase64Url,
+      }),
+    });
+
+    if (!sendRes.ok) {
+      const errText = await sendRes.text();
+      throw new Error(`Gmail API sending failed: ${errText}`);
+    }
+
+    const sendData = await sendRes.json() as { id: string };
+    return { id: sendData.id };
+  }
+}
+

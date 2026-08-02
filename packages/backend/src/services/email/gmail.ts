@@ -23,11 +23,16 @@ export class GmailEmailProvider implements EmailProvider {
 
   private createTransporter(): nodemailer.Transporter {
     return nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      requireTLS: true,
       pool: true,
       maxConnections: 3,
       maxMessages: Infinity,
       socketTimeout: 90_000,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
       auth: {
         type: 'OAuth2',
         user: this.credentials.gmailUser,
@@ -84,11 +89,16 @@ export class GmailAppPasswordProvider implements EmailProvider {
 
   private createTransporter(): nodemailer.Transporter {
     return nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      requireTLS: true,
       pool: true,
       maxConnections: 3,
       maxMessages: Infinity,
       socketTimeout: 90_000,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
       auth: {
         user: this.credentials.gmailUser,
         pass: this.credentials.appPassword,

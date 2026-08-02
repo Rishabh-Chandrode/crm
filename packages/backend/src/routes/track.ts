@@ -20,12 +20,38 @@ router.get('/open/:sendId.gif', (req, res) => {
          WHERE id = $1`,
         [sendId]
       )
-      .catch(() => {});
+      .then((result) => {
+        if (req.query.debug === 'true') {
+          return res.status(200).json({ 
+            success: true, 
+            rowCount: result.rowCount, 
+            sendId: sendId,
+            message: result.rowCount === 0 ? "No rows updated. (ID missing or blocked by RLS?)" : "Updated successfully!"
+          });
+        }
+        res.setHeader('Content-Type', 'image/gif');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+        res.end(PIXEL);
+      })
+      .catch((err) => {
+        if (req.query.debug === 'true') {
+          return res.status(500).json({ error: String(err), stack: err.stack, sendId });
+        }
+        res.setHeader('Content-Type', 'image/gif');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+        res.end(PIXEL);
+      });
+  } else {
+    if (req.query.debug === 'true') {
+      return res.status(400).json({ error: "No sendId provided in params" });
+    }
+    res.setHeader('Content-Type', 'image/gif');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.end(PIXEL);
   }
-  res.setHeader('Content-Type', 'image/gif');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
-  res.end(PIXEL);
 });
 
 export default router;

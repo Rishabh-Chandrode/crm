@@ -1,6 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import dns from 'dns';
+
+// Force IPv4 DNS resolution to prevent ENETUNREACH errors on IPv6-misconfigured servers
+dns.setDefaultResultOrder('ipv4first');
+
 import { CONFIG } from './config.js';
 import { migrate } from './db/migrate.js';
 import routes from './routes/index.js';

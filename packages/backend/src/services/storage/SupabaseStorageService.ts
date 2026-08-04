@@ -17,11 +17,14 @@ export class SupabaseStorageService implements StorageService {
       throw new Error('SUPABASE_URL and SUPABASE_KEY environment variables must be defined');
     }
 
+    if (typeof (globalThis as any).WebSocket === 'undefined') {
+      (globalThis as any).WebSocket = WebSocket;
+    }
+
     this.supabase = createClient(supabaseUrl, supabaseKey, {
       auth: {
         persistSession: false,
-      },
-      global: { WebSocket },
+      }
     });
   }
 

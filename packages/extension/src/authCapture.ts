@@ -1,0 +1,32 @@
+function syncTokenFromCookie() {
+  const match = document.cookie.match(/(?:^|;\s*)crm_token=([^;]+)/);
+  if (match) {
+    const rawToken = decodeURIComponent(match[1]);
+    if (rawToken && rawToken.split('.').length === 3) {
+      chrome.storage.sync.get(['auth'], (stored) => {
+        if (!stored.auth || stored.auth.token !== rawToken) {
+          const auth = { token: rawToken, username: 'User', role: 'user' };
+          chrome.storage.sync.set({ auth }, () => {
+            console.log('CRM Extension: Synced auth token from cookie!');
+          });
+        }
+      });
+    }
+  }
+}
+syncTokenFromCookie();
+// Also check on URL just in case
+const searchMatch = window.location.search.match(/[?&]google_token=([^&#]+)/);
+if (searchMatch) {
+  const rawToken = decodeURIComponent(searchMatch[1]);
+  if (rawToken && rawToken.split('.').length === 3) {
+    chrome.storage.sync.get(['auth'], (stored) => {
+      if (!stored.auth || stored.auth.token !== rawToken) {
+        const auth = { token: rawToken, username: 'User', role: 'user' };
+        chrome.storage.sync.set({ auth }, () => {
+          console.log('CRM Extension: Captured authentication token from URL!');
+        });
+      }
+    });
+  }
+}

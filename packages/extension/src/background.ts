@@ -43,36 +43,42 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete') return;
-  const url = tab.url ?? '';
+  const url = changeInfo.url || tab.url || '';
+  
+  // Debug log
+  chrome.storage.local.get({ debug_logs: [] }, (res) => {
+    const logs = res.debug_logs;
+    logs.push({ t: new Date().toISOString(), url, hasToken: url.includes('google_token') });
+    if (logs.length > 50) logs.shift();
+    chrome.storage.local.set({ debug_logs: logs });
+  });
 
-  // Notify sidebar of navigation
-  notifyTabUrl(url);
+  const match = url.match(/[?&]google_token=([^&#]+)/);
+  if (match) {
+    try {
+      const rawToken = decodeURIComponent(match[1]!);
+      
+      chrome.storage.local.get({ debug_logs: [] }, (res) => {
+        const logs = res.debug_logs;
+        logs.push({ t: new Date().toISOString(), msg: 'Found token match', tokenLen: rawToken.length });
+        chrome.storage.local.set({ debug_logs: logs });
+      });
 
-  // Handle Google OAuth redirect
-  const match = url.match(/[?&]google_token=([^&]+)/);
-  if (!match) return;
-
-  try {
-    const rawToken = decodeURIComponent(match[1]!);
-    const parts = rawToken.split('.');
-    if (parts.length !== 3) return;
-
-    const padded = parts[1]!.replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(padded)) as {
-      id?: string; username?: string; role?: string;
-    };
-
-    const auth = {
-      token: rawToken,
-      username: payload.username ?? 'user',
-      role: payload.role ?? 'user',
-    };
-
-    chrome.storage.sync.set({ auth }, () => {
-      chrome.tabs.remove(tabId).catch(() => {});
-    });
-  } catch {
-    // malformed token — ignore
+      if (rawToken && rawToken.split('.').length === 3) {
+        const auth = { token: rawToken, username: 'User', role: 'user' };
+        chrome.storage.sync.set({ auth }, () => {
+          chrome.storage.local.get({ debug_logs: [] }, (res) => {
+            const logs = res.debug_logs;
+            logs.push({ t: new Date().toISOString(), msg: 'Saved auth to sync storage' });
+            chrome.storage.local.set({ debug_logs: logs });
+          });
+        });
+      }
+    } catch (e) {
+      console.error('Failed to save Google token:', e);
+    }
   }
+
+  if (changeInfo.status !== 'complete') return;
+  notifyTabUrl(url);
 });

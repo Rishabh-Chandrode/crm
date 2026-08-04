@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { StorageService } from './StorageService.js';
@@ -16,7 +17,12 @@ export class SupabaseStorageService implements StorageService {
       throw new Error('SUPABASE_URL and SUPABASE_KEY environment variables must be defined');
     }
 
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+      },
+      global: { WebSocket },
+    });
   }
 
   async upload(buffer: Buffer, originalName: string): Promise<string> {

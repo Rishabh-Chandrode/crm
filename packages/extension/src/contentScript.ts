@@ -3,18 +3,19 @@ import type { ScrapeMessage } from './types';
 function extractName(): { firstName: string; lastName: string } {
   const currentUrl = window.location.href;
 
-  // Try anchor sibling first (most reliable)
   let nameEl: Element | null = document.querySelector(`a[href='${currentUrl}'] h2`);
 
-  // Fallback: find h2 near the verification badge svg
   if (!nameEl) {
     const badge = document.querySelector('svg[aria-label^="View"][aria-label$="verifications"]');
     nameEl = badge?.parentElement?.querySelector('h2') ?? null;
   }
 
-  // Last resort: first h1 in the profile card
   if (!nameEl) {
     nameEl = document.querySelector('.pv-text-details__left-panel h1, .ph5 h1');
+  }
+
+  if (!nameEl) {
+    nameEl = document.querySelector('[componentkey*="profile.card"] h2');
   }
 
   const full = (nameEl as HTMLElement | null)?.innerText.trim() ?? '';

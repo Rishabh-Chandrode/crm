@@ -330,6 +330,10 @@ export async function migrate(): Promise<void> {
     ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_synced_at  TIMESTAMPTZ;
     ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_sync_error TEXT;
   `);
+  await pool.query(`
+    ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS schedule_id UUID REFERENCES email_schedules(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS idx_email_sends_schedule_id ON email_sends(schedule_id);
+  `);
   console.log('Database migration completed successfully');
 }
 

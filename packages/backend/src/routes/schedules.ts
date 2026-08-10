@@ -155,4 +155,27 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+router.post('/:id/retry', async (req, res, next) => {
+  try {
+    const { sql, value } = ownerFilter(req.user!, 'email_schedules', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [req.params['id']];
+    if (value) params.push(value);
+
+    const result = await pool.query(
+      `UPDATE email_schedules SET status = 'pending', scheduled_for = NOW(), error_message = NULL, sent_count = 0, failed_count = 0
+       WHERE id = $1 AND (status = 'failed' OR failed_count > 0) ${ownerWhere}
+       RETURNING *`,
+      params
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Schedule not found or has no failed emails to retry' });
+      return;
+    }
+    res.json({ data: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

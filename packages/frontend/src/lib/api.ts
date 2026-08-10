@@ -281,6 +281,10 @@ export const api = {
       request<{ data: import('./types').EmailSchedule }>(`/schedules/${id}`, {
         method: 'DELETE',
       }),
+    retry: (id: string) =>
+      request<{ data: import('./types').EmailSchedule }>(`/schedules/${id}/retry`, {
+        method: 'POST',
+      }),
   },
 
   documents: {

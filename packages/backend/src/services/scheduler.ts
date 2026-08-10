@@ -124,18 +124,42 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   let failedCount = 0;
   const errorMessages: string[] = [];
 
+  const existingSendsRes = await pool.query<{ id: string; prospect_id: string; status: string }>(
+    `SELECT id, prospect_id, status FROM email_sends WHERE schedule_id = $1`,
+    [schedule.id]
+  );
+  const existingSendByProspect = new Map<string, { id: string; status: string }>();
+  for (const s of existingSendsRes.rows) {
+    existingSendByProspect.set(s.prospect_id, s);
+  }
+
   await Promise.allSettled(
     prospects.map(async (prospect) => {
+      const existing = existingSendByProspect.get(prospect.id);
+      if (existing && existing.status === 'sent') {
+        sentCount++;
+        return; // Skip already sent
+      }
+
       const ctx = { prospect, company, custom: schedule.custom_values, sender };
       const subject = resolveTemplate(template.subject, template.variables, ctx);
       const body = resolveTemplate(template.body, template.variables, ctx);
 
-      const sendRecord = await pool.query<{ id: string }>(
-        `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING id`,
-        [template.id, prospect.id, company?.id ?? null, subject, body, schedule.created_by]
-      );
-      const sendId = sendRecord.rows[0]!.id;
+      let sendId: string;
+      if (existing) {
+        sendId = existing.id;
+        await pool.query(
+          `UPDATE email_sends SET status = 'pending', subject = $1, body = $2, error_message = NULL WHERE id = $3`,
+          [subject, body, sendId]
+        );
+      } else {
+        const sendRecord = await pool.query<{ id: string }>(
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, schedule_id)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING id`,
+          [template.id, prospect.id, company?.id ?? null, subject, body, schedule.created_by, schedule.id]
+        );
+        sendId = sendRecord.rows[0]!.id;
+      }
       const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
 
       try {

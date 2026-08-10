@@ -5,18 +5,18 @@ import { api } from '@/lib/api';
 import type { EmailSchedule, EmailScheduleDetail } from '@/lib/types';
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:   'bg-amber-50 text-amber-700 border-amber-200',
-  sending:   'bg-blue-50 text-blue-700 border-blue-200',
-  sent:      'bg-green-50 text-green-700 border-green-200',
+  pending: 'bg-amber-50 text-amber-700 border-amber-200',
+  sending: 'bg-blue-50 text-blue-700 border-blue-200',
+  sent: 'bg-green-50 text-green-700 border-green-200',
   cancelled: 'bg-slate-100 text-slate-500 border-slate-200',
-  failed:    'bg-red-50 text-red-700 border-red-200',
+  failed: 'bg-red-50 text-red-700 border-red-200',
 };
 
 export default function ScheduledPage() {
   const [schedules, setSchedules] = useState<EmailSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
-
+  const [retrying, setRetrying] = useState<string | null>(null);
   async function load() {
     const res = await api.schedules.list();
     setSchedules(res.data);
@@ -35,6 +35,19 @@ export default function ScheduledPage() {
       alert(err instanceof Error ? err.message : 'Failed to cancel');
     } finally {
       setCancelling(null);
+    }
+  }
+
+  async function handleRetry(id: string) {
+    if (!confirm('Retry this failed schedule? It will be processed again.')) return;
+    setRetrying(id);
+    try {
+      await api.schedules.retry(id);
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to retry');
+    } finally {
+      setRetrying(null);
     }
   }
 
@@ -62,7 +75,7 @@ export default function ScheduledPage() {
               <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Upcoming</h2>
               <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
                 {pending.map((s) => (
-                  <ScheduleRow key={s.id} schedule={s} onCancel={handleCancel} cancelling={cancelling} />
+                  <ScheduleRow key={s.id} schedule={s} onCancel={handleCancel} cancelling={cancelling} onRetry={handleRetry} retrying={retrying} />
                 ))}
               </div>
             </section>
@@ -73,7 +86,7 @@ export default function ScheduledPage() {
               <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">History</h2>
               <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
                 {past.map((s) => (
-                  <ScheduleRow key={s.id} schedule={s} onCancel={handleCancel} cancelling={cancelling} />
+                  <ScheduleRow key={s.id} schedule={s} onCancel={handleCancel} cancelling={cancelling} onRetry={handleRetry} retrying={retrying} />
                 ))}
               </div>
             </section>
@@ -88,10 +101,14 @@ function ScheduleRow({
   schedule,
   onCancel,
   cancelling,
+  onRetry,
+  retrying,
 }: {
   schedule: EmailSchedule;
   onCancel: (id: string) => void;
   cancelling: string | null;
+  onRetry: (id: string) => void;
+  retrying: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<EmailScheduleDetail | null>(null);
@@ -141,8 +158,8 @@ function ScheduleRow({
               {schedule.status === 'pending'
                 ? isPast ? 'Sending soon…' : `Sends ${scheduledDate.toLocaleString()}`
                 : schedule.status === 'sent' || schedule.status === 'failed'
-                ? `Attempted ${schedule.sent_at ? new Date(schedule.sent_at).toLocaleString() : scheduledDate.toLocaleString()}`
-                : scheduledDate.toLocaleString()}
+                  ? `Attempted ${schedule.sent_at ? new Date(schedule.sent_at).toLocaleString() : scheduledDate.toLocaleString()}`
+                  : scheduledDate.toLocaleString()}
             </span>
             {(schedule.status === 'sent' || schedule.status === 'failed') && schedule.total_prospects > 0 && (
               <span>{schedule.sent_count} sent · {schedule.failed_count} failed · {schedule.total_prospects} total</span>
@@ -169,6 +186,15 @@ function ScheduleRow({
               className="text-xs font-medium text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors whitespace-nowrap"
             >
               {cancelling === schedule.id ? 'Cancelling…' : 'Cancel'}
+            </button>
+          )}
+          {(schedule.status === 'failed' || schedule.failed_count > 0) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRetry(schedule.id); }}
+              disabled={retrying === schedule.id}
+              className="text-xs font-medium text-indigo-500 hover:text-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+            >
+              {retrying === schedule.id ? 'Retrying…' : 'Retry'}
             </button>
           )}
           <svg

@@ -1029,14 +1029,14 @@ function ProfileContent() {
         </p>
       </div>
 
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
         {/* Left nav */}
-        <nav className="w-48 shrink-0 space-y-0.5">
+        <nav className="w-full md:w-48 shrink-0 flex flex-row md:flex-col overflow-x-auto gap-2 md:gap-0 md:space-y-0.5 pb-1 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => goTab(t.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+              className={`flex-none md:w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left whitespace-nowrap ${
                 tab === t.id
                   ? 'bg-indigo-50 text-indigo-700'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'

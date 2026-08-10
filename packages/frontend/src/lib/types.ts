@@ -154,6 +154,7 @@ export interface EmailSend {
   error_message: string | null;
   opened_at: string | null;
   open_count: number;
+  job_url: string | null;
   created_at: string;
   prospect?: { first_name: string; last_name: string | null; email: string; job_title?: string | null };
   company?: { name: string };
@@ -253,7 +254,7 @@ export interface JobApplication {
   job_title: string;
   job_url: string;
   platform: string;
-  status: 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+  status: 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
   notes: string | null;
   applied_at: string;
   created_at: string;

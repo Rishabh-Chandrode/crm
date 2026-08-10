@@ -9,6 +9,7 @@ function pixelUrl(sendId: string): string {
   return `${base}/api/track/open/${sendId}.gif`;
 }
 import { getAttachments } from './attachmentHelper.js';
+import { maybeCreateApplicationFromEmail } from './autoTrackApplication.js';
 import type { EmailTemplate, Prospect, Company, SenderProfile } from '../types/index.js';
 
 interface ScheduleRow {
@@ -153,10 +154,11 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
           [subject, body, sendId]
         );
       } else {
+        const jobUrl = schedule.custom_values['jobUrl'] ?? schedule.custom_values['job_url'] ?? null;
         const sendRecord = await pool.query<{ id: string }>(
-          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, schedule_id)
-           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING id`,
-          [template.id, prospect.id, company?.id ?? null, subject, body, schedule.created_by, schedule.id]
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, schedule_id, job_url)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8) RETURNING id`,
+          [template.id, prospect.id, company?.id ?? null, subject, body, schedule.created_by, schedule.id, jobUrl]
         );
         sendId = sendRecord.rows[0]!.id;
       }
@@ -173,6 +175,14 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
           `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
           [result.id, sendId]
         );
+
+        // Auto-track job application if jobUrl is present
+        if (schedule.created_by) {
+          maybeCreateApplicationFromEmail(schedule.created_by, schedule.custom_values).catch((err) =>
+            console.error('Auto-track application error (scheduler):', err)
+          );
+        }
+
         sentCount++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error';

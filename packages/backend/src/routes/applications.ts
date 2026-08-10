@@ -5,7 +5,7 @@ import type { Request } from 'express';
 
 const router: ReturnType<typeof Router> = Router();
 
-const VALID_STATUSES = ['applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
+const VALID_STATUSES = ['not_applied', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
 
 // GET /api/applications
 router.get('/', async (req: Request, res: Response) => {

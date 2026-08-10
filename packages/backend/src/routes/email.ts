@@ -4,6 +4,7 @@ import { ownerFilter } from '../middleware/ownerFilter.js';
 import { getEmailProviderForUser } from '../services/email/index.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from '../services/templateEngine.js';
 import { getAttachments } from '../services/attachmentHelper.js';
+import { maybeCreateApplicationFromEmail } from '../services/autoTrackApplication.js';
 import type { EmailTemplate, Prospect, Company, EmailSend, SenderProfile } from '../types/index.js';
 
 interface UserEmailConfig {
@@ -323,10 +324,12 @@ router.post('/send', async (req, res, next) => {
     const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
     const attachments = await getAttachments(allDocumentIds);
 
+    const jobUrl = customValues['jobUrl'] ?? customValues['job_url'] ?? null;
+
     const sendRecord = await pool.query<EmailSend>(
-      `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING *`,
-      [template.id, prospect.id, prospect.company_id, resolvedSubject, resolvedBody, req.user!.id]
+      `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING *`,
+      [template.id, prospect.id, prospect.company_id, resolvedSubject, resolvedBody, req.user!.id, jobUrl]
     );
     const sendId = sendRecord.rows[0]!.id;
     const html = wrapEmailHtml(plainTextToHtml(resolvedBody), pixelUrl(sendId));
@@ -343,6 +346,12 @@ router.post('/send', async (req, res, next) => {
         `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
         [result.id, sendId]
       );
+
+      // Auto-track job application if jobUrl is present
+      maybeCreateApplicationFromEmail(req.user!.id, customValues).catch((err) =>
+        console.error('Auto-track application error:', err)
+      );
+
       res.json({ data: { id: sendId, status: 'sent', resend_id: result.id } });
     } catch (sendErr) {
       const msg = sendErr instanceof Error ? sendErr.message : 'Unknown error';
@@ -435,10 +444,12 @@ router.post('/send-company', async (req, res, next) => {
         const subject = resolveTemplate(template.subject, template.variables, context);
         const body = resolveTemplate(template.body, template.variables, context);
 
+        const jobUrl = customValues['jobUrl'] ?? customValues['job_url'] ?? null;
+
         const sendRecord = await pool.query<EmailSend>(
-          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
-           VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING id`,
-          [template.id, prospect.id, company.id, subject, body, userId]
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING id`,
+          [template.id, prospect.id, company.id, subject, body, userId, jobUrl]
         );
         const sendId = sendRecord.rows[0]!.id;
         const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
@@ -454,6 +465,12 @@ router.post('/send-company', async (req, res, next) => {
             `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
             [result.id, sendId]
           );
+
+          // Auto-track job application if jobUrl is present (fire-and-forget per prospect)
+          maybeCreateApplicationFromEmail(userId, customValues).catch((err) =>
+            console.error('Auto-track application error:', err)
+          );
+
           return { prospectId: prospect.id, email: prospect.email, status: 'sent' };
         } catch (sendErr) {
           const msg = sendErr instanceof Error ? sendErr.message : 'Unknown error';
@@ -540,10 +557,12 @@ router.post('/send-batch', async (req, res, next) => {
         const subject = resolveTemplate(template.subject, template.variables, context);
         const body = resolveTemplate(template.body, template.variables, context);
 
+        const jobUrl = customValues['jobUrl'] ?? customValues['job_url'] ?? null;
+
         const sendRecord = await pool.query<EmailSend>(
-          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by)
-           VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING id`,
-          [template.id, prospect.id, prospect.company_id ?? null, subject, body, userId]
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING id`,
+          [template.id, prospect.id, prospect.company_id ?? null, subject, body, userId, jobUrl]
         );
         const sendId = sendRecord.rows[0]!.id;
         const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
@@ -559,6 +578,12 @@ router.post('/send-batch', async (req, res, next) => {
             `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
             [result.id, sendId]
           );
+
+          // Auto-track job application if jobUrl is present (fire-and-forget per prospect)
+          maybeCreateApplicationFromEmail(userId, customValues).catch((err) =>
+            console.error('Auto-track application error:', err)
+          );
+
           return { prospectId: prospect.id, email: prospect.email, status: 'sent' };
         } catch (sendErr) {
           const msg = sendErr instanceof Error ? sendErr.message : 'Unknown error';

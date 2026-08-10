@@ -175,13 +175,6 @@ export class GmailRestApiProvider implements EmailProvider {
       grant_type: 'refresh_token',
     });
 
-    console.log('[OAUTH_DEBUG] Requesting access token with:', {
-      client_id: CONFIG.googleClientId ? 'PRESENT' : 'MISSING',
-      client_secret: CONFIG.googleClientSecret ? 'PRESENT' : 'MISSING',
-      refresh_token_preview: this.credentials.refreshToken ? this.credentials.refreshToken.substring(0, 10) + '...' : 'MISSING',
-      encodedBody: tokenParams.toString()
-    });
-
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

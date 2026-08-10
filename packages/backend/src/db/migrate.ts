@@ -334,6 +334,9 @@ export async function migrate(): Promise<void> {
     ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS schedule_id UUID REFERENCES email_schedules(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS idx_email_sends_schedule_id ON email_sends(schedule_id);
   `);
+  await pool.query(`
+    ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS job_url TEXT;
+  `);
   console.log('Database migration completed successfully');
 }
 

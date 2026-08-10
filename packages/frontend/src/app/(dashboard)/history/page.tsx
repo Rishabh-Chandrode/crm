@@ -96,9 +96,26 @@ function SendCard({
           <div className="min-w-0">
             <div className="font-medium text-slate-800 truncate">{send.prospect ? prospectFullName(send.prospect) : '—'}</div>
             <div className="text-xs text-slate-400 truncate">{send.prospect?.email ?? ''}</div>
-            {(send.company?.name ?? send.template?.name) && (
+            {(send.company?.name ?? send.template?.name ?? send.job_url) && (
               <div className="text-xs text-slate-400 truncate">
                 {[send.company?.name, send.template?.name].filter(Boolean).join(' · ')}
+                {send.job_url && (
+                  <>
+                    {(send.company?.name || send.template?.name) && <span className="mx-1">·</span>}
+                    <a
+                      href={send.job_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-500 hover:text-indigo-700 hover:underline inline-flex items-center gap-0.5 align-text-bottom"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Job Link
+                    </a>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -148,7 +165,7 @@ function SendCard({
       {expanded && (
         <div className="border-t border-slate-100 bg-slate-50 px-4 py-4 space-y-4">
           {/* Prospect detail */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Prospect</p>
               <div className="flex items-center gap-2">
@@ -174,6 +191,22 @@ function SendCard({
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Company</p>
                 <p className="text-sm text-slate-700">{send.company?.name ?? '—'}</p>
               </div>
+              {send.job_url && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Job URL</p>
+                  <a
+                    href={send.job_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline inline-flex items-center gap-1 break-all"
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    {send.job_url}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
@@ -181,7 +214,7 @@ function SendCard({
           {(send.status === 'sent' || send.opened_at) && (
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Tracking</p>
-              <div className="flex gap-4 text-sm">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm">
                 {send.sent_at && (
                   <div>
                     <span className="text-xs text-slate-400">Sent </span>

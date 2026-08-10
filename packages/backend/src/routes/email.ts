@@ -142,14 +142,19 @@ router.post('/retry/:id', async (req, res, next) => {
     const params: unknown[] = [id];
     if (value) params.push(value);
 
-    const sendRes = await pool.query<EmailSend>(
-      `SELECT es.*, p.email AS prospect_email
+    const sendRes = await pool.query(
+      `SELECT es.*, 
+              p.email AS prospect_email,
+              t.document_ids AS template_document_ids,
+              sch.document_ids AS schedule_document_ids
        FROM email_sends es
        LEFT JOIN prospects p ON p.id = es.prospect_id
+       LEFT JOIN email_templates t ON t.id = es.template_id
+       LEFT JOIN email_schedules sch ON sch.id = es.schedule_id
        WHERE es.id = $1 ${ownerWhere}`,
       params
     );
-    const send = sendRes.rows[0] as (EmailSend & { prospect_email: string | null }) | undefined;
+    const send = sendRes.rows[0] as (EmailSend & { prospect_email: string | null; template_document_ids: string[] | null; schedule_document_ids: string[] | null }) | undefined;
 
     if (!send) { res.status(404).json({ error: 'Email send record not found' }); return; }
     if (send.status !== 'failed') { res.status(400).json({ error: 'Only failed emails can be retried' }); return; }
@@ -176,11 +181,20 @@ router.post('/retry/:id', async (req, res, next) => {
 
     const html = wrapEmailHtml(plainTextToHtml(send.body), pixelUrl(id));
 
+    const allDocumentIds = [
+      ...new Set([
+        ...(send.template_document_ids ?? []),
+        ...(send.schedule_document_ids ?? [])
+      ])
+    ];
+    const attachments = await getAttachments(allDocumentIds);
+
     try {
       const result = await provider.send({
         to: send.prospect_email,
         subject: send.subject,
         html,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
       await pool.query(
         `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,

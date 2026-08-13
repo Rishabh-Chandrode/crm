@@ -51,4 +51,28 @@ export class ProspeoProvider implements EnrichmentProvider {
 
     throw new Error('No email found for this prospect in Prospeo');
   }
+
+  async getCredits(): Promise<number | null> {
+    if (!CONFIG.prospeoApiKey) return null;
+
+    try {
+      const response = await fetch('https://api.prospeo.io/account-information', {
+        method: 'GET',
+        headers: {
+          'X-KEY': CONFIG.prospeoApiKey,
+        },
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json() as { error?: boolean, response?: { remaining_credits?: number } };
+      
+      if (!data.error && data.response?.remaining_credits !== undefined) {
+        return data.response.remaining_credits;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }

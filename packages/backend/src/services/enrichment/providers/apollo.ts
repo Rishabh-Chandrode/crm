@@ -48,4 +48,9 @@ export class ApolloProvider implements EnrichmentProvider {
 
     throw new Error('No email found for this prospect in Apollo');
   }
+
+  async getCredits(): Promise<number | null> {
+    // Apollo does not expose an API endpoint for checking credit balance
+    return null;
+  }
 }

@@ -14,4 +14,5 @@ export interface EnrichmentResult {
 
 export interface EnrichmentProvider {
   enrich(request: EnrichmentRequest): Promise<EnrichmentResult>;
+  getCredits?(): Promise<number | null>;
 }

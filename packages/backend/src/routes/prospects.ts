@@ -251,6 +251,22 @@ router.post('/enrich', async (req, res, next) => {
   }
 });
 
+router.get('/enrich/credits', async (req, res, next) => {
+  try {
+    const service = getEnrichmentService();
+    const provider = CONFIG.activeEnrichmentProvider;
+    if (!service.getCredits) {
+      res.json({ credits: null, provider });
+      return;
+    }
+
+    const credits = await service.getCredits();
+    res.json({ credits, provider });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;

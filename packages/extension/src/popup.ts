@@ -40,6 +40,8 @@ const matchMetaEl           = $<HTMLDivElement>('matchMeta');
 const matchViewLinkEl       = $<HTMLAnchorElement>('matchViewLink');
 const matchSendEmailBtn     = $<HTMLButtonElement>('matchSendEmailBtn');
 const pasteBtn       = $<HTMLButtonElement>('pasteBtn');
+const enrichBtn      = $<HTMLButtonElement>('enrichBtn');
+const enrichCredits  = $<HTMLDivElement>('enrichCredits');
 const addBtn         = $<HTMLButtonElement>('addBtn');
 const clearBtn       = $<HTMLButtonElement>('clearBtn');
 
@@ -287,6 +289,7 @@ chrome.storage.sync.get([...STORAGE_KEYS, 'auth'], async (stored) => {
     if (valid) {
       showAuthShell();
       restoreTab();
+      void updateCreditsDisplay();
       return;
     }
     chrome.storage.sync.remove('auth');
@@ -319,6 +322,7 @@ loginBtn.addEventListener('click', async () => {
     showAuthShell();
     restoreTab();
     void loadCurrentUser();
+    void updateCreditsDisplay();
   }
 
   loginBtn.disabled    = false;
@@ -406,11 +410,44 @@ function showContactStatus(msg: string, type: 'success' | 'error' | 'info'): voi
   if (type !== 'error') setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
 }
 
-scrapeBtn.addEventListener('click', () => {
+scrapeBtn.addEventListener('click', async () => {
   scrapeBtn.disabled    = true;
   scrapeBtn.textContent = 'Scraping…';
-  chrome.runtime.sendMessage({ action: 'triggerScrape' });
+  await chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_PAGE' });
+
+  
 });
+
+async function updateCreditsDisplay() {
+  if (!currentBackendUrl || !currentToken) return;
+
+  try {
+    const res = await fetch(`${currentBackendUrl}/api/prospects/enrich/credits`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const json = await res.json() as { credits: number | null, provider?: string };
+    if (json.credits !== null && json.credits !== undefined) {
+      const providerName = json.provider ? json.provider.charAt(0).toUpperCase() + json.provider.slice(1) : 'Provider';
+      enrichCredits.textContent = `${providerName} Credits: ${json.credits}`;
+      enrichCredits.style.display = 'block';
+    } else {
+      enrichCredits.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Failed to fetch credits:', err);
+    enrichCredits.style.display = 'none';
+  }
+}
+
+function handleScrapeResult(data: any) {
+  if (data.firstName)   firstNameEl.value   = data.firstName;
+  if (data.lastName)    lastNameEl.value    = data.lastName;
+  if (data.company)     companyEl.value     = data.company;
+  if (data.title)       titleEl.value       = data.title;
+  if (data.linkedinUrl) linkedinUrlEl.value = data.linkedinUrl;
+  if (data.email)       emailEl.value       = data.email;
+  persistForm();
+}
 
 interface ProspectMatch {
   id: string;
@@ -691,6 +728,46 @@ chrome.runtime.onMessage.addListener((message: ScrapeMessage | AutofillResultMes
   scrapeBtn.disabled    = false;
   scrapeBtn.textContent = 'Scrape LinkedIn';
   void lookupProspect(message.linkedinUrl, '');
+});
+
+enrichBtn.addEventListener('click', async () => {
+  const data = getFormData();
+
+  enrichBtn.disabled = true;
+  const originalSvg = enrichBtn.innerHTML;
+  enrichBtn.textContent = '...';
+
+  try {
+    const res = await fetch(`${currentBackendUrl}/api/prospects/enrich`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`,
+      },
+      body: JSON.stringify({
+        first_name: data.firstName,
+        last_name: data.lastName,
+        company_name: data.company,
+        linkedin_url: data.linkedinUrl,
+      }),
+    });
+
+    const json = await res.json() as { email?: string; error?: string };
+
+    if (!res.ok) {
+      showContactStatus(json.error ?? 'Failed to fetch email', 'error');
+    } else if (json.email) {
+      emailEl.value = json.email;
+      persistForm();
+      showContactStatus('Email found!', 'success');
+      void updateCreditsDisplay();
+    }
+  } catch (err) {
+    showContactStatus('Network error while fetching email', 'error');
+  } finally {
+    enrichBtn.disabled = false;
+    enrichBtn.innerHTML = originalSvg;
+  }
 });
 
 pasteBtn.addEventListener('click', async () => {

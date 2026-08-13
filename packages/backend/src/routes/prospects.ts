@@ -3,6 +3,8 @@ import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
 import { inferRoleCategory } from '../services/roleCategory.js';
 import type { Prospect } from '../types/index.js';
+import { CONFIG } from '../config.js';
+import { getEnrichmentService } from '../services/enrichment/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -222,6 +224,30 @@ router.get('/lookup', async (req, res, next) => {
     res.json({ data: result.rows[0] });
   } catch (err) {
     next(err);
+  }
+});
+
+router.post('/enrich', async (req, res, next) => {
+  try {
+    const { first_name, last_name, company_name, linkedin_url } = req.body as {
+      first_name?: string;
+      last_name?: string;
+      company_name?: string;
+      linkedin_url?: string;
+    };
+
+    const service = getEnrichmentService();
+    const result = await service.enrich({
+      first_name,
+      last_name,
+      company_name,
+      linkedin_url,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("Enrichment Error:", err);
+    res.status(400).json({ error: err.message || 'Failed to enrich prospect' });
   }
 });
 

@@ -23,4 +23,7 @@ export const CONFIG = {
   googleLoginRedirectUri: process.env['GOOGLE_LOGIN_REDIRECT_URI'] ?? 'http://localhost:3001/api/auth/google/callback',
   frontendUrl: process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
+  apolloApiKey: process.env['APOLLO_API_KEY'] ?? '',
+  prospeoApiKey: process.env['PROSPEO_API_KEY'] ?? '',
+  activeEnrichmentProvider: process.env['ACTIVE_ENRICHMENT_PROVIDER'] ?? 'prospeo',
 } as const;

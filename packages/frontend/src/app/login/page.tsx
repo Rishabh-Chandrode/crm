@@ -26,12 +26,18 @@ function LoginForm() {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    const googleToken = searchParams.get('google_token');
+    const googleCode = searchParams.get('google_code');
     const googleError = searchParams.get('google_error');
 
-    if (googleToken) {
-      document.cookie = `crm_token=${encodeURIComponent(googleToken)}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
-      router.push('/dashboard');
+    if (googleCode) {
+      api.auth.exchangeCode(googleCode)
+        .then((res) => {
+          document.cookie = `crm_token=${encodeURIComponent(res.token)}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
+          router.push('/dashboard');
+        })
+        .catch((err) => {
+          setError(`Google sign-in failed: ${err instanceof Error ? err.message : 'Exchange failed'}`);
+        });
       return;
     }
 

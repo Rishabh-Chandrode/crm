@@ -6,6 +6,7 @@ if (fs.existsSync('.env')) {
 }
 
 const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3001';
+const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3002';
 const watch = process.argv.includes('--watch');
 
 const options = {
@@ -16,14 +17,15 @@ const options = {
   minify: true,
   define: {
     BACKEND_URL: JSON.stringify(backendUrl),
+    FRONTEND_URL: JSON.stringify(frontendUrl),
   },
 };
 
 if (watch) {
   const ctx = await context(options);
   await ctx.watch();
-  console.log(`Watching… (BACKEND_URL=${backendUrl})`);
+  console.log(`Watching… (BACKEND_URL=${backendUrl}, FRONTEND_URL=${frontendUrl})`);
 } else {
   await build(options);
-  console.log(`Built. (BACKEND_URL=${backendUrl})`);
+  console.log(`Built. (BACKEND_URL=${backendUrl}, FRONTEND_URL=${frontendUrl})`);
 }

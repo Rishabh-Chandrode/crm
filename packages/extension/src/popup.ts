@@ -91,6 +91,20 @@ const previewEmailBtn       = $<HTMLButtonElement>('previewEmailBtn');
 const sendEmailBtn          = $<HTMLButtonElement>('sendEmailBtn');
 const sendStatusEl          = $<HTMLDivElement>('sendStatus');
 
+const sendModeRadios        = document.querySelectorAll<HTMLInputElement>('input[name="sendMode"]');
+const templateModeContent   = $<HTMLDivElement>('templateModeContent');
+const quickEmailModeContent = $<HTMLDivElement>('quickEmailModeContent');
+
+const quickEmailToEl        = $<HTMLInputElement>('quickEmailTo');
+const quickEmailSubjectEl   = $<HTMLInputElement>('quickEmailSubject');
+const quickEmailBodyEl      = $<HTMLTextAreaElement>('quickEmailBody');
+const quickEmailStatusEl    = $<HTMLDivElement>('quickEmailStatus');
+const quickSendEmailBtn     = $<HTMLButtonElement>('quickSendEmailBtn');
+const quickScheduleEmailBtn = $<HTMLButtonElement>('quickScheduleEmailBtn');
+const quickSchedulePicker   = $<HTMLDivElement>('quickSchedulePicker');
+const quickScheduleDateEl   = $<HTMLInputElement>('quickScheduleDate');
+const quickConfirmScheduleBtn = $<HTMLButtonElement>('quickConfirmScheduleBtn');
+
 // ── Shared state ─────────────────────────────────────────────────────────────
 
 const STORAGE_KEYS: (keyof ProspectData)[] = [
@@ -98,9 +112,11 @@ const STORAGE_KEYS: (keyof ProspectData)[] = [
 ];
 
 declare const BACKEND_URL: string;
+declare const FRONTEND_URL: string;
 
 let currentToken = '';
 const currentBackendUrl = BACKEND_URL;
+const currentFrontendUrl = FRONTEND_URL;
 let currentAuth: AuthState | null = null;
 
 function getFormData(): ProspectData {
@@ -231,8 +247,8 @@ async function tryLogin(username: string, password: string): Promise<boolean> {
       role:     json.user?.role ?? 'user',
       email:    json.user?.email,
     };
-    currentToken = json.token;
     chrome.storage.sync.set({ auth: currentAuth });
+    currentToken = json.token;
     return true;
   } catch {
     showLoginError('Cannot reach CRM backend. Check Settings.');
@@ -282,6 +298,7 @@ chrome.storage.sync.get([...STORAGE_KEYS, 'auth'], async (stored) => {
   initialLoadDone = true;
 
   const auth = stored['auth'] as AuthState | undefined;
+
   if (auth?.token) {
     currentAuth  = auth;
     currentToken = auth.token;
@@ -296,6 +313,7 @@ chrome.storage.sync.get([...STORAGE_KEYS, 'auth'], async (stored) => {
     currentAuth  = null;
     currentToken = '';
   }
+  
   showLoginGate();
 });
 
@@ -335,10 +353,10 @@ loginPasswordEl.addEventListener('keydown', (e) => {
 
 loginGoogleBtn.addEventListener('click', () => {
   loginGoogleBtn.disabled    = true;
-  loginGoogleBtn.textContent = 'Opening…';
+  loginGoogleBtn.querySelector('span')!.textContent = 'Opening…';
   void startGoogleSignIn('login').finally(() => {
     loginGoogleBtn.disabled    = false;
-    loginGoogleBtn.textContent = 'Continue with Google';
+    loginGoogleBtn.querySelector('span')!.textContent = 'Continue with Google';
   });
 });
 
@@ -362,12 +380,8 @@ document.addEventListener('click', (e) => {
 });
 
 logoutBtn.addEventListener('click', () => {
-  chrome.storage.sync.remove('auth');
-  currentAuth    = null;
-  currentToken   = '';
-  cachedProfile  = null;
+  chrome.tabs.create({ url: currentFrontendUrl });
   settingsPanel.style.display = 'none';
-  showLoginGate();
 });
 
 googleSignInSettingsBtn.addEventListener('click', () => {
@@ -413,9 +427,11 @@ function showContactStatus(msg: string, type: 'success' | 'error' | 'info'): voi
 scrapeBtn.addEventListener('click', async () => {
   scrapeBtn.disabled    = true;
   scrapeBtn.textContent = 'Scraping…';
-  await chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_PAGE' });
-
-  
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeTab = tabs[0];
+  if (activeTab?.id) {
+    await chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_PAGE' });
+  }
 });
 
 async function updateCreditsDisplay() {
@@ -443,7 +459,7 @@ function handleScrapeResult(data: any) {
   if (data.firstName)   firstNameEl.value   = data.firstName;
   if (data.lastName)    lastNameEl.value    = data.lastName;
   if (data.company)     companyEl.value     = data.company;
-  if (data.title)       titleEl.value       = data.title;
+  if (data.title)       jobTitleEl.value    = data.title;
   if (data.linkedinUrl) linkedinUrlEl.value = data.linkedinUrl;
   if (data.email)       emailEl.value       = data.email;
   persistForm();
@@ -463,7 +479,7 @@ function showExistingProspect(p: ProspectMatch): void {
   const meta = [p.job_title, p.company_name, p.email].filter(Boolean).join(' · ');
   matchNameEl.textContent = name;
   matchMetaEl.textContent = meta;
-  matchViewLinkEl.href = `${currentBackendUrl.replace(':3001', ':3000')}/prospects/${p.id}`;
+  matchViewLinkEl.href = `${currentFrontendUrl}/prospects/${p.id}`;
 
   matchSendEmailBtn.onclick = () => {
     switchTab('send');
@@ -1522,6 +1538,122 @@ sendEmailBtn.addEventListener('click', () => {
       previewEmailBtn.disabled = false;
     } finally {
       sendEmailBtn.textContent = 'Send Email';
+    }
+  })();
+});
+
+// ── Quick Email Mode Logic ───────────────────────────────────────────────────
+
+sendModeRadios.forEach((radio) => {
+  radio.addEventListener('change', (e) => {
+    const mode = (e.target as HTMLInputElement).value;
+    if (mode === 'template') {
+      templateModeContent.style.display = 'block';
+      quickEmailModeContent.style.display = 'none';
+    } else {
+      templateModeContent.style.display = 'none';
+      quickEmailModeContent.style.display = 'block';
+    }
+  });
+});
+
+function showQuickStatus(msg: string, type: 'success' | 'error' | 'info') {
+  quickEmailStatusEl.textContent = msg;
+  quickEmailStatusEl.className = `status status--${type}`;
+  quickEmailStatusEl.style.display = 'block';
+}
+
+quickSendEmailBtn.addEventListener('click', () => {
+  const email = quickEmailToEl.value.trim();
+  const subject = quickEmailSubjectEl.value.trim();
+  const body = quickEmailBodyEl.value.trim();
+
+  if (!email || !subject || !body) {
+    showQuickStatus('Email, Subject, and Message are required', 'error');
+    return;
+  }
+
+  quickSendEmailBtn.disabled = true;
+  quickSendEmailBtn.textContent = 'Sending…';
+  quickEmailStatusEl.style.display = 'none';
+
+  void (async () => {
+    try {
+      const auth = (await chrome.storage.sync.get('auth'))['auth'] as { token: string } | undefined;
+      const res = await fetch(`${currentBackendUrl}/api/email/quick-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth.token}` } : {}) },
+        body: JSON.stringify({ email, subject, body }),
+      });
+
+      if (res.status === 401) { chrome.storage.sync.remove('auth'); showLoginGate(); return; }
+
+      const json = await res.json() as { error?: string };
+      if (!res.ok) {
+        showQuickStatus(json.error ?? `Send failed (${res.status})`, 'error');
+        return;
+      }
+
+      showQuickStatus('Quick Email sent ✓', 'success');
+      quickEmailToEl.value = '';
+      quickEmailSubjectEl.value = '';
+      quickEmailBodyEl.value = '';
+    } catch (err) {
+      showQuickStatus(`Network error: ${String(err)}`, 'error');
+    } finally {
+      quickSendEmailBtn.disabled = false;
+      quickSendEmailBtn.textContent = 'Send Now';
+    }
+  })();
+});
+
+quickScheduleEmailBtn.addEventListener('click', () => {
+  quickSchedulePicker.style.display = quickSchedulePicker.style.display === 'none' ? 'block' : 'none';
+});
+
+quickConfirmScheduleBtn.addEventListener('click', () => {
+  const email = quickEmailToEl.value.trim();
+  const subject = quickEmailSubjectEl.value.trim();
+  const body = quickEmailBodyEl.value.trim();
+  const scheduledFor = quickScheduleDateEl.value;
+
+  if (!email || !subject || !body || !scheduledFor) {
+    showQuickStatus('All fields and date are required', 'error');
+    return;
+  }
+
+  quickConfirmScheduleBtn.disabled = true;
+  quickConfirmScheduleBtn.textContent = 'Scheduling…';
+  quickEmailStatusEl.style.display = 'none';
+
+  void (async () => {
+    try {
+      const auth = (await chrome.storage.sync.get('auth'))['auth'] as { token: string } | undefined;
+      const res = await fetch(`${currentBackendUrl}/api/schedules/quick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth.token}` } : {}) },
+        body: JSON.stringify({ email, subject, body, scheduledFor }),
+      });
+
+      if (res.status === 401) { chrome.storage.sync.remove('auth'); showLoginGate(); return; }
+
+      const json = await res.json() as { error?: string };
+      if (!res.ok) {
+        showQuickStatus(json.error ?? `Schedule failed (${res.status})`, 'error');
+        return;
+      }
+
+      showQuickStatus('Quick Email scheduled ✓', 'success');
+      quickEmailToEl.value = '';
+      quickEmailSubjectEl.value = '';
+      quickEmailBodyEl.value = '';
+      quickScheduleDateEl.value = '';
+      quickSchedulePicker.style.display = 'none';
+    } catch (err) {
+      showQuickStatus(`Network error: ${String(err)}`, 'error');
+    } finally {
+      quickConfirmScheduleBtn.disabled = false;
+      quickConfirmScheduleBtn.textContent = 'Confirm Schedule';
     }
   })();
 });

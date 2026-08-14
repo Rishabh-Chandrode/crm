@@ -224,12 +224,18 @@ export async function migrate(): Promise<void> {
     ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS open_count INT NOT NULL DEFAULT 0;
   `);
   await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_email ON prospects (LOWER(email));
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name  ON companies  (LOWER(name));
+    DROP INDEX IF EXISTS idx_prospects_email;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_email ON prospects (LOWER(email), created_by);
+    DROP INDEX IF EXISTS idx_companies_name;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name  ON companies  (LOWER(name), created_by);
   `);
   await pool.query(MIGRATE_VARIABLE_PRESETS);
   await pool.query(`
     ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS document_ids UUID[] NOT NULL DEFAULT '{}';
+  `);
+  await pool.query(`
+    ALTER TABLE email_schedules ADD COLUMN IF NOT EXISTS subject VARCHAR(500);
+    ALTER TABLE email_schedules ADD COLUMN IF NOT EXISTS body TEXT;
   `);
   await seedAdminUser();
   await pool.query(`

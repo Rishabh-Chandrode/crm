@@ -17,6 +17,40 @@ const GMAIL_SCOPES = [
 ].join(' ');
 
 // GET /api/auth/gmail/connect
+
+const authCodes = new Map<string, { token: string; expires: number }>();
+
+// Cleanup expired codes every 15 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, entry] of authCodes.entries()) {
+    if (now > entry.expires) {
+      authCodes.delete(code);
+    }
+  }
+}, 15 * 60 * 1000);
+
+// POST /api/auth/gmail/exchange-code
+router.post('/exchange-code', (req, res) => {
+  const { code } = req.body as { code?: string };
+  if (!code) {
+    res.status(400).json({ error: 'Code is required' });
+    return;
+  }
+  const entry = authCodes.get(code);
+  if (!entry) {
+    res.status(400).json({ error: 'Invalid or expired code' });
+    return;
+  }
+  if (Date.now() > entry.expires) {
+    authCodes.delete(code);
+    res.status(400).json({ error: 'Code has expired' });
+    return;
+  }
+  authCodes.delete(code);
+  res.json({ token: entry.token });
+});
+
 router.get('/connect', authMiddleware, (req, res) => {
   if (!CONFIG.googleClientId || !CONFIG.googleClientSecret) {
     res.status(503).json({ error: 'Google OAuth is not configured on this server' });
@@ -157,7 +191,11 @@ async function handleLoginCallback(
       { expiresIn: CONFIG.jwtExpiresIn } as jwt.SignOptions
     );
 
-    res.redirect(`${CONFIG.frontendUrl}/login?google_token=${encodeURIComponent(token)}`);
+    
+    const authCode = randomBytes(16).toString('hex');
+    authCodes.set(authCode, { token, expires: Date.now() + 5 * 60 * 1000 });
+    res.redirect(`${CONFIG.frontendUrl}/login?google_code=${authCode}`);
+
   } catch (err) {
     console.error('Google login callback error:', err);
     res.redirect(`${CONFIG.frontendUrl}/login?google_error=server_error`);

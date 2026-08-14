@@ -43,42 +43,21 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete') return;
   const url = changeInfo.url || tab.url || '';
-  
-  // Debug log
-  chrome.storage.local.get({ debug_logs: [] }, (res) => {
-    const logs = res.debug_logs;
-    logs.push({ t: new Date().toISOString(), url, hasToken: url.includes('google_token') });
-    if (logs.length > 50) logs.shift();
-    chrome.storage.local.set({ debug_logs: logs });
-  });
+  notifyTabUrl(url);
+});
 
-  const match = url.match(/[?&]google_token=([^&#]+)/);
-  if (match) {
-    try {
-      const rawToken = decodeURIComponent(match[1]!);
-      
-      chrome.storage.local.get({ debug_logs: [] }, (res) => {
-        const logs = res.debug_logs;
-        logs.push({ t: new Date().toISOString(), msg: 'Found token match', tokenLen: rawToken.length });
-        chrome.storage.local.set({ debug_logs: logs });
-      });
-
+chrome.cookies.onChanged.addListener((changeInfo) => {
+  if (changeInfo.cookie.name === 'crm_token') {
+    if (changeInfo.removed || !changeInfo.cookie.value) {
+      chrome.storage.sync.remove('auth');
+    } else {
+      const rawToken = decodeURIComponent(changeInfo.cookie.value);
       if (rawToken && rawToken.split('.').length === 3) {
         const auth = { token: rawToken, username: 'User', role: 'user' };
-        chrome.storage.sync.set({ auth }, () => {
-          chrome.storage.local.get({ debug_logs: [] }, (res) => {
-            const logs = res.debug_logs;
-            logs.push({ t: new Date().toISOString(), msg: 'Saved auth to sync storage' });
-            chrome.storage.local.set({ debug_logs: logs });
-          });
-        });
+        chrome.storage.sync.set({ auth });
       }
-    } catch (e) {
-      console.error('Failed to save Google token:', e);
     }
   }
-
-  if (changeInfo.status !== 'complete') return;
-  notifyTabUrl(url);
 });

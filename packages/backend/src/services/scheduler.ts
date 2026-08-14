@@ -21,6 +21,8 @@ interface ScheduleRow {
   scheduled_for: Date;
   document_ids: string[];
   created_by: string | null;
+  subject: string | null;
+  body: string | null;
 }
 
 async function processSchedule(schedule: ScheduleRow): Promise<void> {
@@ -41,10 +43,10 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const template = templateRes.rows[0];
   const company = companyRes.rows[0] ?? null;
 
-  if (!template) {
+  if (!template && (!schedule.subject || !schedule.body)) {
     await pool.query(
       `UPDATE email_schedules SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
-      ['Template not found', schedule.id]
+      ['Template or subject/body not found', schedule.id]
     );
     return;
   }
@@ -143,8 +145,12 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
       }
 
       const ctx = { prospect, company, custom: schedule.custom_values, sender };
-      const subject = resolveTemplate(template.subject, template.variables, ctx);
-      const body = resolveTemplate(template.body, template.variables, ctx);
+      const rawSubject = template ? template.subject : (schedule.subject || '');
+      const rawBody = template ? template.body : (schedule.body || '');
+      const templateVars = template ? template.variables : [];
+      
+      const subject = resolveTemplate(rawSubject, templateVars, ctx);
+      const body = resolveTemplate(rawBody, templateVars, ctx);
 
       let sendId: string;
       if (existing) {
@@ -158,7 +164,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
         const sendRecord = await pool.query<{ id: string }>(
           `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, schedule_id, job_url)
            VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8) RETURNING id`,
-          [template.id, prospect.id, company?.id ?? null, subject, body, schedule.created_by, schedule.id, jobUrl]
+          [template?.id ?? null, prospect.id, company?.id ?? null, subject, body, schedule.created_by, schedule.id, jobUrl]
         );
         sendId = sendRecord.rows[0]!.id;
       }

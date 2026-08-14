@@ -1,8 +1,12 @@
+let lastSeenToken: string | null = null;
+
 function syncTokenFromCookie() {
   const match = document.cookie.match(/(?:^|;\s*)crm_token=([^;]+)/);
   if (match) {
     const rawToken = decodeURIComponent(match[1]);
     if (rawToken && rawToken.split('.').length === 3) {
+      if (rawToken === lastSeenToken) return;
+      lastSeenToken = rawToken;
       chrome.storage.sync.get(['auth'], (stored) => {
         if (!stored.auth || stored.auth.token !== rawToken) {
           const auth = { token: rawToken, username: 'User', role: 'user' };
@@ -15,6 +19,7 @@ function syncTokenFromCookie() {
   }
 }
 syncTokenFromCookie();
+setInterval(syncTokenFromCookie, 1000);
 // Also check on URL just in case
 const searchMatch = window.location.search.match(/[?&]google_token=([^&#]+)/);
 if (searchMatch) {

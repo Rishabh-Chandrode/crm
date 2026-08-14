@@ -46,6 +46,10 @@ async function request<T>(
 
 export const api = {
   auth: {
+    exchangeCode: (code: string) => request<{ token: string }>('/auth/gmail/exchange-code', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
     login: (username: string, password: string) =>
       request<{ token: string; user: { id: string; username: string; email: string | null; role: string } }>('/auth/login', {
         method: 'POST',
@@ -202,6 +206,11 @@ export const api = {
   },
 
   email: {
+    quickSend: (email: string, subject: string, body: string, documentIds?: string[]) =>
+      request<{ data: { id: string; status: string } }>('/email/quick-send', {
+        method: 'POST',
+        body: JSON.stringify({ email, subject, body, documentIds }),
+      }),
     preview: (templateId: string, prospectId: string, customValues?: Record<string, string>) =>
       request<{ data: { subject: string; body: string; html: string } }>('/email/preview', {
         method: 'POST',
@@ -261,6 +270,11 @@ export const api = {
   },
 
   schedules: {
+    quick: (email: string, subject: string, body: string, scheduledFor: string, documentIds?: string[]) =>
+      request<{ data: import('./types').EmailSchedule }>('/schedules/quick', {
+        method: 'POST',
+        body: JSON.stringify({ email, subject, body, scheduledFor, documentIds }),
+      }),
     list: () =>
       request<{ data: import('./types').EmailSchedule[] }>('/schedules'),
     create: (body: {

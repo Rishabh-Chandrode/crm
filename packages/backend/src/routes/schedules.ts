@@ -178,4 +178,62 @@ router.post('/:id/retry', async (req, res, next) => {
   }
 });
 
+router.post('/quick', async (req, res, next) => {
+  try {
+    const {
+      email,
+      subject,
+      body,
+      scheduledFor,
+      documentIds = [],
+    } = req.body as {
+      email: string;
+      subject: string;
+      body: string;
+      scheduledFor: string;
+      documentIds?: string[];
+    };
+
+    if (!email || !subject || !body || !scheduledFor) {
+      res.status(400).json({ error: 'email, subject, body, and scheduledFor are required' });
+      return;
+    }
+
+    const scheduledDate = new Date(scheduledFor);
+    if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+      res.status(400).json({ error: 'scheduledFor must be a valid future date/time' });
+      return;
+    }
+
+    const userId = req.user!.id;
+    // Resolve or create prospect
+    const pRes = await pool.query<{id: string, company_id: string | null}>(
+      `SELECT id, company_id FROM prospects WHERE LOWER(email) = LOWER($1) AND created_by = $2`,
+      [email, userId]
+    );
+
+    let prospect = pRes.rows[0];
+    if (!prospect) {
+      const insertRes = await pool.query<{id: string, company_id: string | null}>(
+        `INSERT INTO prospects (first_name, last_name, email, created_by)
+         VALUES ('Quick', 'Contact', $1, $2) RETURNING id, company_id`,
+        [email, userId]
+      );
+      prospect = insertRes.rows[0]!;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO email_schedules
+         (template_id, company_id, prospect_ids, subject, body, scheduled_for, total_prospects, document_ids, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [null, prospect.company_id ?? null, [prospect.id], subject, body, scheduledDate, 1, documentIds, userId]
+    );
+
+    res.status(201).json({ data: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

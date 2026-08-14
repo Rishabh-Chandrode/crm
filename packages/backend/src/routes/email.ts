@@ -608,4 +608,84 @@ router.post('/send-batch', async (req, res, next) => {
   }
 });
 
+// Send a quick email without a template
+router.post('/quick-send', async (req, res, next) => {
+  try {
+    const { email, subject, body, documentIds = [] } = req.body as {
+      email: string;
+      subject: string;
+      body: string;
+      documentIds?: string[];
+    };
+
+    if (!email || !subject || !body) {
+      res.status(400).json({ error: 'email, subject, and body are required' });
+      return;
+    }
+
+    const userId = req.user!.id;
+    const userConfig = await loadUserEmailConfig(userId);
+    if (!userConfig) { res.status(500).json({ error: 'User not found' }); return; }
+
+    let provider;
+    try {
+      provider = resolveEmailProvider(userConfig);
+    } catch (cfgErr) {
+      res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
+      return;
+    }
+
+    // Resolve or create prospect
+    const pRes = await pool.query<Prospect>(
+      `SELECT * FROM prospects WHERE LOWER(email) = LOWER($1) AND created_by = $2`,
+      [email, userId]
+    );
+
+    let prospect = pRes.rows[0];
+    if (!prospect) {
+      const insertRes = await pool.query<Prospect>(
+        `INSERT INTO prospects (first_name, last_name, email, created_by)
+         VALUES ('Quick', 'Contact', $1, $2) RETURNING *`,
+        [email, userId]
+      );
+      prospect = insertRes.rows[0];
+    }
+
+    const attachments = await getAttachments(documentIds);
+
+    const sendRecord = await pool.query<EmailSend>(
+      `INSERT INTO email_sends (prospect_id, company_id, subject, body, status, created_by)
+       VALUES ($1, $2, $3, $4, 'pending', $5) RETURNING *`,
+      [prospect.id, prospect.company_id ?? null, subject, body, userId]
+    );
+    const sendId = sendRecord.rows[0]!.id;
+    const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
+
+    try {
+      const result = await provider.send({
+        to: email,
+        subject,
+        html,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+
+      await pool.query(
+        `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
+        [result.id, sendId]
+      );
+
+      res.json({ data: { id: sendId, status: 'sent', resend_id: result.id } });
+    } catch (sendErr) {
+      const msg = sendErr instanceof Error ? sendErr.message : 'Unknown error';
+      await pool.query(
+        `UPDATE email_sends SET status = 'failed', error_message = $1 WHERE id = $2`,
+        [msg, sendId]
+      );
+      res.status(502).json({ error: `Email delivery failed: ${msg}` });
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

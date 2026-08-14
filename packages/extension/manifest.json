@@ -3,7 +3,7 @@
   "name": "Outreach CRM",
   "version": "1.0.0",
   "description": "Add LinkedIn prospects to your Outreach CRM",
-  "permissions": ["activeTab", "tabs", "storage", "scripting", "clipboardRead", "sidePanel"],
+  "permissions": ["cookies", "activeTab", "tabs", "storage", "scripting", "clipboardRead", "sidePanel"],
   "action": {
     "default_icon": "image.png"
   },
@@ -18,14 +18,6 @@
     {
       "matches": ["https://www.linkedin.com/in/*"],
       "js": ["dist/contentScript.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://crm-frontend-black-three.vercel.app/*",
-        "http://localhost:3000/*"
-      ],
-      "js": ["dist/authCapture.js"],
       "run_at": "document_idle"
     }
   ]

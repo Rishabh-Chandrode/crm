@@ -11,7 +11,7 @@ function extractName(): { firstName: string; lastName: string } {
   }
 
   if (!nameEl) {
-    nameEl = document.querySelector('.pv-text-details__left-panel h1, .ph5 h1');
+    nameEl = document.querySelector('.pv-text-details__left-panel h1, .ph5 h1, h1.text-heading-xlarge');
   }
 
   if (!nameEl) {
@@ -36,9 +36,7 @@ function cleanCompanyName(name: string): string {
 }
 
 function extractCompany(): string {
-  const experienceSection = document.querySelector(
-    'section[id="experience"], section[componentkey$="ExperienceTopLevelSection"]'
-  );
+  const experienceSection = getExperienceSection();
 
   if (experienceSection) {
     const firstEntry = experienceSection.querySelector(
@@ -76,7 +74,7 @@ function extractCompany(): string {
   }
 
   const headline = document.querySelector(
-    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium'
+    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words'
   );
   const headlineText = (headline as HTMLElement | null)?.innerText ?? '';
   const atMatch = headlineText.match(/\bat\s+(.+)$/i);
@@ -84,9 +82,7 @@ function extractCompany(): string {
 }
 
 function extractJobTitle(): string {
-  const experienceSection = document.querySelector(
-    'section[id="experience"], section[componentkey$="ExperienceTopLevelSection"]'
-  );
+  const experienceSection = getExperienceSection();
 
   if (experienceSection) {
     const firstEntry = experienceSection.querySelector(
@@ -121,36 +117,57 @@ function extractJobTitle(): string {
 
   // Fallback: strip "at Company" from the profile headline tagline
   const headline = document.querySelector(
-    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium'
+    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words'
   );
   const text = (headline as HTMLElement | null)?.innerText.trim() ?? '';
   return text.replace(/\s+at\s+.+$/i, '').trim();
 }
 
 const EXPERIENCE_SELECTOR =
-  'section[id="experience"], section[componentkey$="ExperienceTopLevelSection"]';
+  '#experience, section[componentkey$="ExperienceTopLevelSection"], section[data-view-name="profile-card-experience"]';
 
-function getScrollContainer(): Element {
-  return (
-    document.querySelector('div.scaffold-layout__main') ??
-    document.querySelector('main') ??
-    document.documentElement
-  );
+function getExperienceSection(): Element | null {
+  const byId = document.querySelector('#experience');
+  if (byId) {
+    const section = byId.closest('section');
+    if (section) return section;
+  }
+  return document.querySelector(EXPERIENCE_SELECTOR);
 }
 
-async function waitForExperienceSection(timeoutMs = 10000): Promise<Element | null> {
-  const existing = document.querySelector(EXPERIENCE_SELECTOR);
+function getScrollContainer(): Element | Window {
+  return document.querySelector('div.scaffold-layout__main') ?? window;
+}
+
+async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | null> {
+  let existing = document.querySelector(EXPERIENCE_SELECTOR);
   if (existing) return existing;
 
   const container = getScrollContainer();
-  const stepPx = Math.floor(container.clientHeight * 0.6);
+  const isWindow = container === window;
+  let lastScrollY = isWindow ? window.scrollY : (container as Element).scrollTop;
+  
+  const stepPx = isWindow ? window.innerHeight * 0.6 : (container as Element).clientHeight * 0.6;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const el = document.querySelector(EXPERIENCE_SELECTOR);
-    if (el) return el;
-    container.scrollBy({ top: stepPx, behavior: 'instant' });
+    existing = document.querySelector(EXPERIENCE_SELECTOR);
+    if (existing) return existing;
+    
+    if (isWindow) {
+      window.scrollBy({ top: stepPx, behavior: 'instant' });
+    } else {
+      (container as Element).scrollBy({ top: stepPx, behavior: 'instant' });
+    }
+    
     await new Promise((r) => setTimeout(r, 400));
+    
+    const newScrollY = isWindow ? window.scrollY : (container as Element).scrollTop;
+    if (newScrollY === lastScrollY) {
+      // Reached the bottom
+      break;
+    }
+    lastScrollY = newScrollY;
   }
 
   return document.querySelector(EXPERIENCE_SELECTOR);
@@ -181,3 +198,9 @@ async function scrape(): Promise<void> {
 }
 
 void scrape();
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'SCRAPE_PAGE') {
+    void scrape();
+  }
+});

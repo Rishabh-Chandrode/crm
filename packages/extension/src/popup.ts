@@ -430,7 +430,11 @@ scrapeBtn.addEventListener('click', async () => {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const activeTab = tabs[0];
   if (activeTab?.id) {
-    await chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_PAGE' });
+    try {
+      await chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_PAGE' });
+    } catch (err) {
+      chrome.runtime.sendMessage({ action: 'triggerScrape' }).catch(() => {});
+    }
   }
 });
 

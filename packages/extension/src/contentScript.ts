@@ -135,8 +135,12 @@ function getExperienceSection(): Element | null {
   return document.querySelector(EXPERIENCE_SELECTOR);
 }
 
-function getScrollContainer(): Element | Window {
-  return document.querySelector('div.scaffold-layout__main') ?? window;
+function getScrollContainer(): Element {
+  return (
+    document.querySelector('div.scaffold-layout__main') ??
+    document.querySelector('main') ??
+    document.documentElement
+  );
 }
 
 async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | null> {
@@ -144,30 +148,36 @@ async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | nul
   if (existing) return existing;
 
   const container = getScrollContainer();
-  const isWindow = container === window;
-  let lastScrollY = isWindow ? window.scrollY : (container as Element).scrollTop;
-  
-  const stepPx = isWindow ? window.innerHeight * 0.6 : (container as Element).clientHeight * 0.6;
+  let stepPx = Math.floor(container.clientHeight * 0.6);
+  if (stepPx <= 0) stepPx = 500; // fallback if clientHeight is zero
+
+  let lastScrollTop = container === document.documentElement 
+    ? (window.scrollY || document.documentElement.scrollTop)
+    : container.scrollTop;
+
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     existing = document.querySelector(EXPERIENCE_SELECTOR);
     if (existing) return existing;
     
-    if (isWindow) {
+    if (container === document.documentElement) {
       window.scrollBy({ top: stepPx, behavior: 'instant' });
     } else {
-      (container as Element).scrollBy({ top: stepPx, behavior: 'instant' });
+      container.scrollBy({ top: stepPx, behavior: 'instant' });
     }
     
     await new Promise((r) => setTimeout(r, 400));
     
-    const newScrollY = isWindow ? window.scrollY : (container as Element).scrollTop;
-    if (newScrollY === lastScrollY) {
-      // Reached the bottom
+    const newScrollTop = container === document.documentElement 
+      ? (window.scrollY || document.documentElement.scrollTop)
+      : container.scrollTop;
+      
+    if (newScrollTop === lastScrollTop) {
+      // Reached bottom
       break;
     }
-    lastScrollY = newScrollY;
+    lastScrollTop = newScrollTop;
   }
 
   return document.querySelector(EXPERIENCE_SELECTOR);

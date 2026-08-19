@@ -197,5 +197,8 @@ pnpm test:watch
 
 Test suites live in `src/__tests__/`:
 - `detector.test.ts` — Form input classifier, label matching, resume input finder
+- `platforms.test.ts` — ATS platform detector and selectors
+- `profileSearch.test.ts` — Profile field search filtering and match highlighting
+- `theme.test.ts` — Light/Dark/System theme switching and root class management
 - `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts
 

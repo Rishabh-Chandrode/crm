@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
@@ -129,42 +129,90 @@ function GlowingMiniBar({ value, max, gradient }: { value: number; max: number; 
 }
 
 function ActivityChart({ days }: { days: { day: string; sent: number; failed: number }[] }) {
-  const max = Math.max(...days.map((d) => d.sent + d.failed), 1);
-  return (
-    <div className="flex items-end gap-2 h-32 pt-4 px-1">
-      {days.map((d) => {
-        const total = d.sent + d.failed;
-        const pct = (total / max) * 100;
-        const failPct = total > 0 ? (d.failed / total) * 100 : 0;
-        const sentPct = 100 - failPct;
-        const label = new Date(d.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        return (
-          <div key={d.day} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
-            <div
-              className="w-full rounded-xl overflow-hidden flex flex-col-reverse transition-all duration-300 bg-slate-100/70 dark:bg-slate-800/70 group-hover:bg-slate-200 dark:group-hover:bg-slate-700 border border-slate-200/40 dark:border-slate-700/40 group-hover:scale-y-105 origin-bottom shadow-xs"
-              style={{ height: `${Math.max(pct, 10)}%` }}
-            >
-              <div
-                className="bg-gradient-to-t from-emerald-600 to-teal-400 dark:from-emerald-500 dark:to-teal-300 transition-all duration-500 shadow-sm"
-                style={{ height: `${sentPct}%` }}
-              />
-              {d.failed > 0 && (
-                <div
-                  className="bg-gradient-to-t from-rose-600 to-pink-500 dark:from-rose-500 dark:to-pink-400 transition-all duration-500 shadow-sm"
-                  style={{ height: `${failPct}%` }}
-                />
-              )}
-            </div>
+  const full14Days = useMemo(() => {
+    const map = new Map<string, { sent: number; failed: number }>();
+    for (const d of days) {
+      const dateKey = new Date(d.day).toISOString().slice(0, 10);
+      map.set(dateKey, { sent: Number(d.sent), failed: Number(d.failed) });
+    }
 
-            {/* Antigravity Floating Glass Tooltip */}
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900/90 dark:bg-slate-800/95 backdrop-blur-md text-white text-[11px] font-medium px-2.5 py-1 rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all duration-200 pointer-events-none z-30 shadow-xl border border-white/10 flex items-center gap-1.5">
-              <span>{label}:</span>
-              <span className="font-bold text-emerald-400">{d.sent} sent</span>
-              {d.failed > 0 && <span className="font-bold text-rose-400">· {d.failed} failed</span>}
+    const result: { dateKey: string; date: Date; sent: number; failed: number }[] = [];
+    const now = new Date();
+    for (let i = 13; i >= 0; i--) {
+      const target = new Date(now);
+      target.setDate(target.getDate() - i);
+      const dateKey = target.toISOString().slice(0, 10);
+      const existing = map.get(dateKey) || { sent: 0, failed: 0 };
+      result.push({
+        dateKey,
+        date: target,
+        sent: existing.sent,
+        failed: existing.failed,
+      });
+    }
+    return result;
+  }, [days]);
+
+  const max = Math.max(...full14Days.map((d) => d.sent + d.failed), 1);
+
+  return (
+    <div className="pt-2 w-full min-w-0 overflow-hidden">
+      <div className="flex items-end justify-between gap-1 h-32 pt-4 px-0.5 w-full min-w-0">
+        {full14Days.map((d) => {
+          const total = d.sent + d.failed;
+          const hasActivity = total > 0;
+          const pct = hasActivity ? Math.max((total / max) * 100, 16) : 0;
+          const failPct = total > 0 ? (d.failed / total) * 100 : 0;
+          const sentPct = 100 - failPct;
+          const label = d.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          const dayNum = d.date.getDate();
+
+          return (
+            <div key={d.dateKey} className="flex-1 min-w-0 flex flex-col items-center gap-1 group relative h-full justify-end">
+              {/* Bar track container */}
+              <div className="w-full flex items-end justify-center h-full pb-0.5">
+                {hasActivity ? (
+                  <div
+                    className="w-full max-w-[12px] sm:max-w-[18px] rounded-md sm:rounded-lg overflow-hidden flex flex-col-reverse transition-all duration-300 bg-slate-100/70 dark:bg-slate-800/70 group-hover:scale-y-105 group-hover:shadow-md group-hover:shadow-indigo-500/20 origin-bottom border border-slate-200/50 dark:border-slate-700/50"
+                    style={{ height: `${pct}%` }}
+                  >
+                    <div
+                      className="bg-gradient-to-t from-emerald-600 to-teal-400 dark:from-emerald-500 dark:to-teal-300 transition-all duration-500 shadow-sm"
+                      style={{ height: `${sentPct}%` }}
+                    />
+                    {d.failed > 0 && (
+                      <div
+                        className="bg-gradient-to-t from-rose-600 to-pink-500 dark:from-rose-500 dark:to-pink-400 transition-all duration-500 shadow-sm"
+                        style={{ height: `${failPct}%` }}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[12px] sm:max-w-[18px] h-1 rounded-full bg-slate-200/70 dark:bg-slate-800/80 group-hover:bg-indigo-400/40 transition-colors" />
+                )}
+              </div>
+
+              {/* Day label */}
+              <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 transition-colors font-mono truncate text-center w-full leading-none">
+                {dayNum}
+              </span>
+
+              {/* Antigravity Floating Glass Tooltip */}
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white text-[11px] font-medium px-2.5 py-1 rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all duration-200 pointer-events-none z-30 shadow-xl border border-white/10 flex items-center gap-1.5">
+                <span>{label}:</span>
+                {hasActivity ? (
+                  <>
+                    <span className="font-bold text-emerald-400">{d.sent} sent</span>
+                    {d.failed > 0 && <span className="font-bold text-rose-400">· {d.failed} failed</span>}
+                  </>
+                ) : (
+                  <span className="text-slate-400">0 emails</span>
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -417,10 +465,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Middle Visualizers Row: Activity Chart + Categories + Top Companies */}
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
 
         {/* 14-day outreach activity chart */}
-        <div className="rounded-3xl p-6 bg-white/75 dark:bg-slate-900/75 backdrop-blur-2xl border border-white/80 dark:border-slate-800/80 shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] flex flex-col justify-between">
+        <div className="rounded-3xl p-6 bg-white/75 dark:bg-slate-900/75 backdrop-blur-2xl border border-white/80 dark:border-slate-800/80 shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] flex flex-col justify-between lg:col-span-2 xl:col-span-1">
           <div>
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
@@ -524,10 +572,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Bottom Row: Recent Sends + Recent Applications + Upcoming Schedules */}
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
 
         {/* Recent email outreach */}
-        <div className="rounded-3xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-2xl border border-white/80 dark:border-slate-800/80 shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] overflow-hidden flex flex-col">
+        <div className="rounded-3xl bg-white/75 dark:bg-slate-900/75 backdrop-blur-2xl border border-white/80 dark:border-slate-800/80 shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] overflow-hidden flex flex-col lg:col-span-2 xl:col-span-1">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80">
             <div>
               <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">

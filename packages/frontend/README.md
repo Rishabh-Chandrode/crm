@@ -185,7 +185,7 @@ pnpm test:watch
 ```
 
 Test suites live in `src/__tests__/`:
-- `dashboard.test.tsx` — Dashboard UI rendering, Antigravity KPI float cards, loading skeleton state, and empty states
+- `dashboard.test.tsx` — Dashboard UI rendering, Antigravity KPI float cards, 14-day continuous activity timeline chart, responsive mid-size breakpoint (1024px) layout, loading skeletons, and empty states
 - `applications.test.tsx` — Applications tracker page, status summary card styling, and interactive status filters
 - `prospects.test.tsx` — Prospects page listing, Combobox company and role category filter dropdowns
 - `combobox.test.tsx` — Searchable dropdown opening, filtering, keyboard navigation, and option selection

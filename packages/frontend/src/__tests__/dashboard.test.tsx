@@ -109,7 +109,7 @@ describe('DashboardPage (Antigravity Redesign)', () => {
     // Check KPI Values
     expect(screen.getByText('49%')).toBeInTheDocument(); // Open Rate
     expect(screen.getByText('48')).toBeInTheDocument(); // Prospects
-    expect(screen.getByText('12')).toBeInTheDocument(); // Companies
+    expect(screen.getAllByText('12').length).toBeGreaterThan(0); // Companies
     expect(screen.getByText('5')).toBeInTheDocument(); // Templates
 
     // Check Pipeline Stages

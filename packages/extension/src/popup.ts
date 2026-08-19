@@ -13,6 +13,11 @@ const loginErrorEl       = $<HTMLDivElement>('loginError');
 const loginBtn           = $<HTMLButtonElement>('loginBtn');
 const loginGoogleBtn     = $<HTMLButtonElement>('loginGoogleBtn');
 
+// Theme
+const themeToggleBtn           = $<HTMLButtonElement>('themeToggle');
+const themeIconSun             = $<HTMLElement>('themeIconSun');
+const themeIconMoon            = $<HTMLElement>('themeIconMoon');
+
 // Settings
 const settingsToggle           = $<HTMLButtonElement>('settingsToggle');
 const settingsPanel            = $<HTMLDivElement>('settingsPanel');
@@ -58,17 +63,20 @@ const trackSaveBtn       = $<HTMLButtonElement>('trackSaveBtn');
 const trackJobBtn        = $<HTMLButtonElement>('trackJobBtn');
 
 // Apply / Autofill tab
-const applyProfileCardEl  = $<HTMLDivElement>('applyProfileCard');
-const profileIncompleteEl = $<HTMLDivElement>('profileIncompleteNote');
-const resumePickerEl      = $<HTMLSelectElement>('resumePicker');
-const resumePickerNoteEl  = $<HTMLDivElement>('resumePickerNote');
-const autofillBtn         = $<HTMLButtonElement>('autofillBtn');
-const autofillSpinnerEl   = $<HTMLDivElement>('autofillSpinner');
-const autofillStatusEl    = $<HTMLDivElement>('autofillStatus');
-const autofillResultEl    = $<HTMLDivElement>('autofillResult');
-const autofillFilledEl    = $<HTMLDivElement>('autofillFilledList');
-const autofillSkippedWrap = $<HTMLDivElement>('autofillSkippedWrap');
-const autofillSkippedEl   = $<HTMLDivElement>('autofillSkippedList');
+const profileSearchInputEl  = $<HTMLInputElement>('profileSearchInput');
+const profileSearchClearBtn = $<HTMLButtonElement>('profileSearchClear');
+const copyToastEl           = $<HTMLDivElement>('copyToast');
+const applyProfileCardEl    = $<HTMLDivElement>('applyProfileCard');
+const profileIncompleteEl   = $<HTMLDivElement>('profileIncompleteNote');
+const resumePickerEl        = $<HTMLSelectElement>('resumePicker');
+const resumePickerNoteEl    = $<HTMLDivElement>('resumePickerNote');
+const autofillBtn           = $<HTMLButtonElement>('autofillBtn');
+const autofillSpinnerEl     = $<HTMLDivElement>('autofillSpinner');
+const autofillStatusEl      = $<HTMLDivElement>('autofillStatus');
+const autofillResultEl      = $<HTMLDivElement>('autofillResult');
+const autofillFilledEl      = $<HTMLDivElement>('autofillFilledList');
+const autofillSkippedWrap   = $<HTMLDivElement>('autofillSkippedWrap');
+const autofillSkippedEl     = $<HTMLDivElement>('autofillSkippedList');
 
 // Send Email tab — prospect search
 const prospectSearchEl      = $<HTMLDivElement>('prospectSearch');
@@ -921,9 +929,23 @@ const FIELD_LABEL_MAP: Record<string, string> = {
 };
 
 let cachedProfile: UserProfile | null = null;
+let profileCategoryFilter = 'all';
+let profileSearchQuery = '';
 
 const CLIPBOARD_SVG = `<svg class="copy-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
 const CHECK_SVG     = `<svg class="copy-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+function showCopyToast(value: string): void {
+  if (!copyToastEl) return;
+  const displayVal = value.length > 20 ? `${value.slice(0, 18)}…` : value;
+  copyToastEl.textContent = `Copied "${displayVal}" ✓`;
+  copyToastEl.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    if (copyToastEl) copyToastEl.style.display = 'none';
+  }, 1600);
+}
 
 async function copyToClipboard(text: string): Promise<void> {
   try {
@@ -941,8 +963,9 @@ async function copyToClipboard(text: string): Promise<void> {
 
 function flashCopied(el: Element): void {
   const icon = el.querySelector('.copy-icon');
-  if (!icon) return;
-  icon.outerHTML = CHECK_SVG;
+  if (icon) {
+    icon.outerHTML = CHECK_SVG;
+  }
   el.classList.add('copied');
   setTimeout(() => {
     const check = el.querySelector('.copy-check');
@@ -951,12 +974,22 @@ function flashCopied(el: Element): void {
   }, 1500);
 }
 
-function makeCopyRow(label: string, value: string | null): string {
+function highlightMatch(text: string, query: string): string {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escaped})`, 'gi');
+  return text.replace(regex, '<mark class="search-highlight">$1</mark>');
+}
+
+function makeCopyRow(label: string, value: string | null, query = ''): string {
   const isEmpty = !value;
   const safe = isEmpty ? '' : value!.replace(/"/g, '&quot;');
+  const displayLabel = highlightMatch(label, query);
+  const displayValue = isEmpty ? '—' : highlightMatch(value!, query);
+
   return `<div class="apply-profile-row${isEmpty ? ' apply-profile-row--empty' : ''}" ${isEmpty ? '' : `data-copy="${safe}" role="button" tabindex="0"`}>
-    <span class="apply-profile-key">${label}</span>
-    <span class="apply-profile-value${isEmpty ? ' apply-profile-value--empty' : ''}">${value ?? '—'}</span>
+    <span class="apply-profile-key">${displayLabel}</span>
+    <span class="apply-profile-value${isEmpty ? ' apply-profile-value--empty' : ''}">${displayValue}</span>
     ${isEmpty ? '' : CLIPBOARD_SVG}
   </div>`;
 }
@@ -965,58 +998,101 @@ function makeSectionHeader(icon: string, title: string): string {
   return `<div class="profile-section-header">${icon}<span>${title}</span></div>`;
 }
 
-function renderFlatSection(fields: Array<{ key: FlatKey; label: string }>, profile: UserProfile): string {
-  return fields.map(({ key, label }) => makeCopyRow(label, profile[key] as string | null)).join('');
+function renderFlatSection(fields: Array<{ key: FlatKey; label: string }>, profile: UserProfile, query = ''): string {
+  const matching = fields.filter(({ key, label }) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    const val = (profile[key] as string | null | undefined) ?? '';
+    return label.toLowerCase().includes(q) || val.toLowerCase().includes(q);
+  });
+
+  return matching.map(({ key, label }) => makeCopyRow(label, profile[key] as string | null, query)).join('');
 }
 
-function makeCopyBlock(label: string, value: string | null | undefined, multiline = false): string {
+function makeCopyBlock(label: string, value: string | null | undefined, multiline = false, query = ''): string {
   const val = value?.trim() ?? '';
   if (!val) return '';
   const safe = val.replace(/"/g, '&quot;').replace(/\n/g, '&#10;');
+  const displayLabel = highlightMatch(label, query);
+  const displayValue = highlightMatch(val, query);
+
   const inner = multiline
     ? `<div class="exp-multi-wrap">
-        <span class="exp-copy-value">${val.replace(/\n/g, '<br>')}</span>
+        <span class="exp-copy-value">${displayValue.replace(/\n/g, '<br>')}</span>
         <button class="exp-read-more" type="button">Read more</button>
       </div>`
-    : `<span class="exp-copy-value">${val}</span>`;
+    : `<span class="exp-copy-value">${displayValue}</span>`;
+
   return `<div class="exp-copy-block${multiline ? ' exp-copy-block--multi' : ''}" data-copy="${safe}" role="button" tabindex="0">
-    <span class="exp-copy-label">${label}</span>
+    <span class="exp-copy-label">${displayLabel}</span>
     ${inner}
     ${CLIPBOARD_SVG}
   </div>`;
 }
 
-function renderWorkExperienceSection(list: WorkExperience[]): string {
-  if (!list.length) return `<div class="profile-empty-section">No work experience added yet.</div>`;
-  return list.map((exp) => {
+function renderWorkExperienceSection(list: WorkExperience[], query = ''): string {
+  const matching = list.filter((exp) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (
+      (exp.title && exp.title.toLowerCase().includes(q)) ||
+      (exp.company && exp.company.toLowerCase().includes(q)) ||
+      (exp.description && exp.description.toLowerCase().includes(q)) ||
+      (exp.location && exp.location.toLowerCase().includes(q))
+    );
+  });
+
+  if (!matching.length) {
+    return query ? '' : `<div class="profile-empty-section">No work experience added yet.</div>`;
+  }
+
+  return matching.map((exp) => {
     const dates = [exp.start_date, exp.end_date || 'Present'].filter(Boolean).join(' – ');
     const duration = [dates, exp.location].filter(Boolean).join(' · ');
     return `<div class="profile-exp-card">
-      ${makeCopyBlock('Title', exp.title)}
-      ${makeCopyBlock('Company', exp.company)}
-      ${makeCopyBlock('Duration', duration)}
-      ${makeCopyBlock('Description', exp.description, true)}
+      ${makeCopyBlock('Title', exp.title, false, query)}
+      ${makeCopyBlock('Company', exp.company, false, query)}
+      ${makeCopyBlock('Duration', duration, false, query)}
+      ${makeCopyBlock('Description', exp.description, true, query)}
     </div>`;
   }).join('');
 }
 
-function renderProjectSection(list: Project[]): string {
-  if (!list.length) return `<div class="profile-empty-section">No projects added yet.</div>`;
-  return list.map((proj) => {
+function renderProjectSection(list: Project[], query = ''): string {
+  const matching = list.filter((proj) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (
+      (proj.name && proj.name.toLowerCase().includes(q)) ||
+      (proj.tech && proj.tech.toLowerCase().includes(q)) ||
+      (proj.role && proj.role.toLowerCase().includes(q)) ||
+      (proj.description && proj.description.toLowerCase().includes(q))
+    );
+  });
+
+  if (!matching.length) {
+    return query ? '' : `<div class="profile-empty-section">No projects added yet.</div>`;
+  }
+
+  return matching.map((proj) => {
     return `<div class="profile-exp-card">
-      ${makeCopyBlock('Name', proj.name)}
-      ${makeCopyBlock('Tech', proj.tech)}
-      ${makeCopyBlock('Role', proj.role)}
-      ${makeCopyBlock('Description', proj.description, true)}
+      ${makeCopyBlock('Name', proj.name, false, query)}
+      ${makeCopyBlock('Tech', proj.tech, false, query)}
+      ${makeCopyBlock('Role', proj.role, false, query)}
+      ${makeCopyBlock('Description', proj.description, true, query)}
     </div>`;
   }).join('');
 }
 
-function renderSkillsSection(skills: string[]): string {
-  if (!skills.length) return `<div class="profile-empty-section">No skills added yet.</div>`;
-  return `<div class="profile-skills-wrap">${skills.map((s) => {
+function renderSkillsSection(skills: string[], query = ''): string {
+  const matching = skills.filter((s) => !query || s.toLowerCase().includes(query.toLowerCase()));
+  if (!matching.length) {
+    return query ? '' : `<div class="profile-empty-section">No skills added yet.</div>`;
+  }
+  return `<div class="profile-skills-wrap">${matching.map((s) => {
     const safe = s.replace(/"/g, '&quot;');
-    return `<span class="profile-skill-chip" data-copy="${safe}" role="button" tabindex="0">${s}</span>`;
+    const display = highlightMatch(s, query);
+    return `<span class="profile-skill-chip" data-copy="${safe}" role="button" tabindex="0">${display}</span>`;
   }).join('')}</div>`;
 }
 
@@ -1024,7 +1100,12 @@ function wireClickCopy(container: Element): void {
   container.querySelectorAll<HTMLElement>('[data-copy]').forEach((el) => {
     const val = el.dataset['copy'];
     if (!val) return;
-    const handler = () => { void copyToClipboard(val).then(() => flashCopied(el)); };
+    const handler = () => {
+      void copyToClipboard(val).then(() => {
+        flashCopied(el);
+        showCopyToast(val);
+      });
+    };
     el.addEventListener('click', handler);
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') handler(); });
   });
@@ -1052,26 +1133,76 @@ function renderProfileCard(profile: UserProfile): void {
   const projects = profile.projects ?? [];
   const skills   = profile.skills ?? [];
 
-  const hasEmpty = [...PERSONAL_FIELDS, ...JOB_FIELDS, ...EDUCATION_FIELDS]
-    .some(({ key }) => !profile[key]);
+  const cat = profileCategoryFilter;
+  const q = profileSearchQuery.trim();
 
-  applyProfileCardEl.innerHTML = [
-    makeSectionHeader(PERSON_ICON, 'Personal'),
-    renderFlatSection(PERSONAL_FIELDS, profile),
-    makeSectionHeader(BRIEFCASE, 'Job Details'),
-    renderFlatSection(JOB_FIELDS, profile),
-    makeSectionHeader(GRAD_HAT, 'Education'),
-    renderFlatSection(EDUCATION_FIELDS, profile),
-    makeSectionHeader(STAR_ICON, `Skills${skills.length ? ` (${skills.length})` : ''}`),
-    renderSkillsSection(skills),
-    makeSectionHeader(BRIEFCASE, `Work Experience${workExps.length ? ` (${workExps.length})` : ''}`),
-    `<div class="profile-exp-list">${renderWorkExperienceSection(workExps)}</div>`,
-    makeSectionHeader(FOLDER_ICON, `Projects${projects.length ? ` (${projects.length})` : ''}`),
-    `<div class="profile-exp-list">${renderProjectSection(projects)}</div>`,
-  ].join('');
+  const sections: string[] = [];
 
-  profileIncompleteEl.style.display = hasEmpty ? 'block' : 'none';
-  wireClickCopy(applyProfileCardEl);
+  // Personal
+  if (cat === 'all' || cat === 'personal') {
+    const content = renderFlatSection(PERSONAL_FIELDS, profile, q);
+    if (content) {
+      sections.push(makeSectionHeader(PERSON_ICON, 'Personal'), content);
+    }
+  }
+
+  // Job Details
+  if (cat === 'all' || cat === 'job') {
+    const content = renderFlatSection(JOB_FIELDS, profile, q);
+    if (content) {
+      sections.push(makeSectionHeader(BRIEFCASE, 'Job Details'), content);
+    }
+  }
+
+  // Education
+  if (cat === 'all' || cat === 'education') {
+    const content = renderFlatSection(EDUCATION_FIELDS, profile, q);
+    if (content) {
+      sections.push(makeSectionHeader(GRAD_HAT, 'Education'), content);
+    }
+  }
+
+  // Skills
+  if (cat === 'all' || cat === 'skills') {
+    const content = renderSkillsSection(skills, q);
+    if (content) {
+      sections.push(makeSectionHeader(STAR_ICON, `Skills${skills.length ? ` (${skills.length})` : ''}`), content);
+    }
+  }
+
+  // Work Experience
+  if (cat === 'all' || cat === 'experience') {
+    const content = renderWorkExperienceSection(workExps, q);
+    if (content) {
+      sections.push(
+        makeSectionHeader(BRIEFCASE, `Work Experience${workExps.length ? ` (${workExps.length})` : ''}`),
+        `<div class="profile-exp-list">${content}</div>`
+      );
+    }
+  }
+
+  // Projects
+  if (cat === 'all' || cat === 'projects') {
+    const content = renderProjectSection(projects, q);
+    if (content) {
+      sections.push(
+        makeSectionHeader(FOLDER_ICON, `Projects${projects.length ? ` (${projects.length})` : ''}`),
+        `<div class="profile-exp-list">${content}</div>`
+      );
+    }
+  }
+
+  if (sections.length === 0) {
+    applyProfileCardEl.innerHTML = `<div class="profile-empty-section" style="text-align:center;padding:24px 10px;">
+      No fields found matching "<strong>${q || cat}</strong>".
+    </div>`;
+  } else {
+    applyProfileCardEl.innerHTML = sections.join('');
+    wireClickCopy(applyProfileCardEl);
+  }
+
+  const hasEmpty = [...PERSONAL_FIELDS, ...JOB_FIELDS, ...EDUCATION_FIELDS].some(({ key }) => !profile[key]);
+  profileIncompleteEl.style.display = hasEmpty && !q ? 'block' : 'none';
 }
 
 interface DocumentItem { id: string; name: string; filename: string; }
@@ -1246,6 +1377,45 @@ autofillBtn.addEventListener('click', () => {
       showAutofillStatus(`Error: ${String(err)}`, 'error');
     }
   })();
+});
+
+// ── Profile Search & Filter Listeners ───────────────────────────────────────
+
+profileSearchInputEl?.addEventListener('input', () => {
+  profileSearchQuery = profileSearchInputEl.value;
+  if (profileSearchClearBtn) {
+    profileSearchClearBtn.style.display = profileSearchQuery ? 'block' : 'none';
+  }
+  if (cachedProfile) {
+    renderProfileCard(cachedProfile);
+  }
+});
+
+profileSearchClearBtn?.addEventListener('click', () => {
+  profileSearchQuery = '';
+  if (profileSearchInputEl) {
+    profileSearchInputEl.value = '';
+    profileSearchInputEl.focus();
+  }
+  if (profileSearchClearBtn) {
+    profileSearchClearBtn.style.display = 'none';
+  }
+  if (cachedProfile) {
+    renderProfileCard(cachedProfile);
+  }
+});
+
+document.querySelectorAll<HTMLButtonElement>('.profile-cat-pill').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll<HTMLButtonElement>('.profile-cat-pill').forEach((p) => {
+      p.classList.remove('profile-cat-pill--active');
+    });
+    btn.classList.add('profile-cat-pill--active');
+    profileCategoryFilter = btn.dataset['cat'] ?? 'all';
+    if (cachedProfile) {
+      renderProfileCard(cachedProfile);
+    }
+  });
 });
 
 // ── Send Email tab — prospect search ─────────────────────────────────────────
@@ -1661,3 +1831,55 @@ quickConfirmScheduleBtn.addEventListener('click', () => {
     }
   })();
 });
+
+// ── Theme Management ─────────────────────────────────────────────────────────
+
+type ThemeMode = 'light' | 'dark' | 'system';
+
+async function applyTheme(theme: ThemeMode) {
+  const isDark =
+    theme === 'dark' ||
+    (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('light');
+    if (themeIconSun) themeIconSun.style.display = 'block';
+    if (themeIconMoon) themeIconMoon.style.display = 'none';
+  } else {
+    document.documentElement.classList.add('light');
+    document.documentElement.classList.remove('dark');
+    if (themeIconSun) themeIconSun.style.display = 'none';
+    if (themeIconMoon) themeIconMoon.style.display = 'block';
+  }
+  await chrome.storage.local.set({ crm_theme: theme });
+}
+
+async function initTheme() {
+  try {
+    const stored = (await chrome.storage.local.get('crm_theme'))['crm_theme'] as ThemeMode | undefined;
+    const currentTheme = stored ?? 'system';
+    await applyTheme(currentTheme);
+
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        chrome.storage.local.get('crm_theme').then((data) => {
+          const t = data['crm_theme'] as ThemeMode | undefined;
+          if (t === 'system' || !t) {
+            void applyTheme('system');
+          }
+        }).catch(console.error);
+      });
+    }
+
+    themeToggleBtn?.addEventListener('click', () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      void applyTheme(isDark ? 'light' : 'dark');
+    });
+  } catch (err) {
+    console.error('Failed to init theme:', err);
+  }
+}
+
+void initTheme();
+

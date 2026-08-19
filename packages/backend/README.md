@@ -125,108 +125,197 @@ Apply it in every route that lists or looks up data. INSERT routes set `created_
 
 ---
 
-## API routes
+## API Reference
 
-`/api/auth/*` and `/api/track/*` are public. Everything else requires a valid JWT.
+`/api/auth/*` and `/api/track/*` are public. Everything else requires `Authorization: Bearer <token>`.
+
+All authenticated endpoints scope data by `created_by` for non-admin users (see Data Isolation above).
+
+---
+
+### Auth — Login & Signup
+
+| Method | Path | Auth | Body / Params | Response |
+|--------|------|------|---------------|----------|
+| `POST` | `/api/auth/login` | public | `{ username: string, password: string }` | `{ token, user: { id, username, email, role } }` |
+| `POST` | `/api/auth/signup` | public | `{ username: string, password: string, email?: string }` — password min 8 chars, username min 3 chars | `{ token, user: { id, username, email, role } }` — `201` |
+| `GET` | `/api/auth/me` | required | — | `{ user: CrmUser }` — full user object with all profile fields, `has_gmail_configured`, `has_gmail_app_password` |
+| `PATCH` | `/api/auth/profile` | required | Any subset of: `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `website`, `bio`, `linkedin_url`, `github_url`, `city`, `state`, `country`, `address_line1`, `postal_code`, `work_authorization`, `location`, `hometown`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `gender`, `veteran_status`, `skills` (string[]), `projects` (Project[]), `work_experiences` (WorkExperience[]), `from_name`, `reply_to_email` | `{ user: CrmUser }` — Validates email format, phone format, URL format, gender/veteran enum values, field lengths. Returns `400` with `{ error, fields: Record<string, string> }` on validation failure |
+
+### Auth — Google Sign-In
+
+| Method | Path | Auth | Body / Params | Response |
+|--------|------|------|---------------|----------|
+| `GET` | `/api/auth/google/connect` | public | — | `{ url: string }` — Google OAuth2 URL (login-only scopes: openid, email, profile) |
+| `GET` | `/api/auth/gmail/callback` | public | Query: `code`, `state`, `error` | Redirect to frontend — shared callback for both Google login and Gmail connect. The `flow` field in state JWT determines the path. |
+| `POST` | `/api/auth/gmail/exchange-code` | public | `{ code: string }` | `{ token: string }` — exchanges a one-time auth code (from callback redirect) for a JWT |
+
+### Auth — Gmail Connection (Settings)
+
+| Method | Path | Auth | Body / Params | Response |
+|--------|------|------|---------------|----------|
+| `GET` | `/api/auth/gmail/connect` | required | — | `{ url: string }` — Google OAuth2 URL requesting Gmail send scopes for the current user |
+| `DELETE` | `/api/auth/gmail/disconnect` | required | — | `{ ok: true }` — clears Gmail OAuth credentials |
+| `POST` | `/api/auth/gmail/app-password` | required | `{ gmail_user: string, app_password: string }` | `{ ok: true }` — saves Gmail app password credentials |
+| `DELETE` | `/api/auth/gmail/app-password` | required | — | `{ ok: true }` — removes app password |
+
+---
 
 ### Users (admin only)
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/users` | List all users |
-| POST | `/api/users` | Create user `{ username, password, email?, role? }` |
-| PATCH | `/api/users/:id` | Update `email`, `role`, `is_active`, `password` |
-| DELETE | `/api/users/:id` | Delete (cannot delete self) |
+All routes require `authMiddleware` + `requireRole('admin')`.
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/users` | — | `{ data: User[] }` — `id, username, email, role, is_active, created_at, updated_at` |
+| `POST` | `/api/users` | `{ username: string, password: string, email?: string, role?: 'admin' \| 'user' }` — password min 8 chars | `{ data: User }` — `201` |
+| `PATCH` | `/api/users/:id` | `{ email?, role?, is_active?: boolean, password?: string }` | `{ data: User }` — `404` if not found |
+| `DELETE` | `/api/users/:id` | — | `{ data: { id } }` — `400` if deleting self, `404` if not found |
+
+---
 
 ### Companies
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/companies` | List (includes `prospect_count`) |
-| POST | `/api/companies` | Create `{ name, website?, industry? }` |
-| GET | `/api/companies/:id` | Single company with nested `prospects[]` |
-| PATCH | `/api/companies/:id` | Partial update |
-| DELETE | `/api/companies/:id` | Delete |
-| POST | `/api/companies/:id/merge` | Merge source company into target `{ sourceId }` |
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/companies` | — | `{ data: Company[] }` — each with `prospect_count: number` |
+| `POST` | `/api/companies` | `{ name: string, website?: string, industry?: string }` | `{ data: Company }` — `201`. `409` if name duplicate |
+| `GET` | `/api/companies/:id` | — | `{ data: Company & { prospects: Prospect[] } }` — `404` if not found |
+| `PATCH` | `/api/companies/:id` | `{ name?, website?, industry? }` | `{ data: Company }` — `409` if name duplicate |
+| `DELETE` | `/api/companies/:id` | — | `{ data: { id } }` |
+| `POST` | `/api/companies/:id/merge` | `{ sourceId: string }` | `{ data: { targetId, sourceId, merged: true } }` — moves all prospects, email_sends, email_schedules from source to target, then deletes source. Uses DB transaction. |
+
+---
 
 ### Prospects
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/prospects` | List — query params: `company_id`, `role_category`, `search`, `sort_by`, `sort_dir`, `limit`, `offset` |
-| POST | `/api/prospects` | Create |
-| GET | `/api/prospects/lookup` | Look up by `linkedin_url` and/or `email` — returns first match for current user (used by extension match card) |
-| GET | `/api/prospects/:id` | Single prospect with nested `company` |
-| PATCH | `/api/prospects/:id` | Partial update |
-| DELETE | `/api/prospects/:id` | Delete |
-| POST | `/api/prospects/quick-add` | Create or update from minimal data (used by extension) |
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/prospects` | **Query:** `company_id?`, `role_category?`, `search?` (searches first_name, last_name, email, job_title), `sort_by?` (`first_name` \| `last_name` \| `email` \| `job_title` \| `company_name` \| `created_at`), `sort_dir?` (`asc` \| `desc`), `limit?` (1–100, default 25), `offset?` | `{ data: Prospect[], total: number }` — each prospect includes `company_name` |
+| `POST` | `/api/prospects` | `{ first_name: string, email: string, company_id?, last_name?, job_title?, role_category?, linkedin_url?, phone?, notes? }` — auto-infers `role_category` from `job_title` if not provided | `{ data: Prospect }` — `201`. `409` if email duplicate |
+| `POST` | `/api/prospects/quick-add` | `{ first_name: string, email: string, last_name?, company_name?, job_title?, linkedin_url? }` — resolves or creates company by name (scoped to user). Returns existing if email already exists. | `{ data: Prospect, existed?: true }` — used by the Chrome extension |
+| `GET` | `/api/prospects/lookup` | **Query:** `linkedin_url?`, `email?` — at least one required. Normalizes LinkedIn URL (strips query params, trailing slashes). | `{ data: Prospect \| null }` — returns first match for current user. Used by extension match card. |
+| `POST` | `/api/prospects/enrich` | `{ first_name?, last_name?, company_name?, linkedin_url? }` | Enrichment result from the active provider (Apollo/Prospeo) |
+| `GET` | `/api/prospects/enrich/credits` | — | `{ credits: number \| null, provider: string }` |
+| `GET` | `/api/prospects/:id` | — | `{ data: Prospect }` — includes nested `company` object |
+| `PATCH` | `/api/prospects/:id` | `{ company_id?, first_name?, last_name?, email?, job_title?, role_category?, linkedin_url?, phone?, notes? }` — auto-updates `role_category` if `job_title` changed and no explicit `role_category` | `{ data: Prospect }` |
+| `DELETE` | `/api/prospects/:id` | — | `{ data: { id } }` |
 
-### Email templates
+---
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/templates` | List all |
-| POST | `/api/templates` | Create `{ name, subject, body, description?, variables?, document_ids? }` |
-| GET | `/api/templates/:id` | Single template |
-| PATCH | `/api/templates/:id` | Partial update |
-| DELETE | `/api/templates/:id` | Delete |
-| POST | `/api/templates/:id/detect-variables` | Scan `subject+body` for `{{placeholders}}`, return new keys not in `existing` |
+### Email Templates
 
-### Email
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/templates` | — | `{ data: EmailTemplate[] }` |
+| `POST` | `/api/templates` | `{ name: string, subject: string, body: string, description?, job_description?, variables?: TemplateVariable[], document_ids?: string[] }` | `{ data: EmailTemplate }` — `201` |
+| `GET` | `/api/templates/:id` | — | `{ data: EmailTemplate }` |
+| `PATCH` | `/api/templates/:id` | Any subset of: `name`, `description`, `subject`, `body`, `job_description`, `variables`, `document_ids` | `{ data: EmailTemplate }` |
+| `DELETE` | `/api/templates/:id` | — | `{ data: { id } }` |
+| `POST` | `/api/templates/:id/detect-variables` | `{ existing: TemplateVariable[] }` | `{ data: { detected: string[], newVariables: TemplateVariable[] } }` — scans `subject + body` for `{{key}}` placeholders, returns keys not already in `existing`. New variables are auto-matched against saved variable presets. |
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/email/preview` | Resolve variables → `{ subject, body, html }` — no send |
-| POST | `/api/email/send` | Send to one prospect |
-| POST | `/api/email/send-company` | Send to all (or filtered) prospects at a company |
-| GET | `/api/email/history` | Paginated send log — filters: `status`, `search`, `company_id`, `template_id` |
-| POST | `/api/email/retry/:id` | Retry a failed send |
+---
 
-### Schedules
+### Email Sending
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/schedules` | List all schedules |
-| POST | `/api/schedules` | Create `{ templateId, companyId, prospectIds?, customValues?, scheduledFor, documentIds? }` |
-| GET | `/api/schedules/:id` | Detail with nested `prospects[]` |
-| DELETE | `/api/schedules/:id` | Cancel (pending only) |
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `POST` | `/api/email/preview` | `{ templateId: string, prospectId: string, customValues?: Record<string, string> }` | `{ data: { subject, body, html } }` — resolves template variables without sending |
+| `POST` | `/api/email/send` | `{ templateId: string, prospectId: string, customValues?: Record<string, string>, documentIds?: string[] }` | `{ data: { id, status: 'sent', resend_id } }` — sends via user's Gmail (OAuth or app password). `502` on delivery failure. Auto-tracks job application if `customValues.jobUrl` present. |
+| `POST` | `/api/email/send-company` | `{ templateId: string, companyId: string, prospectIds?: string[], customValues?: Record<string, string>, documentIds?: string[] }` — if `prospectIds` omitted, sends to ALL prospects at the company | `{ data: { sent, failed, total, results: [{ email, status, error? }] } }` |
+| `POST` | `/api/email/send-batch` | `{ templateId: string, prospectIds: string[], customValues?: Record<string, string>, documentIds?: string[] }` — sends to an explicit list of prospects (no company constraint, each resolved with own company) | `{ data: { sent, failed, total, results: [{ email, status, error? }] } }` |
+| `POST` | `/api/email/quick-send` | `{ email: string, subject: string, body: string, documentIds?: string[] }` — sends without a template. Auto-creates prospect if email doesn't exist. | `{ data: { id, status: 'sent' } }` |
+| `GET` | `/api/email/history` | **Query:** `limit?` (default 50), `offset?`, `status?` (all \| sent \| failed \| pending), `search?`, `company_id?`, `template_id?`, `prospect_id?` | `{ data: EmailSend[], total: number }` — each includes nested `prospect`, `company`, `template` objects |
+| `POST` | `/api/email/retry/:id` | — | `{ data: { id, status: 'sent' } }` — only works for `status = 'failed'`. `502` if retry also fails. |
 
-### Variable presets
+---
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/variable-presets` | List |
-| POST | `/api/variable-presets` | Create `{ key, label, source, field?, default_value }` |
-| PUT | `/api/variable-presets/:id` | Replace |
-| DELETE | `/api/variable-presets/:id` | Delete |
+### Schedules (Future Sends)
 
-### Job Applications
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/schedules` | — | `{ data: EmailSchedule[] }` — each includes nested `company`, `template` |
+| `POST` | `/api/schedules` | `{ templateId: string, companyId?: string, prospectIds?: string[], customValues?: Record<string, string>, scheduledFor: string (ISO datetime), documentIds?: string[] }` — must provide either `companyId` or at least one `prospectId`. `scheduledFor` must be in the future. | `{ data: EmailSchedule }` — `201` |
+| `POST` | `/api/schedules/quick` | `{ email: string, subject: string, body: string, scheduledFor: string, documentIds?: string[] }` — schedules a quick email without a template. Auto-creates prospect. | `{ data: EmailSchedule }` — `201` |
+| `GET` | `/api/schedules/:id` | — | `{ data: EmailScheduleDetail }` — includes `prospects[]` array and nested `company`, `template` |
+| `DELETE` | `/api/schedules/:id` | — | `{ data: EmailSchedule }` — sets status to `cancelled` (only works for `pending`). `404` if already sent/cancelled. |
+| `POST` | `/api/schedules/:id/retry` | — | `{ data: EmailSchedule }` — resets status to `pending` and re-fires. Only works for `failed` or schedules with `failed_count > 0`. |
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/applications` | List — query params: `status`, `search`, `limit`, `offset` |
-| POST | `/api/applications` | Create `{ company_name, job_title, job_url, platform?, status?, notes? }` |
-| PATCH | `/api/applications/:id` | Partial update — `status`, `notes`, or any field |
-| DELETE | `/api/applications/:id` | Delete |
+---
+
+### Variable Presets
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/variable-presets` | — | `{ data: VariablePreset[] }` |
+| `POST` | `/api/variable-presets` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string }` | `{ data: VariablePreset }` — `201` |
+| `PUT` | `/api/variable-presets/:id` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string }` — full replace | `{ data: VariablePreset }` |
+| `DELETE` | `/api/variable-presets/:id` | — | `{ data: { id } }` |
+
+---
 
 ### Documents
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/documents` | List (includes `drive_url`, `drive_synced_at`, `drive_sync_error`) |
-| POST | `/api/documents` | Upload (multipart/form-data: `document` file + `name` field) |
-| POST | `/api/documents/from-drive` | Link from Drive `{ name, drive_url }` — downloads file immediately |
-| GET | `/api/documents/:id/download` | Download file (used by extension to fetch resume for autofill) |
-| DELETE | `/api/documents/:id` | Delete — also removes ID from any templates that reference it |
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/documents` | — | `{ data: Document[] }` — includes `drive_url`, `drive_synced_at`, `drive_sync_error` |
+| `POST` | `/api/documents` | **multipart/form-data:** `document` (file, max 10MB, .pdf/.doc/.docx only) + `name` (string) | `{ data: Document }` — `201`. File stored via object storage service. |
+| `POST` | `/api/documents/from-drive` | `{ name: string, drive_url: string }` — accepts Google Drive/Docs/Sheets/Slides share URLs | `{ data: Document }` — `201`. Downloads file immediately. |
+| `GET` | `/api/documents/:id/download` | — | Binary file response with `Content-Disposition: attachment` header |
+| `DELETE` | `/api/documents/:id` | — | `{ data: { id } }` — deletes from storage + removes document ID from any templates that reference it |
 
-### Other
+---
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/stats` | Dashboard stats (scoped to user or all for admin) |
-| POST | `/api/import/parse` | Parse CSV/Excel file, return headers + preview rows |
-| POST | `/api/import/prospects` | Bulk create prospects from parsed rows |
-| GET | `/api/track/open/:id.gif` | Email open tracking pixel (public) |
+### Job Applications
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/applications` | **Query:** `status?` (`not_applied` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn`), `search?` (company_name or job_title), `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` |
+| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, notes?: string }` — platform defaults to `'Generic'` | `JobApplication` — `201` |
+| `PATCH` | `/api/applications/:id` | `{ status?: string, notes?: string }` — validates status against allowed values | `JobApplication` |
+| `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
+
+---
+
+### Settings (key-value store)
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/settings` | — | `{ data: Record<string, string> }` |
+| `PUT` | `/api/settings/:key` | `{ value: string }` | `{ data: { key, value } }` — upserts |
+
+---
+
+### Stats (Dashboard)
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, emails: { total, sent, failed, pending, opened, openRate }, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
+
+---
+
+### Import (CSV/Excel)
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `POST` | `/api/import/parse` | **multipart/form-data:** `file` (.xlsx, .xls, or .csv, max 10MB) | `{ data: { headers: string[], preview: Row[], rows: Row[], rowCount, suggestedMapping: Record<string, string> } }` — auto-detects column mapping for `first_name`, `last_name`, `full_name`, `email`, `company`, `job_title`, `phone`, `linkedin_url`, `notes` |
+| `POST` | `/api/import/prospects` | `{ rows: Row[], mapping: ImportMapping, defaultCompanyId?: string, createMissingCompanies?: boolean }` | `{ data: { imported, skipped, errors: [{ row, email?, error }] } }` — skips duplicates and invalid rows |
+
+---
+
+### Tracking (public, no auth)
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/track/open/:sendId.gif` | **Query:** `debug?=true` for JSON response instead of pixel | 1×1 transparent GIF — increments `open_count` and sets `opened_at` on `email_sends` |
+
+---
+
+### Health Check (public)
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/health` | — | `{ status: 'ok', timestamp: string }` |
 
 ---
 

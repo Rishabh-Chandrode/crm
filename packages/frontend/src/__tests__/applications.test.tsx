@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import ApplicationsPage from '../app/(dashboard)/applications/page';
 import { api } from '../lib/api';
+import type { JobApplication } from '../lib/types';
 
 vi.mock('../lib/api', () => ({
   api: {
@@ -22,24 +23,32 @@ describe('ApplicationsPage', () => {
   });
 
   it('renders status summary cards with full block styling and counts', async () => {
-    const mockApps = [
+    const mockApps: JobApplication[] = [
       {
         id: 'app-1',
         user_id: 'u1',
         company_name: 'Acme Corp',
         job_title: 'Software Engineer',
-        status: 'applied' as const,
+        job_url: 'https://acme.com/jobs/1',
+        status: 'applied',
         platform: 'LinkedIn',
+        notes: null,
         applied_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
       {
         id: 'app-2',
         user_id: 'u1',
         company_name: 'Globex Inc',
         job_title: 'Frontend Engineer',
-        status: 'interview' as const,
+        job_url: 'https://globex.com/jobs/2',
+        status: 'interview',
         platform: 'Lever',
+        notes: null,
         applied_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
     ];
 

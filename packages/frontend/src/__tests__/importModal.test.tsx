@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import ImportModal from '../components/ImportModal';
 import { api } from '../lib/api';
+import type { Company } from '../lib/types';
 
 vi.mock('../lib/api', () => ({
   api: {
@@ -15,8 +16,15 @@ vi.mock('../lib/api', () => ({
 }));
 
 describe('ImportModal Component', () => {
-  const mockCompanies = [
-    { id: 'c1', name: 'Acme Corp', created_at: '', updated_at: '', user_id: 'u1' },
+  const mockCompanies: Company[] = [
+    {
+      id: 'c1',
+      name: 'Acme Corp',
+      website: 'https://acme.com',
+      industry: 'Technology',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
   ];
 
   beforeEach(() => {

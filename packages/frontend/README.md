@@ -1,6 +1,6 @@
 # Frontend
 
-Next.js 14 with App Router, React 18, Tailwind CSS. Strict TypeScript. No third-party data-fetching library — all backend calls go through a typed `api.*` client backed by native `fetch`.
+Next.js 15 with App Router, React 19, Tailwind CSS v4. Strict TypeScript. No third-party data-fetching library — all backend calls go through a typed `api.*` client backed by native `fetch`. Includes a comprehensive design system with full Dark Theme support togglable from Settings and the Sidebar.
 
 ---
 
@@ -10,31 +10,49 @@ Next.js 14 with App Router, React 18, Tailwind CSS. Strict TypeScript. No third-
 src/
 ├── middleware.ts                  # Edge middleware — redirects unauthenticated users
 ├── app/
-│   ├── layout.tsx                 # Root HTML shell, imports globals.css
+│   ├── layout.tsx                 # Root HTML shell with zero-FOUC theme script & <ThemeProvider>
 │   ├── page.tsx                   # Redirects / → /dashboard
-│   ├── globals.css                # Tailwind directives + shared component classes
-│   ├── login/page.tsx             # Login form — username/password + Google sign-in
-│   ├── signup/page.tsx            # Signup form — username/password + Google sign-in
+│   ├── globals.css                # Tailwind directives + dark theme tokens + shared component classes
+│   ├── login/page.tsx             # Login form — username/password + Google sign-in (dark/light themed)
+│   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
-│       ├── layout.tsx             # Renders <Sidebar> + <main>
-│       ├── dashboard/page.tsx     # Stats overview + charts + recent activity
+│       ├── layout.tsx             # Renders <Sidebar> + <main> container
+│       ├── dashboard/page.tsx     # Stats overview + activity charts + recent sends
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile + email history
 │       ├── templates/page.tsx     # Template CRUD + variable manager
-│       ├── send/page.tsx          # Multi-step send wizard
-│       ├── history/page.tsx       # Paginated email send log
-│       ├── scheduled/page.tsx     # Email schedule list + cancel
+│       ├── send/page.tsx          # Multi-step send wizard & quick compose
+│       ├── history/page.tsx       # Paginated email send log with open tracking
+│       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel
 │       ├── applications/page.tsx  # Job application tracker — CRUD + status/search filters
 │       ├── profile/page.tsx       # Full profile editor — personal, professional, preferences
-│       ├── settings/page.tsx      # Gmail connection, Documents, Template Variables
+│       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, Documents, Variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/
-│   └── Sidebar.tsx                # Left nav with user info + sign-out
+│   ├── Sidebar.tsx                # Left nav with user info, sign-out, & quick theme switcher
+│   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
+│   ├── Combobox.tsx               # Searchable combobox dropdown with full dark mode support
+│   └── ImportModal.tsx            # CSV/Excel bulk prospect import modal
 └── lib/
     ├── types.ts                   # TypeScript interfaces mirroring backend types
     └── api.ts                     # Typed fetch wrapper — all backend calls go here
 ```
+
+---
+
+## Theme System & Dark Mode
+
+The app supports a full dark theme with three selectable modes:
+1. **Light** — Clean modern slate/indigo aesthetic.
+2. **Dark** — High-contrast slate-950/slate-900 palette with indigo/purple glow accents.
+3. **System** — Dynamically synchronizes with the user's OS preference (`prefers-color-scheme: dark`).
+
+### Features:
+- **Zero FOUC (Flash of Unstyled Content)**: An inline script in `src/app/layout.tsx` checks `localStorage.getItem('crm_theme')` (or system media query) and immediately applies `.dark` before first paint.
+- **Togglable from Settings**: A dedicated **"Appearance"** tab in Settings allows choosing Light, Dark, or System with live preview cards.
+- **Quick Switcher in Sidebar**: A theme switcher button in the sidebar footer allows one-click toggling.
+- **Tailwind CSS v4 Integration**: Configured in `globals.css` using `@custom-variant dark (&:where(.dark, .dark *));`.
 
 ---
 
@@ -108,10 +126,6 @@ api.applications.update(id, body)     // PATCH /api/applications/:id
 api.applications.delete(id)           // DELETE /api/applications/:id
 ```
 
-**To add a new resource:**
-1. Add the interface to `lib/types.ts`
-2. Add an entry to the `api` object in `lib/api.ts` following the existing pattern
-
 ---
 
 ## Shared types (`lib/types.ts`)
@@ -135,93 +149,31 @@ Key exports:
 
 ---
 
-## Pages overview
+## Styling & Antigravity Design System
 
-### Login / Signup (`/login`, `/signup`)
-
-Both pages offer two sign-in paths:
-
-- **Continue with Google** — initiates the Google OAuth2 flow. On success, logs the user in and (if Gmail access was granted) connects Gmail automatically.
-- **Username + password** — classic form-based login below a divider.
-
-### Profile (`/profile`)
-
-Full profile editor with three sections:
-
-- **Personal** — `first_name`, `last_name`, `email`, `phone` + `phone_country_code`, `city`, `state`, `country`, `location`, `hometown`.
-- **Professional** — `current_company`, `job_title`, `work_authorization`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `linkedin_url`, `github_url`, `website`, `skills`.
-- **Preferences** — `gender`, `veteran_status`.
-
-Profile values are available in email templates via the `sender` variable source and are used by the Chrome extension's form autofiller.
-
-### Settings (`/settings`)
-
-Three sections (profile editing was moved to `/profile`):
-
-- **Gmail sending account** — connect or disconnect your Gmail via OAuth2. Shows the connected address when active. Configures `from_name` and `reply_to_email` overrides for outgoing mail.
-- **Documents** — upload PDF/DOC files to attach to outreach emails. Stored server-side, referenced by ID in templates or at send time.
-- **Template Variables** — configure variable presets. Map a `{{key}}` once (e.g. `{{myName}}` → sender → `first_name`) and it auto-wires in every template.
-
-### Applications (`/applications`)
-
-Tracks job applications auto-recorded by the Chrome extension when you submit a form, or added manually. Shows `company_name`, `job_title`, `platform`, `status` (applied / screening / interview / offer / rejected / withdrawn), and `applied_at`. Filterable by status and full-text search. Inline editing and delete.
-
-### Prospects (`/prospects` + `/prospects/[id]`)
-
-The list view shows a filterable, paginated table. Each row links to the detail page (`/prospects/[id]`) which shows the full prospect profile, company info, notes, and email history for that contact.
-
-### Templates (`/templates`)
-
-Full template CRUD + inline variable manager. Each variable has a source dropdown; when source is `prospect`, `company`, or `sender`, a field picker appears. **Detect Variables** scans the current `subject` + `body` and adds stubs for any `{{key}}` not yet configured.
-
-### Send wizard (`/send`)
-
-Four steps: select template + company + prospects → fill custom variables → preview → confirm send. Calls `api.email.sendCompany()`.
-
-### Scheduled (`/scheduled`)
-
-Lists upcoming and past email schedules. Pending schedules can be cancelled.
-
-### Users (`/users`)
-
-Admin-only. Table of all accounts with role selector, active toggle, and delete. Includes a create-user form.
-
----
-
-## Styling
-
-Tailwind CSS, no component library. Shared classes are defined as `@layer components` in `globals.css`:
+Tailwind CSS v4 with custom utility classes and Antigravity spatial glassmorphism tokens defined in `globals.css`:
 
 ```css
-.form-label     /* <label> */
-.form-input     /* <input> and <select> */
+.form-label       /* <label> */
+.form-input       /* <input> */
+.form-select      /* <select> */
+.form-textarea    /* <textarea> */
+.card             /* Container styling with border and shadow */
+.glass-card       /* Antigravity elevated 3D glass card with backdrop-blur and specular border */
+.glass-panel      /* Frosted elevated surface container */
+.glass-button     /* Interactive translucent button with hover-lift */
 ```
 
-Use these on form elements instead of repeating Tailwind utilities.
-
----
-
-## Adding a new page
-
-1. Create `src/app/(dashboard)/my-page/page.tsx` — mark it `'use client'` if it needs state
-2. Add a nav entry in `src/components/Sidebar.tsx` (the `NAV` array at the top; use `ADMIN_NAV` for admin-only items)
-
-All pages inside `(dashboard)/` automatically get the sidebar layout.
-
----
-
-## Environment
-
-`NEXT_PUBLIC_API_URL` is the only runtime env var. It is baked into the JS bundle at build time, so:
-
-- **Docker**: set it as a build arg: `NEXT_PUBLIC_API_URL=https://api.example.com docker compose up --build`
-- **Local dev**: prefix the command: `NEXT_PUBLIC_API_URL=http://localhost:3001 pnpm dev`
+Animations & Keyframes:
+- `@keyframes antigravity-float`: Subtle floating levitation for badges/elements
+- `@keyframes antigravity-pulse-glow`: Ambient backdrop lighting pulsation
+- Full `prefers-reduced-motion` accessibility support
 
 ---
 
 ## Automated Testing
 
-Frontend uses **Vitest** with `jsdom` and **React Testing Library** for automated testing without manual browser interactions.
+Frontend uses **Vitest** with `jsdom` and **React Testing Library** for automated testing.
 
 ```bash
 # Run frontend tests once
@@ -232,6 +184,14 @@ pnpm test:watch
 ```
 
 Test suites live in `src/__tests__/`:
+- `dashboard.test.tsx` — Dashboard UI rendering, Antigravity KPI float cards, loading skeleton state, and empty states
+- `applications.test.tsx` — Applications tracker page, status summary card styling, and interactive status filters
+- `prospects.test.tsx` — Prospects page listing, Combobox company and role category filter dropdowns
+- `combobox.test.tsx` — Searchable dropdown opening, filtering, keyboard navigation, and option selection
+- `sidebar.test.tsx` — Navigation links, route active state, admin role visibility, and sign-out flow
+- `importModal.test.tsx` — Multi-step prospect file import, column auto-mapping, and bulk import execution
+- `theme.test.tsx` — ThemeProvider context, localStorage persistence, `.dark` class application, matchMedia listener
 - `api.test.ts` — Central API client (`src/lib/api.ts`), JWT cookie handling, header injection, 400 error field unwrapping
+- `apiResources.test.ts` — CRUD resources and error handlers
+- `middleware.test.ts` — Edge auth redirects
 - `types.test.ts` — Utility functions (`prospectFullName`, `toVariableLabel`, `buildVariableFromKey`)
-

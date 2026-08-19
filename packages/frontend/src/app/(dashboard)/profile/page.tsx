@@ -40,38 +40,38 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="mb-6 pb-4 border-b border-slate-100">
-      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-      <p className="text-sm text-slate-500 mt-0.5">{description}</p>
+    <div className="mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+      <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h2>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{description}</p>
     </div>
   );
 }
 
 function Alert({ type, message }: { type: 'error' | 'success'; message: string }) {
   const s = type === 'error'
-    ? 'bg-red-50 border-red-200 text-red-700'
-    : 'bg-green-50 border-green-200 text-green-700';
-  return <div className={`border rounded-lg px-4 py-3 text-sm mb-4 ${s}`}>{message}</div>;
+    ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300'
+    : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300';
+  return <div className={`border rounded-xl px-4 py-3 text-xs font-medium mb-4 ${s}`}>{message}</div>;
 }
 
 function SaveRow({ saving, onSave, error, success }: { saving: boolean; onSave: () => void; error?: string; success?: string }) {
   return (
-    <div className="mt-6 pt-4 border-t border-slate-100">
+    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
       {error   && <Alert type="error"   message={error} />}
       {success && <Alert type="success" message={success} />}
       <button
         onClick={onSave}
         disabled={saving}
-        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
       >
-        {saving ? 'Saving…' : 'Save changes'}
+        {saving ? 'Saving…' : 'Save Changes'}
       </button>
     </div>
   );
 }
 
 function FieldGroup({ label }: { label: string }) {
-  return <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">{label}</p>;
+  return <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pt-2">{label}</p>;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -120,9 +120,9 @@ function PersonalTab({ user }: { user: CrmUser }) {
   function inp(id: keyof typeof form, label: string, placeholder?: string, type = 'text') {
     return (
       <div key={id}>
-        <label className="form-label">{label}</label>
+        <label className="form-label text-xs">{label}</label>
         <input
-          className="form-input" type={type} placeholder={placeholder}
+          className="form-input text-xs" type={type} placeholder={placeholder}
           value={form[id]}
           onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))}
         />
@@ -154,7 +154,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
         veteran_status: form.veteran_status || null,
         bio:        form.bio.trim()        || null,
       });
-      setSuccess('Saved.');
+      setSuccess('Profile updated successfully.');
     } catch (e) {
       if (e instanceof Error && 'fields' in e) {
         const fields = (e as Error & { fields: Record<string, string> }).fields;
@@ -177,9 +177,9 @@ function PersonalTab({ user }: { user: CrmUser }) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="form-label">Gender</label>
+            <label className="form-label text-xs">Gender</label>
             <select
-              className="form-input"
+              className="form-select text-xs"
               value={form.gender}
               onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
             >
@@ -191,9 +191,9 @@ function PersonalTab({ user }: { user: CrmUser }) {
             </select>
           </div>
           <div>
-            <label className="form-label">Veteran status</label>
+            <label className="form-label text-xs">Veteran status</label>
             <select
-              className="form-input"
+              className="form-select text-xs"
               value={form.veteran_status}
               onChange={e => setForm(p => ({ ...p, veteran_status: e.target.value }))}
             >
@@ -209,17 +209,17 @@ function PersonalTab({ user }: { user: CrmUser }) {
         {inp('email', 'Email address', 'jane@example.com', 'email')}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="form-label">Phone</label>
+            <label className="form-label text-xs">Phone</label>
             <div className="flex gap-2">
               <input
-                className="form-input w-24 shrink-0"
+                className="form-input text-xs w-20 shrink-0"
                 type="text"
                 placeholder="+1"
                 value={form.phone_country_code}
                 onChange={e => setForm(p => ({ ...p, phone_country_code: e.target.value }))}
               />
               <input
-                className="form-input flex-1"
+                className="form-input text-xs flex-1"
                 type="tel"
                 placeholder="555-000-0000"
                 value={form.phone}
@@ -236,7 +236,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
 
         <FieldGroup label="Location" />
         {inp('location', 'Current location (combined)', 'San Francisco, CA, USA')}
-        <p className="text-xs text-slate-400 -mt-2">
+        <p className="text-[11px] text-slate-400 -mt-2">
           Single-line location string — used by Lever and similar ATS platforms
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -246,19 +246,19 @@ function PersonalTab({ user }: { user: CrmUser }) {
         </div>
         {inp('address_line1', 'Address Line 1', '123 Main St, Apt 4B')}
         <div className="grid grid-cols-2 gap-3">
-          {inp('postal_code', 'Postal / ZIP Code', '560001')}
+          {inp('postal_code', 'Postal / ZIP Code', '94105')}
           <div />
         </div>
-        {inp('hometown', 'Hometown / birthplace', 'Mumbai, India')}
+        {inp('hometown', 'Hometown / birthplace', 'New York, NY')}
 
         <FieldGroup label="Work authorization" />
         {inp('work_authorization', 'Authorization status', 'US Citizen · Green Card · H1B')}
 
         <FieldGroup label="Bio" />
         <div>
-          <label className="form-label">Short bio</label>
+          <label className="form-label text-xs">Short bio</label>
           <textarea
-            className="form-input" rows={3}
+            className="form-textarea text-xs" rows={3}
             placeholder="A brief intro about yourself…"
             value={form.bio}
             onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
@@ -302,36 +302,36 @@ function ExpForm({
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="form-label">Company *</label>
-          <input className="form-input" placeholder="Acme Inc." value={draft.company}
+          <label className="form-label text-xs">Company *</label>
+          <input className="form-input text-xs" placeholder="Acme Inc." value={draft.company}
             onChange={e => setDraft(p => ({ ...p, company: e.target.value }))} />
         </div>
         <div>
-          <label className="form-label">Job title *</label>
-          <input className="form-input" placeholder="Software Engineer" value={draft.title}
+          <label className="form-label text-xs">Job title *</label>
+          <input className="form-input text-xs" placeholder="Software Engineer" value={draft.title}
             onChange={e => setDraft(p => ({ ...p, title: e.target.value }))} />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="form-label">Start date</label>
+          <label className="form-label text-xs">Start date</label>
           <input
             type="month"
-            className="form-input"
+            className="form-input text-xs"
             value={draft.start_date}
             onChange={e => setDraft(p => ({ ...p, start_date: e.target.value }))}
           />
         </div>
         <div>
-          <label className="form-label">End date</label>
+          <label className="form-label text-xs">End date</label>
           {isPresent ? (
-            <div className="form-input flex items-center gap-2 text-slate-500 text-sm">
+            <div className="form-input text-xs flex items-center gap-2 text-slate-500 bg-slate-50 dark:bg-slate-950">
               Currently working here
             </div>
           ) : (
             <input
               type="month"
-              className="form-input"
+              className="form-input text-xs"
               value={draft.end_date}
               onChange={e => setDraft(p => ({ ...p, end_date: e.target.value }))}
             />
@@ -341,20 +341,20 @@ function ExpForm({
               type="checkbox"
               checked={isPresent}
               onChange={e => setDraft(p => ({ ...p, end_date: e.target.checked ? 'Present' : '' }))}
-              className="rounded border-slate-300 text-indigo-600"
+              className="rounded border-slate-300 dark:border-slate-700 text-indigo-600"
             />
-            <span className="text-xs text-slate-500">Currently working here</span>
+            <span className="text-[11px] text-slate-500">Currently working here</span>
           </label>
         </div>
         <div>
-          <label className="form-label">Location</label>
-          <input className="form-input" placeholder="Bangalore, India" value={draft.location}
+          <label className="form-label text-xs">Location</label>
+          <input className="form-input text-xs" placeholder="San Francisco, CA" value={draft.location}
             onChange={e => setDraft(p => ({ ...p, location: e.target.value }))} />
         </div>
       </div>
       <div>
-        <label className="form-label">Description</label>
-        <textarea className="form-input" rows={3}
+        <label className="form-label text-xs">Description</label>
+        <textarea className="form-textarea text-xs" rows={3}
           placeholder="Key responsibilities and achievements…"
           value={draft.description}
           onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} />
@@ -363,11 +363,11 @@ function ExpForm({
         <button
           onClick={onSubmit}
           disabled={saving || (!draft.company.trim() && !draft.title.trim())}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
         >
           {saving ? 'Saving…' : submitLabel}
         </button>
-        <button onClick={onCancel} className="text-slate-500 hover:text-slate-700 text-sm px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors">
+        <button onClick={onCancel} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-semibold px-4 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
           Cancel
         </button>
       </div>
@@ -427,7 +427,7 @@ function WorkTab({ user }: { user: CrmUser }) {
         current_ctc:         jobForm.current_ctc.trim()         || null,
         expected_ctc:        jobForm.expected_ctc.trim()        || null,
       });
-      setSuccess('Job info saved.');
+      setSuccess('Job search preferences saved.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally { setSavingJob(false); }
@@ -457,9 +457,9 @@ function WorkTab({ user }: { user: CrmUser }) {
   function jobInp(key: keyof typeof jobForm, label: string, placeholder?: string) {
     return (
       <div key={key}>
-        <label className="form-label">{label}</label>
+        <label className="form-label text-xs">{label}</label>
         <input
-          className="form-input" placeholder={placeholder}
+          className="form-input text-xs" placeholder={placeholder}
           value={jobForm[key]}
           onChange={e => setJobForm(p => ({ ...p, [key]: e.target.value }))}
         />
@@ -474,32 +474,32 @@ function WorkTab({ user }: { user: CrmUser }) {
       {/* Experience list */}
       <div className="space-y-3 mb-4">
         {experiences.map(exp => (
-          <div key={exp.id} className="border border-slate-200 rounded-xl overflow-hidden">
+          <div key={exp.id} className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/40">
             {editId === exp.id ? (
-              <div className="p-4 bg-slate-50">
+              <div className="p-4 bg-white dark:bg-slate-900">
                 <ExpForm draft={draft} setDraft={setDraft} saving={savingExp} onSubmit={commitEdit} submitLabel="Save" onCancel={cancelEdit} />
               </div>
             ) : (
               <div className="p-4 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-800">{exp.title}{exp.company && ` · ${exp.company}`}</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{exp.title}{exp.company && ` · ${exp.company}`}</p>
                   {(exp.start_date || exp.end_date) && (
-                    <p className="text-xs text-indigo-600 mt-0.5">
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5 font-medium">
                       {formatMonthYear(exp.start_date)}{exp.end_date ? ` — ${formatMonthYear(exp.end_date)}` : ''}
                       {exp.location ? ` · ${exp.location}` : ''}
                     </p>
                   )}
                   {exp.description && (
-                    <p className="text-sm text-slate-600 mt-1 leading-relaxed whitespace-pre-wrap">{exp.description}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed whitespace-pre-wrap">{exp.description}</p>
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => startEdit(exp)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors">
+                  <button onClick={() => startEdit(exp)} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button onClick={() => void persistExp(experiences.filter(x => x.id !== exp.id))} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                  <button onClick={() => void persistExp(experiences.filter(x => x.id !== exp.id))} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -512,24 +512,24 @@ function WorkTab({ user }: { user: CrmUser }) {
       </div>
 
       {adding ? (
-        <div className="border border-indigo-200 bg-indigo-50 rounded-xl p-4 mb-6">
+        <div className="border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/40 rounded-2xl p-4 mb-6">
           <ExpForm draft={draft} setDraft={setDraft} saving={savingExp} onSubmit={commitAdd} submitLabel="Add experience" onCancel={cancelEdit} />
         </div>
       ) : (
         <button
           onClick={() => { setAdding(true); setEditId(null); setDraft(EMPTY_WORK); }}
-          className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors mb-6"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 px-3.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors mb-6"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add experience
+          Add Experience
         </button>
       )}
 
       {/* Job search info */}
-      <div className="border-t border-slate-100 pt-6 mt-2">
-        <h3 className="text-sm font-semibold text-slate-700 mb-4">Job Search Info</h3>
+      <div className="border-t border-slate-100 dark:border-slate-800 pt-6 mt-2">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Job Search Preferences</h3>
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {jobInp('current_company', 'Current company', 'Acme Inc.')}
@@ -538,19 +538,19 @@ function WorkTab({ user }: { user: CrmUser }) {
           {jobInp('years_of_experience', 'Total years of experience', '5')}
           {jobInp('notice_period', 'Notice period', 'Immediate · 30 days · 60 days')}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {jobInp('current_ctc',  'Current CTC / salary',  '12 LPA')}
-            {jobInp('expected_ctc', 'Expected CTC / salary', '18 LPA')}
+            {jobInp('current_ctc',  'Current CTC / salary',  '$140,000')}
+            {jobInp('expected_ctc', 'Expected CTC / salary', '$175,000')}
           </div>
         </div>
-        <div className="mt-6 pt-4 border-t border-slate-100">
+        <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
           {error   && <Alert type="error"   message={error} />}
           {success && <Alert type="success" message={success} />}
           <button
             onClick={() => void saveJob()}
             disabled={savingJob}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
           >
-            {savingJob ? 'Saving…' : 'Save job info'}
+            {savingJob ? 'Saving…' : 'Save Preferences'}
           </button>
         </div>
       </div>
@@ -581,9 +581,9 @@ function EducationTab({ user }: { user: CrmUser }) {
   function inp(id: keyof typeof form, label: string, placeholder?: string) {
     return (
       <div key={id}>
-        <label className="form-label">{label}</label>
+        <label className="form-label text-xs">{label}</label>
         <input
-          className="form-input" placeholder={placeholder}
+          className="form-input text-xs" placeholder={placeholder}
           value={form[id]}
           onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))}
         />
@@ -599,7 +599,7 @@ function EducationTab({ user }: { user: CrmUser }) {
         college_name:    form.college_name.trim()    || null,
         graduation_year: form.graduation_year.trim() || null,
       });
-      setSuccess('Saved.');
+      setSuccess('Education updated.');
     } catch (e) {
       if (e instanceof Error && 'fields' in e) {
         const fields = (e as Error & { fields: Record<string, string> }).fields;
@@ -615,8 +615,8 @@ function EducationTab({ user }: { user: CrmUser }) {
       <SectionHeader title="Education" description="Your academic background — used to fill education fields in job applications." />
 
       <div className="space-y-4">
-        {inp('education',       'Degree / Qualification', 'B.Tech · B.E. · Masters · MBA')}
-        {inp('college_name',    'College / University',   'IIT Bombay')}
+        {inp('education',       'Degree / Qualification', 'B.S. in Computer Science')}
+        {inp('college_name',    'College / University',   'University of California, Berkeley')}
         {inp('graduation_year', 'Graduation year',        '2022')}
       </div>
 
@@ -649,7 +649,7 @@ function ResumeTab() {
       await api.documents.upload(uploadFile, uploadName || uploadFile.name);
       setUploadFile(null); setUploadName('');
       if (fileRef.current) fileRef.current.value = '';
-      setSuccess('File uploaded.');
+      setSuccess('File uploaded successfully.');
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
@@ -669,24 +669,24 @@ function ResumeTab() {
     <div>
       <SectionHeader title="Resume Files" description="Upload your resume and cover letter files. These can be attached when sending outreach emails." />
 
-      <div className="border border-dashed border-slate-300 rounded-xl p-5 mb-5 bg-slate-50 space-y-3">
-        <p className="text-sm font-medium text-slate-700">Upload a file</p>
+      <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-5 mb-5 bg-slate-50/50 dark:bg-slate-950/40 space-y-3">
+        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Upload New Resume or Document</p>
         <input
           ref={fileRef}
           type="file"
-          className="block w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+          className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-950 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100 cursor-pointer"
           onChange={e => {
             const f = e.target.files?.[0];
             if (f) { setUploadFile(f); setUploadName(f.name.replace(/\.[^.]+$/, '')); }
           }}
         />
         {uploadFile && (
-          <div className="space-y-2">
+          <div className="space-y-2 pt-2">
             {error   && <Alert type="error"   message={error} />}
             {success && <Alert type="success" message={success} />}
             <div className="flex gap-2">
               <input
-                className="form-input flex-1"
+                className="form-input text-xs flex-1"
                 placeholder="Display name"
                 value={uploadName}
                 onChange={e => setUploadName(e.target.value)}
@@ -694,9 +694,9 @@ function ResumeTab() {
               <button
                 onClick={() => void upload()}
                 disabled={uploading}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg shrink-0 transition-colors"
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl shrink-0 transition-colors shadow-xs"
               >
-                {uploading ? 'Uploading…' : 'Upload'}
+                {uploading ? 'Uploading…' : 'Upload File'}
               </button>
             </div>
           </div>
@@ -710,20 +710,20 @@ function ResumeTab() {
       </div>
 
       {documents.length === 0 ? (
-        <p className="text-sm text-slate-400 py-8 text-center">No files uploaded yet.</p>
+        <p className="text-xs text-slate-400 py-8 text-center">No resume documents uploaded yet.</p>
       ) : (
         <ul className="space-y-2">
           {documents.map(doc => (
-            <li key={doc.id} className="flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl">
+            <li key={doc.id} className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-800 truncate">{doc.name}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{doc.name}</p>
+                <p className="text-[11px] text-slate-400 font-mono">
                   {doc.filename}{formatBytes(doc.size) ? ` · ${formatBytes(doc.size)}` : ''}
                 </p>
               </div>
               <button
                 onClick={() => void del(doc.id)}
-                className="ml-3 shrink-0 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                className="ml-3 shrink-0 p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -786,9 +786,9 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
   function draftInp(key: keyof Omit<Project, 'id'>, label: string, placeholder?: string) {
     return (
       <div key={key}>
-        <label className="form-label">{label}</label>
+        <label className="form-label text-xs">{label}</label>
         <input
-          className="form-input" placeholder={placeholder}
+          className="form-input text-xs" placeholder={placeholder}
           value={draft[key]}
           onChange={e => setDraft(p => ({ ...p, [key]: e.target.value }))}
         />
@@ -799,30 +799,30 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
   function ProjectForm({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) {
     return (
       <div className="space-y-3">
-        {draftInp('name', 'Project name *', 'My App')}
+        {draftInp('name', 'Project name *', 'Realtime Collaboration Engine')}
         <div>
-          <label className="form-label">Description</label>
+          <label className="form-label text-xs">Description</label>
           <textarea
-            className="form-input" rows={2}
-            placeholder="What does it do?"
+            className="form-textarea text-xs" rows={2}
+            placeholder="Briefly describe what this project does and your impact…"
             value={draft.description}
             onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
           />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {draftInp('tech', 'Tech stack', 'React, Node.js, PostgreSQL')}
-          {draftInp('role', 'Your role',  'Lead Developer')}
+          {draftInp('tech', 'Tech stack', 'React, TypeScript, Go, PostgreSQL')}
+          {draftInp('role', 'Your role',  'Lead Engineer')}
         </div>
         {draftInp('url', 'Project URL', 'https://github.com/you/project')}
         <div className="flex gap-2 pt-1">
           <button
             onClick={onSubmit}
             disabled={saving || !draft.name.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
           >
             {saving ? 'Saving…' : submitLabel}
           </button>
-          <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-700 text-sm px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors">
+          <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-semibold px-4 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             Cancel
           </button>
         </div>
@@ -837,24 +837,24 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
       {success && <Alert type="success" message={success} />}
       <div className="space-y-3 mb-4">
         {projects.map(p => (
-          <div key={p.id} className="border border-slate-200 rounded-xl overflow-hidden">
+          <div key={p.id} className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/40">
             {editId === p.id ? (
-              <div className="p-4 bg-slate-50">
+              <div className="p-4 bg-white dark:bg-slate-900">
                 <ProjectForm onSubmit={commitEdit} submitLabel="Save project" />
               </div>
             ) : (
               <div className="p-4 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-800">{p.name}</p>
-                  {p.role && <p className="text-xs text-indigo-600 mt-0.5">{p.role}</p>}
-                  {p.description && <p className="text-sm text-slate-600 mt-1 leading-relaxed">{p.description}</p>}
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{p.name}</p>
+                  {p.role && <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5 font-medium">{p.role}</p>}
+                  {p.description && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">{p.description}</p>}
                   <div className="flex flex-wrap gap-2 mt-2">
                     {p.tech && (
-                      <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{p.tech}</span>
+                      <span className="text-[11px] bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 rounded-md font-mono">{p.tech}</span>
                     )}
                     {p.url && (
                       <a href={p.url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-indigo-600 hover:text-indigo-700 hover:underline">
+                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold flex items-center gap-1">
                         Link →
                       </a>
                     )}
@@ -863,7 +863,7 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
                 <div className="flex gap-1 shrink-0">
                   <button
                     onClick={() => startEdit(p)}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -871,7 +871,7 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
                   </button>
                   <button
                     onClick={() => void persist(projects.filter(x => x.id !== p.id))}
-                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -885,18 +885,18 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
       </div>
 
       {adding ? (
-        <div className="border border-indigo-200 bg-indigo-50 rounded-xl p-4">
+        <div className="border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/40 rounded-2xl p-4">
           <ProjectForm onSubmit={commitAdd} submitLabel="Add project" />
         </div>
       ) : (
         <button
           onClick={() => { setAdding(true); setEditId(null); setDraft(EMPTY_PROJECT); }}
-          className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 px-3.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add project
+          Add Project
         </button>
       )}
     </div>
@@ -945,32 +945,30 @@ function SkillsTab({ initialSkills }: { initialSkills: string[] }) {
       {error   && <Alert type="error"   message={error} />}
       {success && <Alert type="success" message={success} />}
 
-      <div className="flex flex-wrap gap-2 mb-5 min-h-[44px] p-3 bg-slate-50 border border-slate-200 rounded-xl">
+      <div className="flex flex-wrap gap-2 mb-5 min-h-[44px] p-3.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200/90 dark:border-slate-800 rounded-2xl">
         {skills.map(skill => (
           <span
             key={skill}
-            className="flex items-center gap-1.5 bg-white border border-indigo-200 text-indigo-700 text-sm px-3 py-1 rounded-full shadow-sm"
+            className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full shadow-xs"
           >
             {skill}
             <button
               onClick={() => removeSkill(skill)}
-              className="text-indigo-300 hover:text-indigo-600 transition-colors"
+              className="text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-200 transition-colors ml-0.5"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              ✕
             </button>
           </span>
         ))}
         {skills.length === 0 && (
-          <p className="text-sm text-slate-400 py-0.5">No skills added yet.</p>
+          <p className="text-xs text-slate-400 py-1">No skills added yet.</p>
         )}
       </div>
 
       <div className="flex gap-2">
         <input
-          className="form-input flex-1"
-          placeholder="Type a skill and press Enter — e.g. React, Python, PostgreSQL"
+          className="form-input text-xs flex-1"
+          placeholder="Type a skill and press Enter — e.g. React, TypeScript, GraphQL"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
@@ -979,14 +977,14 @@ function SkillsTab({ initialSkills }: { initialSkills: string[] }) {
         <button
           onClick={addSkill}
           disabled={saving || !input.trim()}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg shrink-0 transition-colors"
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl shrink-0 transition-colors shadow-xs"
         >
-          Add
+          Add Skill
         </button>
       </div>
 
-      <p className="text-xs text-slate-400 mt-2">
-        Tip: you can also paste a comma-separated list and press Enter to bulk-add.
+      <p className="text-[11px] text-slate-400 mt-2">
+        Tip: You can paste a comma-separated list to add multiple skills at once.
       </p>
     </div>
   );
@@ -1013,33 +1011,33 @@ function ProfileContent() {
   }, []);
 
   if (loading) {
-    return <div className="p-8 text-sm text-slate-400">Loading…</div>;
+    return <div className="p-8 text-sm text-slate-400">Loading profile…</div>;
   }
   if (!user) {
-    return <div className="p-8 text-sm text-red-500">Could not load profile.</div>;
+    return <div className="p-8 text-sm text-red-500">Could not load profile data.</div>;
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 md:p-8 max-w-6xl">
       {/* Header */}
       <div className="mb-7">
-        <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Your professional profile — used by the browser extension to autofill job application forms.
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Candidate Profile</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Your autofill details and resume files — used by the browser extension to fill job applications.
         </p>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
+      <div className="flex flex-col md:flex-row gap-5 items-start">
         {/* Left nav */}
-        <nav className="w-full md:w-48 shrink-0 flex flex-row md:flex-col overflow-x-auto gap-2 md:gap-0 md:space-y-0.5 pb-1 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <nav className="w-full md:w-52 shrink-0 flex flex-row md:flex-col overflow-x-auto gap-1.5 md:gap-1 pb-1 md:pb-0 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => goTab(t.id)}
-              className={`flex-none md:w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left whitespace-nowrap ${
+              className={`flex-none md:w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left whitespace-nowrap ${
                 tab === t.id
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               {t.icon}
@@ -1049,7 +1047,7 @@ function ProfileContent() {
         </nav>
 
         {/* Content panel */}
-        <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-6 min-w-0">
+        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-xs min-w-0 w-full">
           {tab === 'personal'  && <PersonalTab  user={user} />}
           {tab === 'work'      && <WorkTab      user={user} />}
           {tab === 'education' && <EducationTab user={user} />}

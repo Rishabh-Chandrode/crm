@@ -33,19 +33,19 @@ function inferCategory(title: string): string {
 
 const CATEGORY_LABELS: Record<string, string> = { engineer: 'Engineer', hr: 'HR', other: 'Other' };
 const CATEGORY_STYLES: Record<string, string> = {
-  engineer: 'bg-blue-100 text-blue-700',
-  hr: 'bg-purple-100 text-purple-700',
-  other: 'bg-slate-100 text-slate-500',
+  engineer: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60',
+  hr: 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60',
+  other: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700',
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  sent: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-  pending: 'bg-yellow-100 text-yellow-700',
+  sent: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60',
+  failed: 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60',
+  pending: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60',
 };
 
 function formatDate(s: string) {
-  return new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(s).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function ProspectDetailPage() {
@@ -152,8 +152,8 @@ export default function ProspectDetailPage() {
     return (
       <div className="p-8">
         <div className="animate-pulse space-y-4 max-w-3xl">
-          <div className="h-6 bg-slate-200 rounded w-48" />
-          <div className="h-40 bg-slate-100 rounded-xl" />
+          <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-48" />
+          <div className="h-40 bg-slate-100 dark:bg-slate-900 rounded-3xl" />
         </div>
       </div>
     );
@@ -162,8 +162,8 @@ export default function ProspectDetailPage() {
   if (notFound || !prospect) {
     return (
       <div className="p-8 text-center">
-        <p className="text-slate-500 mb-4">Prospect not found.</p>
-        <Link href="/prospects" className="text-indigo-600 hover:underline text-sm">← Back to Prospects</Link>
+        <p className="text-slate-500 dark:text-slate-400 mb-4">Prospect not found.</p>
+        <Link href="/prospects" className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm font-semibold">← Back to Prospects</Link>
       </div>
     );
   }
@@ -173,48 +173,49 @@ export default function ProspectDetailPage() {
   const companyName = (prospect.company as Company | null | undefined)?.name ?? prospect.company_name ?? null;
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl">
-
-      {/* Back */}
-      <Link href="/prospects" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 mb-5 transition-colors">
+    <div className="p-4 md:p-8 max-w-4xl">
+      {/* Back link */}
+      <Link href="/prospects" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 mb-6 transition-colors">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Prospects
+        Back to Prospects
       </Link>
 
       {/* Header */}
-      <div className="flex items-start gap-4 mb-6">
-        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-          {initials || '?'}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900">{fullName}</h1>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            {prospect.job_title && <span className="text-slate-600 text-sm">{prospect.job_title}</span>}
-            {companyName && (
-              <>
-                {prospect.job_title && <span className="text-slate-300">·</span>}
-                <span className="text-slate-600 text-sm">{companyName}</span>
-              </>
-            )}
-            {prospect.role_category && (
-              <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[prospect.role_category] ?? 'bg-slate-100 text-slate-500'}`}>
-                {CATEGORY_LABELS[prospect.role_category] ?? prospect.role_category}
-              </span>
-            )}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md shadow-indigo-500/20 flex-shrink-0">
+            {initials || '?'}
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{fullName}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              {prospect.job_title && <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">{prospect.job_title}</span>}
+              {companyName && (
+                <>
+                  {prospect.job_title && <span className="text-slate-300 dark:text-slate-700">·</span>}
+                  <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">{companyName}</span>
+                </>
+              )}
+              {prospect.role_category && (
+                <span className={`inline-flex text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${CATEGORY_STYLES[prospect.role_category] ?? 'bg-slate-100 text-slate-500'}`}>
+                  {CATEGORY_LABELS[prospect.role_category] ?? prospect.role_category}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             onClick={openEdit}
-            className="border border-slate-300 hover:border-indigo-400 text-slate-600 hover:text-indigo-600 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+            className="border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors shadow-xs"
           >
             Edit
           </button>
           <button
             onClick={() => void handleDelete()}
-            className="border border-slate-300 hover:border-red-400 text-slate-400 hover:text-red-600 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+            className="border border-slate-200 dark:border-slate-800 hover:border-red-500/50 text-slate-400 hover:text-red-500 text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors shadow-xs"
           >
             Delete
           </button>
@@ -222,7 +223,7 @@ export default function ProspectDetailPage() {
       </div>
 
       {/* Info card */}
-      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 mb-6">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 shadow-xs mb-8 overflow-hidden">
         {[
           { label: 'Email', value: prospect.email, href: `mailto:${prospect.email}` },
           { label: 'Phone', value: prospect.phone },
@@ -230,53 +231,53 @@ export default function ProspectDetailPage() {
           { label: 'Company', value: companyName },
         ].map(({ label, value, href }) =>
           value ? (
-            <div key={label} className="flex items-center gap-4 px-5 py-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide w-20 flex-shrink-0">{label}</span>
+            <div key={label} className="flex items-center gap-4 px-6 py-3.5">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider w-24 flex-shrink-0">{label}</span>
               {href ? (
-                <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline truncate">
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline truncate">
                   {value}
                 </a>
               ) : (
-                <span className="text-sm text-slate-700 truncate">{value}</span>
+                <span className="text-xs text-slate-700 dark:text-slate-300 truncate font-medium">{value}</span>
               )}
             </div>
           ) : null
         )}
         {prospect.notes && (
-          <div className="px-5 py-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-1">Notes</span>
-            <p className="text-sm text-slate-700 whitespace-pre-wrap">{prospect.notes}</p>
+          <div className="px-6 py-4">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Notes</span>
+            <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{prospect.notes}</p>
           </div>
         )}
       </div>
 
       {/* Email history */}
-      <h2 className="text-base font-semibold text-slate-800 mb-3">Email History</h2>
+      <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Outreach &amp; Email History</h2>
       {emailsLoading ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <p className="text-xs text-slate-400">Loading history…</p>
       ) : emails.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 px-5 py-8 text-center text-slate-400 text-sm">
-          No emails sent to this prospect yet.
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 px-6 py-8 text-center text-slate-400 text-xs shadow-xs">
+          No emails dispatched to this prospect yet.
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 shadow-xs overflow-hidden">
           {emails.map((e) => (
-            <div key={e.id} className="px-5 py-3 flex items-start gap-3">
+            <div key={e.id} className="px-6 py-4 flex items-start gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors">
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-slate-800 truncate">{e.subject ?? '(no subject)'}</div>
-                <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
-                  {e.template?.name && <span>{e.template.name}</span>}
+                <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{e.subject ?? '(no subject)'}</div>
+                <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
+                  {e.template?.name && <span className="font-semibold text-slate-600 dark:text-slate-300">{e.template.name}</span>}
                   <span>·</span>
                   <span>{formatDate(e.created_at)}</span>
                   {e.open_count > 0 && (
                     <>
                       <span>·</span>
-                      <span className="text-emerald-600">{e.open_count} open{e.open_count > 1 ? 's' : ''}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{e.open_count} open{e.open_count > 1 ? 's' : ''}</span>
                     </>
                   )}
                 </div>
               </div>
-              <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${STATUS_STYLES[e.status] ?? 'bg-slate-100 text-slate-500'}`}>
+              <span className={`inline-flex text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full flex-shrink-0 mt-0.5 border ${STATUS_STYLES[e.status] ?? 'bg-slate-100 text-slate-500'}`}>
                 {e.status}
               </span>
             </div>
@@ -286,66 +287,66 @@ export default function ProspectDetailPage() {
 
       {/* Edit modal */}
       {showEdit && form && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-5">Edit Prospect</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-5">Edit Prospect</h2>
             <div className="space-y-4">
               <div>
-                <label className="form-label">Company</label>
-                <select className="form-input" value={form.company_id} onChange={(e) => f('company_id', e.target.value)}>
+                <label className="form-label text-xs">Company</label>
+                <select className="form-select text-xs" value={form.company_id} onChange={(e) => f('company_id', e.target.value)}>
                   <option value="">No company</option>
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">First Name *</label>
-                  <input className="form-input" value={form.first_name} onChange={(e) => f('first_name', e.target.value)} />
+                  <label className="form-label text-xs">First Name *</label>
+                  <input className="form-input text-xs" value={form.first_name} onChange={(e) => f('first_name', e.target.value)} />
                 </div>
                 <div>
-                  <label className="form-label">Last Name</label>
-                  <input className="form-input" value={form.last_name} onChange={(e) => f('last_name', e.target.value)} />
+                  <label className="form-label text-xs">Last Name</label>
+                  <input className="form-input text-xs" value={form.last_name} onChange={(e) => f('last_name', e.target.value)} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">Email *</label>
-                  <input type="email" className="form-input" value={form.email} onChange={(e) => f('email', e.target.value)} />
+                  <label className="form-label text-xs">Email *</label>
+                  <input type="email" className="form-input text-xs font-mono" value={form.email} onChange={(e) => f('email', e.target.value)} />
                 </div>
                 <div>
-                  <label className="form-label">Job Title</label>
-                  <input className="form-input" value={form.job_title} onChange={(e) => f('job_title', e.target.value)} />
+                  <label className="form-label text-xs">Job Title</label>
+                  <input className="form-input text-xs" value={form.job_title} onChange={(e) => f('job_title', e.target.value)} />
                 </div>
               </div>
               <div>
-                <label className="form-label">Role Category</label>
-                <select className="form-input" value={form.role_category} onChange={(e) => f('role_category', e.target.value)}>
+                <label className="form-label text-xs">Role Category</label>
+                <select className="form-select text-xs" value={form.role_category} onChange={(e) => f('role_category', e.target.value)}>
                   <option value="">— not set —</option>
                   <option value="engineer">Engineer</option>
                   <option value="hr">HR / Recruiter</option>
                   <option value="other">Other</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">Phone</label>
-                  <input className="form-input" value={form.phone} onChange={(e) => f('phone', e.target.value)} />
+                  <label className="form-label text-xs">Phone</label>
+                  <input className="form-input text-xs" value={form.phone} onChange={(e) => f('phone', e.target.value)} />
                 </div>
                 <div>
-                  <label className="form-label">LinkedIn URL</label>
-                  <input className="form-input" value={form.linkedin_url} onChange={(e) => f('linkedin_url', e.target.value)} />
+                  <label className="form-label text-xs">LinkedIn URL</label>
+                  <input className="form-input text-xs" value={form.linkedin_url} onChange={(e) => f('linkedin_url', e.target.value)} />
                 </div>
               </div>
               <div>
-                <label className="form-label">Notes</label>
-                <textarea className="form-textarea" value={form.notes} onChange={(e) => f('notes', e.target.value)} />
+                <label className="form-label text-xs">Notes</label>
+                <textarea className="form-textarea text-xs" value={form.notes} onChange={(e) => f('notes', e.target.value)} />
               </div>
             </div>
-            {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+            {error && <p className="text-red-500 text-xs mt-3">{error}</p>}
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowEdit(false)} className="text-slate-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100">Cancel</button>
-              <button onClick={() => void handleSave()} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg">
-                {saving ? 'Saving…' : 'Update'}
+              <button onClick={() => setShowEdit(false)} className="text-slate-600 dark:text-slate-400 text-xs font-semibold px-4 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+              <button onClick={() => void handleSave()} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs">
+                {saving ? 'Saving…' : 'Update Prospect'}
               </button>
             </div>
           </div>

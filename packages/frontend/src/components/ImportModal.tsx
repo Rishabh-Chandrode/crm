@@ -111,14 +111,21 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl my-8 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Import Prospects from Excel / CSV
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              Import Prospects from Excel / CSV
+            </h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1.5 rounded-lg">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -130,8 +137,8 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
           {/* ── Step: upload ──────────────────────────────────────────────────── */}
           {step === 'upload' && (
             <div>
-              <p className="text-sm text-slate-500 mb-4">
-                Upload a <strong>.xlsx</strong>, <strong>.xls</strong>, or <strong>.csv</strong> file.
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Upload a <strong className="text-slate-700 dark:text-slate-300">.xlsx</strong>, <strong className="text-slate-700 dark:text-slate-300">.xls</strong>, or <strong className="text-slate-700 dark:text-slate-300">.csv</strong> file.
                 The first row must be a header row. Column names are auto-detected.
               </p>
 
@@ -140,16 +147,20 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
                 onClick={() => fileRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
-                  dragging ? 'border-indigo-400 bg-indigo-50' : 'border-slate-300 hover:border-indigo-300 hover:bg-slate-50'
+                className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-colors ${
+                  dragging
+                    ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30'
+                    : 'border-slate-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800/40'
                 }`}
               >
-                <svg className="w-10 h-10 text-slate-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-slate-600 font-medium">Drop your file here</p>
-                <p className="text-slate-400 text-sm mt-1">or click to browse</p>
-                <p className="text-slate-300 text-xs mt-2">.xlsx · .xls · .csv · max 10 MB</p>
+                <div className="w-12 h-12 mx-auto mb-3 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 dark:text-slate-500">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <p className="text-slate-800 dark:text-slate-200 font-semibold text-sm">Drop your file here</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">or click to browse from computer</p>
+                <p className="text-slate-400 dark:text-slate-500 text-[11px] mt-2">.xlsx · .xls · .csv · max 10 MB</p>
                 <input
                   ref={fileRef}
                   type="file"
@@ -159,32 +170,32 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                 />
               </div>
 
-              {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+              {error && <p className="text-red-500 dark:text-red-400 text-sm mt-3">{error}</p>}
             </div>
           )}
 
           {/* ── Step: map ────────────────────────────────────────────────────── */}
           {step === 'map' && parseResult && (
             <div className="space-y-6">
-              <p className="text-sm text-slate-500">
-                <strong>{parseResult.rowCount}</strong> rows found.
-                Map each field to a column from your file. Auto-detected where possible.
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                <strong className="text-slate-800 dark:text-slate-200">{parseResult.rowCount}</strong> rows found.
+                Map each CRM field to a column from your spreadsheet.
               </p>
 
               {/* Column mapping table */}
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-3">Column mapping</h3>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Column mapping</h3>
                 <div className="space-y-2">
                   {MAPPABLE_FIELDS.map(({ key, label, required }) => (
                     <div key={key} className="grid grid-cols-2 gap-3 items-center">
-                      <label className="text-sm text-slate-600">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         {label}
-                        {required && <span className="text-red-400 ml-1">*</span>}
+                        {required && <span className="text-red-500 ml-1">*</span>}
                       </label>
                       <select
                         value={mapping[key] ?? ''}
                         onChange={(e) => setField(key, e.target.value)}
-                        className="form-input text-sm py-1.5"
+                        className="form-select text-xs py-1.5"
                       >
                         <option value="">— skip —</option>
                         {parseResult.headers.map((h) => (
@@ -197,15 +208,15 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
               </div>
 
               {/* Options */}
-              <div className="border-t border-slate-100 pt-5 space-y-4">
-                <h3 className="text-sm font-semibold text-slate-700">Options</h3>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-4">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Options</h3>
 
                 <div>
                   <label className="form-label text-xs">Default company (applies when no company column is mapped or value is empty)</label>
                   <select
                     value={defaultCompanyId}
                     onChange={(e) => setDefaultCompanyId(e.target.value)}
-                    className="form-input text-sm"
+                    className="form-select text-xs"
                   >
                     <option value="">No default company</option>
                     {companies.map((c) => (
@@ -214,40 +225,40 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                   </select>
                 </div>
 
-                <label className="flex items-center gap-2 cursor-pointer select-none">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={createMissing}
                     onChange={(e) => setCreateMissing(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600"
+                    className="rounded-md border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-slate-600">
-                    Create companies that don't exist yet
+                  <span className="text-xs text-slate-700 dark:text-slate-300">
+                    Create new companies automatically if they don't exist yet
                   </span>
                 </label>
               </div>
 
               {/* Preview table */}
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                   Preview (first {parseResult.preview.length} rows)
                 </h3>
-                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="text-xs w-full">
                     <thead>
-                      <tr className="border-b border-slate-100 bg-slate-50">
+                      <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/60">
                         {parseResult.headers.map((h) => (
-                          <th key={h} className="px-3 py-2 text-left text-slate-500 font-medium whitespace-nowrap">
+                          <th key={h} className="px-3 py-2 text-left text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">
                             {h}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {parseResult.preview.map((row, i) => (
-                        <tr key={i} className="border-b border-slate-50 last:border-0">
+                        <tr key={i} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40">
                           {parseResult.headers.map((h) => (
-                            <td key={h} className="px-3 py-2 text-slate-600 whitespace-nowrap max-w-[160px] truncate">
+                            <td key={h} className="px-3 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[160px] truncate">
                               {row[h] ?? ''}
                             </td>
                           ))}
@@ -258,7 +269,7 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                 </div>
               </div>
 
-              {error && <p className="text-red-500 text-sm">{error}</p>}
+              {error && <p className="text-red-500 dark:text-red-400 text-sm">{error}</p>}
             </div>
           )}
 
@@ -266,7 +277,7 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
           {step === 'importing' && (
             <div className="text-center py-12">
               <div className="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
-              <p className="text-slate-600">Importing prospects…</p>
+              <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">Importing prospects…</p>
             </div>
           )}
 
@@ -275,28 +286,28 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
             <div className="space-y-5">
               <div className="grid grid-cols-3 gap-4 text-center">
                 {[
-                  { label: 'Imported', value: result.imported, color: 'text-green-600', bg: 'bg-green-50' },
-                  { label: 'Skipped', value: result.skipped, color: 'text-amber-600', bg: 'bg-amber-50' },
-                  { label: 'Total',   value: result.imported + result.skipped, color: 'text-slate-700', bg: 'bg-slate-50' },
+                  { label: 'Imported', value: result.imported, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50' },
+                  { label: 'Skipped', value: result.skipped, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50' },
+                  { label: 'Total',   value: result.imported + result.skipped, color: 'text-slate-800 dark:text-slate-200', bg: 'bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700' },
                 ].map(({ label, value, color, bg }) => (
-                  <div key={label} className={`${bg} rounded-xl p-4`}>
+                  <div key={label} className={`${bg} rounded-2xl p-4`}>
                     <p className={`text-3xl font-bold ${color}`}>{value}</p>
-                    <p className="text-sm text-slate-500 mt-1">{label}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{label}</p>
                   </div>
                 ))}
               </div>
 
               {result.errors.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-700 mb-2">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                     Skipped rows ({result.errors.length})
                   </h3>
-                  <div className="max-h-48 overflow-y-auto space-y-1">
+                  <div className="max-h-48 overflow-y-auto space-y-1.5">
                     {result.errors.map((e, i) => (
-                      <div key={i} className="flex gap-3 text-xs px-3 py-2 bg-red-50 rounded-lg">
-                        <span className="text-red-400 font-medium whitespace-nowrap">Row {e.row}</span>
-                        {e.email && <span className="text-red-500">{e.email}</span>}
-                        <span className="text-red-600 flex-1">{e.error}</span>
+                      <div key={i} className="flex gap-3 text-xs px-3.5 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl">
+                        <span className="text-red-500 dark:text-red-400 font-semibold whitespace-nowrap">Row {e.row}</span>
+                        {e.email && <span className="text-red-400 font-mono">{e.email}</span>}
+                        <span className="text-red-700 dark:text-red-300 flex-1">{e.error}</span>
                       </div>
                     ))}
                   </div>
@@ -307,10 +318,10 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-5 border-t border-slate-100 flex justify-between items-center">
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/30">
           <button
             onClick={onClose}
-            className="text-slate-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+            className="text-slate-600 dark:text-slate-400 text-sm font-medium px-4 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             {step === 'done' ? 'Close' : 'Cancel'}
           </button>
@@ -319,7 +330,7 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
             <button
               onClick={() => void handleImport()}
               disabled={!hasRequiredFields}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-xl transition-colors shadow-xs"
             >
               Import {parseResult?.rowCount} rows →
             </button>
@@ -328,7 +339,7 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
           {step === 'done' && result && result.imported > 0 && (
             <button
               onClick={() => { onDone(); onClose(); }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-xl transition-colors shadow-xs"
             >
               View prospects
             </button>

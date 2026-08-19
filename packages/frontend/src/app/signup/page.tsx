@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 
 function GoogleIcon() {
   return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
       <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
@@ -60,45 +60,48 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
+      {/* Ambient background glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-xl mb-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 rounded-2xl mb-4 shadow-xl shadow-indigo-500/25">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">Create account</h1>
-          <p className="text-slate-400 text-sm mt-1">Job Outreach Manager</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Create Account</h1>
+          <p className="text-slate-400 text-xs mt-1">Join CRM Outreach Suite</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8">
+        <form onSubmit={handleSubmit} className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl p-8 space-y-4">
           <button
             type="button"
             onClick={() => void handleGoogleSignup()}
             disabled={googleLoading || loading}
-            className="w-full flex items-center justify-center gap-3 border border-slate-200 hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-medium py-2.5 px-4 rounded-lg transition-colors mb-6"
+            className="w-full flex items-center justify-center gap-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 disabled:opacity-60 text-slate-200 text-xs font-semibold py-2.5 px-4 rounded-xl transition-all shadow-xs"
           >
             <GoogleIcon />
-            {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+            <span>{googleLoading ? 'Redirecting…' : 'Continue with Google'}</span>
           </button>
 
-          <div className="relative mb-6">
+          <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200" />
+              <div className="w-full border-t border-slate-800" />
             </div>
-            <div className="relative flex justify-center text-xs text-slate-400">
-              <span className="bg-white px-3">or create account with username</span>
+            <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
+              <span className="bg-slate-900 px-3">or create with credentials</span>
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="form-label">Username *</label>
+          <div>
+            <label className="form-label text-xs text-slate-300">Username *</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="form-input"
+              className="form-input text-xs bg-slate-950/60 border-slate-800 text-slate-100 placeholder-slate-500"
               placeholder="Pick a username"
               autoComplete="username"
               minLength={3}
@@ -106,25 +109,25 @@ export default function SignupPage() {
             />
           </div>
 
-          <div className="mb-4">
-            <label className="form-label">Email <span className="text-slate-400 font-normal">(optional)</span></label>
+          <div>
+            <label className="form-label text-xs text-slate-300">Email <span className="text-slate-500 font-normal">(optional)</span></label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="form-input"
+              className="form-input text-xs bg-slate-950/60 border-slate-800 text-slate-100 placeholder-slate-500"
               placeholder="you@example.com"
               autoComplete="email"
             />
           </div>
 
-          <div className="mb-4">
-            <label className="form-label">Password *</label>
+          <div>
+            <label className="form-label text-xs text-slate-300">Password *</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="form-input"
+              className="form-input text-xs bg-slate-950/60 border-slate-800 text-slate-100 placeholder-slate-500"
               placeholder="Min 8 characters"
               autoComplete="new-password"
               minLength={8}
@@ -132,13 +135,13 @@ export default function SignupPage() {
             />
           </div>
 
-          <div className="mb-6">
-            <label className="form-label">Confirm password *</label>
+          <div>
+            <label className="form-label text-xs text-slate-300">Confirm Password *</label>
             <input
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="form-input"
+              className="form-input text-xs bg-slate-950/60 border-slate-800 text-slate-100 placeholder-slate-500"
               placeholder="Repeat your password"
               autoComplete="new-password"
               required
@@ -146,20 +149,20 @@ export default function SignupPage() {
           </div>
 
           {error && (
-            <p className="text-red-500 text-sm mb-4">{error}</p>
+            <p className="text-red-400 text-xs bg-red-950/50 border border-red-900/60 p-2.5 rounded-xl">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading || googleLoading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold py-2.5 px-4 rounded-xl transition-all shadow-xs shadow-indigo-500/25 mt-2"
           >
-            {loading ? 'Creating account…' : 'Create account'}
+            {loading ? 'Creating account…' : 'Create Account'}
           </button>
 
-          <p className="text-center text-sm text-slate-500 mt-5">
+          <p className="text-center text-xs text-slate-400 pt-2">
             Already have an account?{' '}
-            <Link href="/login" className="text-indigo-600 hover:text-indigo-700 font-medium">
+            <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-semibold">
               Sign in
             </Link>
           </p>

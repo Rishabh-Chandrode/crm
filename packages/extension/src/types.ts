@@ -8,7 +8,6 @@ export interface TemplateVariable {
   defaultValue?: string;
 }
 
-
 export interface TemplateInfo {
   id: string;
   name: string;
@@ -94,6 +93,22 @@ export interface UserProfile {
   skills: string[] | null;
   projects: Project[] | null;
   work_experiences: WorkExperience[] | null;
+}
+
+export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+
+export interface JobApplication {
+  id: string;
+  user_id: string;
+  company_name: string;
+  job_title: string;
+  job_url: string;
+  platform: string;
+  status: JobApplicationStatus;
+  notes: string | null;
+  applied_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AutofillResultMessage {

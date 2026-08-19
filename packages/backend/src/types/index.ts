@@ -108,6 +108,22 @@ export interface EmailSend {
   template?: Pick<EmailTemplate, 'name'>;
 }
 
+export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+
+export interface JobApplication {
+  id: string;
+  user_id: string;
+  company_name: string;
+  job_title: string;
+  job_url: string;
+  platform: string;
+  status: JobApplicationStatus;
+  notes: string | null;
+  applied_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export type ApiResponse<T> = {
   data: T;
   message?: string;

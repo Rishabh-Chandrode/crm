@@ -10,6 +10,7 @@ router.get('/', async (req, res, next) => {
     const p = isAdmin ? [] : [userId]; // shared param array for simple $1 queries
     const w = isAdmin ? '' : ' WHERE created_by = $1';
     const a = isAdmin ? '' : ' AND created_by = $1'; // appended AND
+    const appW = isAdmin ? '' : ' WHERE user_id = $1';
 
     const [
       countsRes,
@@ -19,17 +20,21 @@ router.get('/', async (req, res, next) => {
       recentSendsRes,
       upcomingRes,
       dailyActivityRes,
+      appStatsRes,
+      recentAppsRes,
     ] = await Promise.all([
-      pool.query<{ companies: string; prospects: string; templates: string }>(
+      pool.query<{ companies: string; prospects: string; templates: string; applications: string }>(
         isAdmin
           ? `SELECT
                (SELECT COUNT(*) FROM companies) AS companies,
                (SELECT COUNT(*) FROM prospects) AS prospects,
-               (SELECT COUNT(*) FROM email_templates) AS templates`
+               (SELECT COUNT(*) FROM email_templates) AS templates,
+               (SELECT COUNT(*) FROM job_applications) AS applications`
           : `SELECT
-               (SELECT COUNT(*) FROM companies     WHERE created_by = $1) AS companies,
-               (SELECT COUNT(*) FROM prospects     WHERE created_by = $1) AS prospects,
-               (SELECT COUNT(*) FROM email_templates WHERE created_by = $1) AS templates`,
+               (SELECT COUNT(*) FROM companies        WHERE created_by = $1) AS companies,
+               (SELECT COUNT(*) FROM prospects        WHERE created_by = $1) AS prospects,
+               (SELECT COUNT(*) FROM email_templates  WHERE created_by = $1) AS templates,
+               (SELECT COUNT(*) FROM job_applications WHERE user_id = $1) AS applications`,
         p
       ),
       pool.query<{ status: string; count: string; opened: string }>(
@@ -87,9 +92,20 @@ router.get('/', async (req, res, next) => {
          GROUP BY DATE(created_at) ORDER BY day ASC`,
         p
       ),
+      pool.query<{ status: string; count: string }>(
+        `SELECT status, COUNT(*) AS count
+         FROM job_applications ${appW}
+         GROUP BY status`,
+        p
+      ),
+      pool.query(
+        `SELECT * FROM job_applications ${appW}
+         ORDER BY applied_at DESC LIMIT 5`,
+        p
+      ),
     ]);
 
-    const counts = countsRes.rows[0] ?? { companies: '0', prospects: '0', templates: '0' };
+    const counts = countsRes.rows[0] ?? { companies: '0', prospects: '0', templates: '0', applications: '0' };
 
     const emailStats = { total: 0, sent: 0, failed: 0, pending: 0, opened: 0 };
     for (const row of emailStatsRes.rows) {
@@ -107,7 +123,13 @@ router.get('/', async (req, res, next) => {
       companies: parseInt(counts.companies, 10),
       prospects: parseInt(counts.prospects, 10),
       templates: parseInt(counts.templates, 10),
+      applications: parseInt(counts.applications ?? '0', 10),
       emails: { ...emailStats, openRate },
+      applicationsByStatus: appStatsRes.rows.map((r) => ({
+        status: r.status,
+        count: parseInt(r.count, 10),
+      })),
+      recentApplications: recentAppsRes.rows,
       prospectsByCategory: categoryRes.rows.map((r) => ({
         category: r.category ?? 'unknown',
         count: parseInt(r.count, 10),

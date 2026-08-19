@@ -114,9 +114,9 @@ export default function Combobox({
         aria-expanded={open}
         aria-controls={instanceId}
         onClick={() => (open ? close() : openDropdown())}
-        className="form-input w-full text-left flex items-center justify-between gap-2 pr-3"
+        className="form-input w-full text-left flex items-center justify-between gap-2 pr-3 cursor-pointer"
       >
-        <span className={`truncate ${selected ? 'text-slate-900' : 'text-slate-400'}`}>
+        <span className={`truncate ${selected ? 'text-slate-900 dark:text-slate-100 font-medium' : 'text-slate-400 dark:text-slate-500'}`}>
           {selected ? selected.label : placeholder}
         </span>
         <svg
@@ -131,11 +131,11 @@ export default function Combobox({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-50 mt-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
           {/* Search */}
-          <div className="p-2 border-b border-slate-100">
+          <div className="p-2 border-b border-slate-100 dark:border-slate-800">
             <div className="relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -143,8 +143,8 @@ export default function Combobox({
                 type="text"
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActiveIdx(-1); }}
-                placeholder="Type to filter…"
-                className="w-full pl-7 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Type to search…"
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -154,10 +154,10 @@ export default function Combobox({
             id={instanceId}
             ref={listRef}
             role="listbox"
-            className="max-h-56 overflow-y-auto py-1"
+            className="max-h-56 overflow-y-auto p-1 space-y-0.5"
           >
             {listItems.length === 0 && (
-              <li className="px-3 py-2 text-sm text-slate-400 text-center">No matches</li>
+              <li className="px-3 py-3 text-xs text-slate-400 text-center">No matching results</li>
             )}
             {listItems.map((opt, idx) => {
               const isSelected = opt.value === value;
@@ -169,18 +169,20 @@ export default function Combobox({
                   aria-selected={isSelected}
                   onMouseDown={(e) => { e.preventDefault(); select(opt.value); }}
                   onMouseEnter={() => setActiveIdx(idx)}
-                  className={`px-3 py-2 cursor-pointer flex items-center justify-between gap-2 ${
-                    isActive ? 'bg-indigo-50' : 'hover:bg-slate-50'
-                  } ${opt.value === '' ? 'text-slate-400 italic' : 'text-slate-800'}`}
+                  className={`px-3 py-2 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-colors ${
+                    isActive
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                  } ${opt.value === '' ? 'text-slate-400 dark:text-slate-500 italic' : 'text-slate-800 dark:text-slate-200'}`}
                 >
-                  <span className="text-sm truncate">{opt.label}</span>
+                  <span className="text-xs font-medium truncate">{opt.label}</span>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {opt.sublabel && (
-                      <span className="text-xs text-slate-400 truncate max-w-[140px]">{opt.sublabel}</span>
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-[140px]">{opt.sublabel}</span>
                     )}
                     {isSelected && opt.value !== '' && (
-                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>
                     )}
                   </div>

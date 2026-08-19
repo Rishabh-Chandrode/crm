@@ -33,12 +33,15 @@ describe('templateEngine service', () => {
   describe('resolveTemplate', () => {
     const mockProspect: Prospect = {
       id: 'p-123',
+      company_id: 'c-456',
       first_name: 'Jane',
       last_name: 'Doe',
       email: 'jane@example.com',
-      company_id: 'c-456',
-      title: 'VP of Engineering',
-      status: 'pending',
+      job_title: 'VP of Engineering',
+      role_category: 'Engineering',
+      linkedin_url: null,
+      phone: null,
+      notes: null,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -46,22 +49,26 @@ describe('templateEngine service', () => {
     const mockCompany: Company = {
       id: 'c-456',
       name: 'Acme Corp',
-      domain: 'acme.com',
+      website: 'https://acme.com',
+      industry: 'Technology',
       created_at: new Date(),
       updated_at: new Date(),
     };
 
     const mockSender: SenderProfile = {
-      id: 'u-1',
-      name: 'Rishabh',
+      first_name: 'Rishabh',
+      last_name: 'Chandrode',
       email: 'rishabh@example.com',
+      current_company: 'Acme',
+      job_title: 'Engineer',
       phone: '+1234567890',
+      website: null,
     };
 
     const variables: TemplateVariable[] = [
       { key: 'firstName', label: 'First Name', source: 'prospect', field: 'first_name' },
       { key: 'companyName', label: 'Company', source: 'company', field: 'name' },
-      { key: 'senderName', label: 'Sender', source: 'sender', field: 'name' },
+      { key: 'senderName', label: 'Sender', source: 'sender', field: 'first_name' },
       { key: 'role', label: 'Custom Role', source: 'custom' },
       { key: 'fallbackVar', label: 'Fallback', source: 'custom', defaultValue: 'Software Engineer' },
     ];

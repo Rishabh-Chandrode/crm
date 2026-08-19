@@ -27,6 +27,9 @@ These rules apply to all files within `packages/frontend/`. They supplement the 
 2. **No component libraries** are installed — all UI is custom-built. Do not add shadcn/ui, MUI, Chakra, etc. without explicit user approval.
 3. **Use Tailwind CSS v4 classes** for all styling. Do not use inline `style={}` attributes unless absolutely necessary for dynamic values.
 4. **All components must be client components** (`'use client'`) if they use hooks, event handlers, or browser APIs. Server components are the default.
+5. **Single Responsibility & Loose Coupling (SRP):** Split large UI views into composable child components (e.g., TableHeader, RowActions, FilterBar). Isolate data-fetching and state management from pure presentational rendering.
+6. **Plug-and-Play UI Patterns:** Build UI modules (e.g., stats cards, filter widgets, modal dialogs) to accept customizable props and callbacks rather than hardcoding parent-specific logic. Prefer composition over props drilling.
+7. **Adapter Pattern for API Data:** When API responses require formatting (e.g., dates, currency, status badges), use dedicated mapper/formatter utility functions rather than inlining complex data transformations in JSX.
 
 ### API Client Rules
 - ALL backend API calls MUST go through `src/lib/api.ts`. NEVER call `fetch()` directly in components.

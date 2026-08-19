@@ -182,9 +182,9 @@ Attach documents to templates in the template editor (Settings → Documents →
 
 ---
 
-## Automated Testing (Zero Manual Testing)
+## Automated Testing & Pre-Commit Verification (Zero Manual Testing)
 
-The project includes 100% automated test coverage across all packages using **Vitest**, **Supertest**, and **React Testing Library**. Manual testing is eliminated.
+The project includes 100% automated test coverage across all packages using **Vitest**, **Supertest**, and **React Testing Library**. Manual testing is eliminated. Pre-commit hooks enforce hard TypeScript type checks, test execution, and synchronization rules before every commit.
 
 ```bash
 # Run all tests across the monorepo
@@ -195,11 +195,17 @@ pnpm test:backend     # Backend Express APIs, services, auth/session logic
 pnpm test:frontend    # Frontend Next.js API client, types, middleware
 pnpm test:extension   # Chrome extension form-filler & DOM scrapers
 
+# Run TypeScript checks across all packages
+pnpm run typecheck
+
+# Run full pre-commit verification pipeline
+pnpm run precommit
+
 # Run in watch mode during development
 pnpm test:watch
 ```
 
-See [TESTING.md](file:///Users/lonewolf/Projects/personal/crm/TESTING.md) for full testing documentation, architecture details, and guide on writing new tests.
+See [TESTING.md](file:///Users/lonewolf/Projects/personal/crm/TESTING.md) for full testing documentation, architecture details, pre-commit hook rules, and guide on writing new tests.
 
 ---
 

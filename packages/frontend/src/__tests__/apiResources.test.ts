@@ -111,11 +111,22 @@ describe('Frontend API Client Resource Domains', () => {
     it('api.stats.get sends GET /stats', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ data: { totalCompanies: 10, totalProspects: 50 } }),
+        json: async () => ({
+          companies: 10,
+          prospects: 50,
+          templates: 5,
+          emails: { total: 20, sent: 15, failed: 5, pending: 0, opened: 5, openRate: 33.3 },
+          prospectsByCategory: [],
+          topCompanies: [],
+          recentSends: [],
+          upcomingSchedules: [],
+          dailyActivity: [],
+        }),
       });
 
       const res = await api.stats.get();
-      expect(res.data.totalCompanies).toBe(10);
+      expect(res.companies).toBe(10);
+      expect(res.prospects).toBe(50);
     });
   });
 });

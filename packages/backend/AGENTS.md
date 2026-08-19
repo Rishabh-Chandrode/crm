@@ -29,6 +29,12 @@ Request → Route (parse + validate) → Service (business logic) → Database (
 3. **Database** (`src/db/`) — Connection pool and schema migrations only.
 4. **Middleware** (`src/middleware/`) — Cross-cutting concerns (auth, error handling, row-level filtering).
 
+### SOLID & Plug-and-Play Design Principles
+- **Single Responsibility (SRP):** Services encapsulate domain operations, not transport or protocol logic. Separate parsing, orchestration, and persistence.
+- **Open/Closed & Strategy Pattern (OCP):** For extensible integrations (e.g., email transport providers like Resend/Gmail, AI enrichers, export engines), define a common provider interface. Add new providers as modular strategy implementations without modifying existing business logic.
+- **Dependency Inversion (DIP) & Loose Coupling:** Pass dependencies (or configuration objects) into functions/services. Avoid tightly coupling domain logic directly to external HTTP client calls or proprietary third-party SDK shapes—wrap them in clean adapter interfaces.
+- **Plug-and-Play Registries:** When supporting multiple drivers, processors, or strategies, use a central registry/factory lookup so new implementations can be registered easily.
+
 ### Route File Rules
 - One file per resource domain. Filename matches URL prefix: `prospects.ts` → `/api/prospects`.
 - Always use `Router()` from Express. Export the router as the default export.

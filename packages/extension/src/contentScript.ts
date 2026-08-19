@@ -45,19 +45,22 @@ function extractCompany(): string {
 
     const imgAlt = firstEntry?.querySelector('img[alt]')?.getAttribute('alt') ?? '';
     if (imgAlt && !imgAlt.toLowerCase().includes('profile')) {
-      return cleanCompanyName(imgAlt.split(' logo')[0].trim());
+      const namePart = imgAlt.split(' logo')[0] ?? '';
+      return cleanCompanyName(namePart.trim());
     }
 
     const svgLabel = firstEntry?.querySelector('svg[aria-label]')?.getAttribute('aria-label') ?? '';
     if (svgLabel) {
-      return cleanCompanyName(svgLabel.split(' logo')[0].trim());
+      const namePart = svgLabel.split(' logo')[0] ?? '';
+      return cleanCompanyName(namePart.trim());
     }
 
     // New LinkedIn SDUI: "Company · Employment Type" in a <p> element
     const pElements = Array.from(firstEntry?.querySelectorAll('p') ?? []) as HTMLElement[];
     const companyP = pElements.find(p => p.innerText?.includes('·'));
     if (companyP) {
-      const candidate = cleanCompanyName(companyP.innerText.split('·')[0].trim());
+      const namePart = companyP.innerText.split('·')[0] ?? '';
+      const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     }
 
@@ -65,10 +68,12 @@ function extractCompany(): string {
       firstEntry?.querySelectorAll('span[aria-hidden="true"]') ?? []
     ) as HTMLElement[];
     if (hiddenSpans.length >= 2) {
-      const candidate = cleanCompanyName(hiddenSpans[1]!.innerText?.split('·')[0].trim() ?? '');
+      const namePart = hiddenSpans[1]?.innerText?.split('·')[0] ?? '';
+      const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     } else if (hiddenSpans.length === 1) {
-      const candidate = cleanCompanyName(hiddenSpans[0]!.innerText?.split('·')[0].trim() ?? '');
+      const namePart = hiddenSpans[0]?.innerText?.split('·')[0] ?? '';
+      const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     }
   }

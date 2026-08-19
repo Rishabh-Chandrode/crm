@@ -184,3 +184,24 @@ describe('Field Classification', () => {
 2. **Deterministic Code Tests:** Every feature must be proven through automated assertions.
 3. **100% Pass Rate:** Before any task is completed, `pnpm test` must run and output zero failures.
 4. **Regression Prevention:** Whenever a bug is fixed, a regression test must be added to prevent future occurrences.
+
+---
+
+## 6. Pre-Commit Hooks & Hard Checks
+
+The workspace enforces automated pre-commit validation before any `git commit` is permitted (`scripts/pre-commit.mjs` via `.githooks/pre-commit`):
+
+```bash
+# Manually run all pre-commit validation checks
+pnpm run precommit
+
+# Run TypeScript checks across all packages
+pnpm run typecheck
+```
+
+### Pre-Commit Validation Checks
+1. **Type Trinity Sync Check:** Ensures `packages/backend/src/types/index.ts`, `packages/frontend/src/lib/types.ts`, and `packages/extension/src/types.ts` are always staged and modified in sync.
+2. **Corresponding Test Files Check:** Validates that whenever source files (`packages/<pkg>/src/**`) are staged, corresponding automated test files (`src/__tests__/**`) in that package are also updated.
+3. **Agent & Documentation Sync Check:** Ensures `README.md` and `AGENTS.md` are updated whenever routes, services, or new features are committed.
+4. **Hard TypeScript Checks:** Runs `tsc --noEmit` across backend, frontend, and extension packages.
+5. **Automated Test Execution:** Runs `vitest run` across all packages, requiring a 100% pass rate.

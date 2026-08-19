@@ -66,6 +66,11 @@ These rules apply to all files within `packages/extension/`. They supplement the
 - **`popup.ts` is large (~65KB).** When modifying it, be precise about which section you are editing. Search for the relevant function before making changes.
 - Styles are in `popup.css`. Follow the existing class naming patterns.
 
+### SOLID Principles & Plug-and-Play Extensibility
+- **Strategy & Registry Pattern for Scrapers/Detectors:** All platform-specific scrapers and form fillers (e.g. LinkedIn, Greenhouse, Lever) MUST implement a common interface (such as `PlatformDetector` or `FormFillerStrategy`) and register into a central registry. Adding a new platform should only require plugging in a new detector strategy without editing existing platform branches.
+- **Single Responsibility (SRP):** Keep DOM extraction, data normalization/mapping, network calls, and UI rendering cleanly separated into dedicated modules.
+- **Loose Coupling:** Popup UI should consume high-level platform strategies or API helpers rather than hardcoding DOM selectors and network protocols directly in view event listeners.
+
 ---
 
 ## File Reference

@@ -11,7 +11,10 @@
     "test:backend": "pnpm --filter @crm/backend test",
     "test:frontend": "pnpm --filter @crm/frontend test",
     "test:extension": "pnpm --filter @crm/extension test",
-    "test:watch": "pnpm -r test:watch"
+    "test:watch": "pnpm -r test:watch",
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "precommit": "node scripts/pre-commit.mjs",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild"]

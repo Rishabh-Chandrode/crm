@@ -63,7 +63,7 @@ describe('Form Filler Field Detector', () => {
 
       const resumeInputs = detectResumeInputs();
       expect(resumeInputs.length).toBe(1);
-      expect(resumeInputs[0].id).toBe('f4');
+      expect(resumeInputs[0]?.id).toBe('f4');
     });
   });
 });

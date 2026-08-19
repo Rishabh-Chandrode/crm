@@ -26,7 +26,7 @@ function q<T extends Element>(selector: string): T | null {
 /** Like q() but returns the LAST match — needed when multiple expanded entries share the same name/selector. */
 function qlast<T extends Element>(selector: string): T | null {
   const all = document.querySelectorAll<T>(selector);
-  return all.length > 0 ? all[all.length - 1] : null;
+  return all.length > 0 ? (all[all.length - 1] ?? null) : null;
 }
 
 // ─── Step detection ───────────────────────────────────────────────────────────
@@ -419,13 +419,13 @@ function parseExpDate(dateStr: string | null | undefined): [string, string] {
   const s = dateStr.trim();
   // ISO: YYYY-MM or YYYY-MM-DD
   const iso = s.match(/^(\d{4})-(\d{2})/);
-  if (iso) return [iso[2], iso[1]];
+  if (iso?.[1] && iso[2]) return [iso[2], iso[1]];
   // MM/YYYY
   const slashMY = s.match(/^(\d{1,2})\/(\d{4})$/);
-  if (slashMY) return [slashMY[1].padStart(2, '0'), slashMY[2]];
+  if (slashMY?.[1] && slashMY[2]) return [slashMY[1].padStart(2, '0'), slashMY[2]];
   // Year only
   const yearOnly = s.match(/^(\d{4})$/);
-  if (yearOnly) return ['', yearOnly[1]];
+  if (yearOnly?.[1]) return ['', yearOnly[1]];
   return ['', ''];
 }
 
@@ -631,6 +631,7 @@ async function fillStep2(
     let existingInputs = getEntryInputs();
     while (existingInputs.length > experiences.length) {
       const last = existingInputs[existingInputs.length - 1];
+      if (!last) break;
       const ctx = findWorkdayCtx(last);
       const isEmpty = !ctx?.value?.jobTitle && !last.value;
       if (!isEmpty) break; // don't delete entries that already have content
@@ -654,6 +655,7 @@ async function fillStep2(
     // ── Add / fill each entry ─────────────────────────────────────────────
     for (let i = 0; i < experiences.length; i++) {
       const exp = experiences[i];
+      if (!exp) continue;
 
       // Only click Add if we don't already have enough entries
       existingInputs = getEntryInputs();

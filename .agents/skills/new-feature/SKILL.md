@@ -15,15 +15,22 @@ Skip steps that don't apply (e.g., skip extension steps if the feature is fronte
 
 ---
 
-## Step 1: Define the Data Model
+## Step 1: Define Data Model & Architectural Design (SOLID & Plug-and-Play)
 
-Before writing code, answer these questions:
+Before writing code, evaluate design and coupling:
 
-- What is the entity name? (e.g., `notes`, `tags`, `activities`)
-- What columns/fields does it need?
-- Does it belong to a user (`owner_id`)? (Almost always yes)
-- Does it reference other entities? (e.g., `prospect_id`, `company_id`)
-- Does it need timestamps? (Always: `created_at`, `updated_at`)
+- **SOLID & Loose Coupling:**
+  - Can new variants/providers be added without modifying existing code (Open/Closed)?
+  - Are responsibilities segregated cleanly between routes, services, data layers, and UI components (Single Responsibility)?
+  - Are external providers or algorithms decoupled behind a Strategy/Adapter interface?
+- **Plug-and-Play Model:**
+  - If the feature supports multiple providers, detectors, formats, or channels, implement a registry/factory pattern.
+- **Data Model:**
+  - What is the entity name? (e.g., `notes`, `tags`, `activities`)
+  - What columns/fields does it need?
+  - Does it belong to a user (`owner_id`)? (Almost always yes)
+  - Does it reference other entities? (e.g., `prospect_id`, `company_id`)
+  - Does it need timestamps? (Always: `created_at`, `updated_at`)
 
 ---
 

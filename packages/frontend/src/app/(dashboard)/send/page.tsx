@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Document, EmailTemplate, Company, Prospect, TemplateVariable } from '@/lib/types';
 import Combobox from '@/components/Combobox';
+import DateTimePicker from '@/components/DateTimePicker';
 
 type Step = 'select' | 'customize' | 'preview' | 'result';
 type TargetMode = 'company' | 'search';
@@ -682,13 +683,26 @@ export default function SendPage() {
 
           {/* Schedule picker modal */}
           {showSchedulePicker && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setShowSchedulePicker(false); setShowCustomPicker(false); setError(''); } }}>
-              <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-sm overflow-hidden">
-                <div className="px-5 pt-5 pb-3">
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowSchedulePicker(false);
+                  setShowCustomPicker(false);
+                  setError('');
+                }
+              }}
+            >
+              <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-sm max-h-[90vh] flex flex-col my-auto overflow-hidden">
+                <div className="px-5 pt-5 pb-2.5 shrink-0 border-b border-slate-100 dark:border-slate-800/60">
                   <div className="flex items-center justify-between mb-0.5">
                     <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Schedule send</h3>
                     <button
-                      onClick={() => { setShowSchedulePicker(false); setShowCustomPicker(false); setError(''); }}
+                      onClick={() => {
+                        setShowSchedulePicker(false);
+                        setShowCustomPicker(false);
+                        setError('');
+                      }}
                       className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -698,13 +712,14 @@ export default function SendPage() {
                   </div>
                   <p className="text-xs text-slate-400">{sendCount} prospect{sendCount !== 1 ? 's' : ''} will receive this email</p>
                 </div>
-                <div className="px-3 pb-3 space-y-1">
+
+                <div className="p-3 space-y-1.5 overflow-y-auto">
                   {getQuickScheduleOptions().map((opt) => (
                     <button
                       key={opt.isoString}
                       onClick={() => void handleSchedule(opt.isoString)}
                       disabled={scheduling}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left group disabled:opacity-50"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left group disabled:opacity-50"
                     >
                       <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -717,9 +732,10 @@ export default function SendPage() {
                       </div>
                     </button>
                   ))}
+
                   <button
                     onClick={() => setShowCustomPicker((v) => !v)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left group"
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left group"
                   >
                     <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-slate-600 dark:text-slate-300">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -738,22 +754,22 @@ export default function SendPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
+
                   {showCustomPicker && (
-                    <div className="mx-2 mb-2 space-y-3 pt-2">
-                      <input
-                        type="datetime-local"
-                        className="form-input text-xs"
+                    <div className="mx-0.5 space-y-2.5 pt-1 pb-1">
+                      <DateTimePicker
+                        inline
                         value={scheduleDateTime}
                         min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-                        onChange={(e) => setScheduleDateTime(e.target.value)}
+                        onChange={setScheduleDateTime}
                       />
-                      {error && <p className="text-red-500 text-xs">{error}</p>}
+                      {error && <p className="text-red-500 text-xs px-2">{error}</p>}
                       <button
                         onClick={() => void handleSchedule()}
                         disabled={scheduling || !scheduleDateTime}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold py-2 rounded-xl transition-colors shadow-xs"
+                        className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-60 text-white text-xs font-bold py-2.5 rounded-2xl transition-all duration-200 shadow-md shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                       >
-                        {scheduling ? 'Scheduling…' : 'Schedule send'}
+                        {scheduling ? 'Scheduling…' : 'Confirm & Schedule Send'}
                       </button>
                     </div>
                   )}

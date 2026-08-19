@@ -33,6 +33,7 @@ src/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, & quick theme switcher
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
 │   ├── Combobox.tsx               # Searchable combobox dropdown with full dark mode support
+│   ├── DateTimePicker.tsx         # Interactive Antigravity calendar & precision time picker
 │   └── ImportModal.tsx            # CSV/Excel bulk prospect import modal
 └── lib/
     ├── types.ts                   # TypeScript interfaces mirroring backend types
@@ -188,6 +189,7 @@ Test suites live in `src/__tests__/`:
 - `applications.test.tsx` — Applications tracker page, status summary card styling, and interactive status filters
 - `prospects.test.tsx` — Prospects page listing, Combobox company and role category filter dropdowns
 - `combobox.test.tsx` — Searchable dropdown opening, filtering, keyboard navigation, and option selection
+- `dateTimePicker.test.tsx` — Antigravity date & time picker, calendar navigation, time stepper, and preset chips
 - `sidebar.test.tsx` — Navigation links, route active state, admin role visibility, and sign-out flow
 - `importModal.test.tsx` — Multi-step prospect file import, column auto-mapping, and bulk import execution
 - `theme.test.tsx` — ThemeProvider context, localStorage persistence, `.dark` class application, matchMedia listener

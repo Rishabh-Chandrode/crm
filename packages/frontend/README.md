@@ -216,3 +216,22 @@ All pages inside `(dashboard)/` automatically get the sidebar layout.
 
 - **Docker**: set it as a build arg: `NEXT_PUBLIC_API_URL=https://api.example.com docker compose up --build`
 - **Local dev**: prefix the command: `NEXT_PUBLIC_API_URL=http://localhost:3001 pnpm dev`
+
+---
+
+## Automated Testing
+
+Frontend uses **Vitest** with `jsdom` and **React Testing Library** for automated testing without manual browser interactions.
+
+```bash
+# Run frontend tests once
+pnpm test
+
+# Run frontend tests in watch mode
+pnpm test:watch
+```
+
+Test suites live in `src/__tests__/`:
+- `api.test.ts` — Central API client (`src/lib/api.ts`), JWT cookie handling, header injection, 400 error field unwrapping
+- `types.test.ts` — Utility functions (`prospectFullName`, `toVariableLabel`, `buildVariableFromKey`)
+

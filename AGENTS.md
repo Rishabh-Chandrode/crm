@@ -94,16 +94,35 @@ The following files define the shared data contract between all three packages. 
 - [ ] If it needs auth protection: verify `packages/frontend/src/middleware.ts` covers the route
 - [ ] `packages/frontend/README.md` updated with the new page/component
 
-### 8.6 Adding or Modifying Extension Functionality
-- [ ] If new permission needed: `packages/extension/manifest.json` updated
-- [ ] If new content script or background handler: registered in `manifest.json`
-- [ ] If new message type: interface added to `packages/extension/src/types.ts`
-- [ ] After TypeScript changes: `pnpm build` re-run in the extension package
-- [ ] `packages/extension/README.md` updated
+### 8.7 Adding or Modifying Any Feature / Endpoint / Component / Utility (TESTING MANDATE)
+- [ ] Real automated test file created/updated (`*.test.ts` or `*.spec.ts`) in the affected package
+- [ ] Tests verify all new functions, API endpoints, error handling, session/auth handling, and edge cases
+- [ ] `pnpm test` executed and confirmed 100% PASSING across all packages before completing any task
 
 ---
 
-## 9. Documentation Update Rules (HARD RULE)
+## 9. Mandatory Automated Testing & Zero Manual Testing (HARD RULE)
+
+**The user will NOT perform manual testing.** All verification is automated, deterministic, and driven by real code tests executed through the package test runners.
+
+1. **Every Feature Must Have Real Code Tests:**
+   - Whenever you write or modify code (functions, endpoints, services, UI components, session/auth flows, scrapers, form fillers), you **MUST** write corresponding automated tests in `src/__tests__/` or next to the file using **Vitest** (`vitest run`).
+   - Mocking must be used properly for external networks and databases (e.g. `supertest` for Express route testing, `jsdom` for React components/DOM, mock Chrome APIs for extension).
+2. **Never Rely on AI "Self-Assessment" in Place of Real Tests:**
+   - Tests must execute real application code using proper testing frameworks (`vitest`, `@testing-library/react`, `supertest`).
+3. **Pre-Commit / Pre-Completion Verification:**
+   - **ALWAYS run `pnpm test` (or the affected package's test script) before declaring any task complete.**
+   - If any test fails, you must fix the code or the test before completing your turn. Zero failing tests allowed.
+4. **Scope of Test Coverage Required:**
+   - **Functions & Services:** Input/output validation, error throwing, edge cases.
+   - **APIs & Routes:** HTTP status codes (200, 201, 400, 401, 403, 404, 500), payload parsing, Zod validation errors, sanitized error responses.
+   - **Session & Auth:** Valid JWT, expired JWT, missing tokens, role permissions (`admin` vs `user`), cookie parsing.
+   - **UI & Components:** Component rendering, prop changes, user interactions, API client calls.
+   - **Extension:** Scraper regex patterns, DOM selectors, form filler classification, Chrome message discriminators.
+
+---
+
+## 10. Documentation Update Rules (HARD RULE)
 
 Every package has a `README.md` that serves as the single source of truth for that package's architecture. These files **MUST** be kept up-to-date with every change.
 
@@ -112,18 +131,20 @@ Every package has a `README.md` that serves as the single source of truth for th
 | `packages/backend/README.md`           | Any route, service, DB schema, middleware, or env var changes    |
 | `packages/frontend/README.md`          | Any page, component, API client, or routing changes              |
 | `packages/extension/README.md`         | Any manifest, message type, content script, or popup changes     |
+| `TESTING.md`                           | Any changes to testing commands, frameworks, or coverage rules   |
 | Root `README.md`                       | Any major architectural change or new package added              |
 
 **If you change code but not the corresponding README, the change is INCOMPLETE.**
 
 ---
 
-## 10. File Naming & Organization Conventions
+## 11. File Naming & Organization Conventions
 
 - **Backend routes:** One file per resource domain in `src/routes/`. Filename matches the URL prefix (e.g., `prospects.ts` → `/api/prospects`).
 - **Backend services:** Business logic belongs in `src/services/`, not in route handlers. Route files should only contain request parsing, validation, and response formatting.
 - **Frontend pages:** Next.js App Router conventions — one directory per route segment under `src/app/`.
 - **Frontend components:** Reusable UI in `src/components/`. Page-specific UI stays in the page file.
 - **Extension:** TypeScript source in `src/`, compiled output in `dist/`. Never edit `dist/` directly.
+- **Test files:** Placed under `src/__tests__/*.test.ts` or alongside source as `<filename>.test.ts`.
 
 **Enforcement:** This file is placed in the root directory so that it recursively applies to all agent interactions within this workspace and all of its subdirectories.

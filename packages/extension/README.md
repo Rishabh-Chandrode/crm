@@ -180,3 +180,22 @@ After any rebuild, click the refresh icon on the extension card in `chrome://ext
 ## Connecting to the backend
 
 The backend URL is baked in at build time via the `BACKEND_URL` env var in `build.mjs`. Default: `http://localhost:3001`. To point at a different backend, set `BACKEND_URL` before building and update `host_permissions` in `manifest.json` accordingly.
+
+---
+
+## Automated Testing
+
+Extension uses **Vitest** with `jsdom` to test field detectors, resume finders, scraping patterns, and message shapes without needing manual Chrome browser testing.
+
+```bash
+# Run extension tests once
+pnpm test
+
+# Run extension tests in watch mode
+pnpm test:watch
+```
+
+Test suites live in `src/__tests__/`:
+- `detector.test.ts` — Form input classifier, label matching, resume input finder
+- `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts
+

@@ -457,3 +457,23 @@ Resolution in `services/templateEngine.ts → resolveTemplate()`:
 - Module system: **ESM** (`"type": "module"`). All relative imports need `.js` extension even though source files are `.ts`.
 - `pg` is CommonJS — import as `import pg from 'pg'; const { Pool } = pg;`
 - Dev: `tsx watch`, prod: compile with `tsc` then run with `node`.
+
+---
+
+## Automated Testing
+
+Backend uses **Vitest** for unit tests and **Supertest** for Express HTTP endpoint testing.
+
+```bash
+# Run backend tests once
+pnpm test
+
+# Run backend tests in watch mode
+pnpm test:watch
+```
+
+Test suites live in `src/__tests__/`:
+- `api.test.ts` — Express route tests (health check, route protection)
+- `auth.test.ts` — JWT token generation, authMiddleware, session validation, requireRole
+- `templateEngine.test.ts` — Variable resolution, HTML converters, tracking pixel injection
+

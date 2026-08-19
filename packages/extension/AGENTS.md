@@ -82,13 +82,27 @@ These rules apply to all files within `packages/extension/`. They supplement the
 | `popup.html`            | Side panel HTML structure                             | Adding new UI sections or tabs                      |
 | `popup.css`             | Side panel styles                                     | Changing visual appearance                          |
 | `build.mjs`             | esbuild configuration                                 | Changing build targets or adding entry points       |
+| `src/__tests__/*.ts`    | Vitest extension test suites                          | Adding/modifying unit tests for extension logic     |
+
+---
+
+## Mandatory Automated Testing (HARD RULE)
+
+1. **Every extension module, scraper, message handler, and autofill detector MUST have tests:**
+   - Place tests in `src/__tests__/<module>.test.ts`.
+   - Test scraping heuristics, selector extraction, regex patterns, message format contracts, and form-filler input classification.
+   - Use `jsdom` to construct mock DOM fixtures for scrapers and form detection.
+2. **Execution requirement:**
+   - Run `pnpm --filter @crm/extension test` and verify 100% tests pass with 0 errors.
 
 ---
 
 ## Mandatory Post-Change Verification
 
 After making any extension change, the agent MUST:
-1. Run `pnpm build` and verify it completes without errors.
-2. Remind the user to reload the extension in `chrome://extensions`.
-3. If a new permission was added, note that the user may need to re-authorize the extension.
-4. Update `README.md` in this directory if any of the following changed: manifest, message types, content scripts, UI sections.
+1. Write/update automated tests in `src/__tests__/`.
+2. Run `pnpm --filter @crm/extension test` and verify all tests pass.
+3. Run `pnpm build` and verify it completes without errors.
+4. Remind the user to reload the extension in `chrome://extensions`.
+5. If a new permission was added, note that the user may need to re-authorize the extension.
+6. Update `README.md` in this directory if any of the following changed: manifest, message types, content scripts, UI sections.

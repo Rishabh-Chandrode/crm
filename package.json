@@ -6,7 +6,12 @@
     "dev": "docker compose up --build",
     "up": "docker compose up -d",
     "down": "docker compose down",
-    "logs": "docker compose logs -f"
+    "logs": "docker compose logs -f",
+    "test": "pnpm -r test",
+    "test:backend": "pnpm --filter @crm/backend test",
+    "test:frontend": "pnpm --filter @crm/frontend test",
+    "test:extension": "pnpm --filter @crm/extension test",
+    "test:watch": "pnpm -r test:watch"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild"]

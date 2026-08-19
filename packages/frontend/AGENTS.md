@@ -61,13 +61,28 @@ These rules apply to all files within `packages/frontend/`. They supplement the 
 | `src/lib/api.ts`                      | Centralized API client                             | Adding/modifying backend API calls              |
 | `src/lib/types.ts`                    | Shared TypeScript interfaces                       | When backend types change                       |
 | `src/middleware.ts`                   | Next.js middleware for auth redirect               | Adding/removing public routes                   |
+| `src/__tests__/*.ts`                  | Vitest frontend test suites                        | Adding/modifying tests for frontend code        |
+
+---
+
+## Mandatory Automated Testing (HARD RULE)
+
+1. **Every frontend feature, API method, and component logic MUST have tests:**
+   - Place unit and integration tests in `src/__tests__/<feature>.test.ts`.
+   - Test API client methods in `src/lib/api.ts` (mock fetch, header injection, JWT token parsing from `document.cookie`, error unwrapping).
+   - Test Next.js `middleware.ts` route protection, public path redirects, and session cookie validation.
+   - Test UI utility functions and components with React Testing Library / JSDOM.
+2. **Execution requirement:**
+   - Run `pnpm --filter @crm/frontend test` and confirm 100% tests pass with 0 errors.
 
 ---
 
 ## Mandatory Post-Change Verification
 
 After making any frontend change, the agent MUST:
-1. Verify the dev server (`pnpm dev`) shows no compile errors.
-2. If a new page was added, confirm it appears correctly in the browser.
-3. If a new API call was added, confirm the corresponding backend endpoint exists and is mounted.
-4. Update `README.md` in this directory if any of the following changed: pages, components, API client methods, routing.
+1. Write/update automated tests in `src/__tests__/`.
+2. Run `pnpm --filter @crm/frontend test` and verify all tests pass.
+3. Verify the dev server (`pnpm dev`) shows no compile errors.
+4. If a new page was added, confirm it appears correctly in the browser.
+5. If a new API call was added, confirm the corresponding backend endpoint exists and is mounted.
+6. Update `README.md` in this directory if any of the following changed: pages, components, API client methods, routing.

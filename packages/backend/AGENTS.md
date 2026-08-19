@@ -70,13 +70,27 @@ Request → Route (parse + validate) → Service (business logic) → Database (
 | `src/routes/*.ts`       | Individual resource endpoints                         | Adding/modifying API endpoints                      |
 | `src/services/*.ts`     | Business logic (email, scheduling, enrichment)         | Adding/modifying business processes                 |
 | `src/types/index.ts`    | Shared TypeScript interfaces (canonical source)        | Adding/modifying data entities                      |
+| `src/__tests__/*.ts`    | Vitest unit & integration test suites                  | Adding/modifying tests for any backend code         |
+
+---
+
+## Mandatory Automated Testing (HARD RULE)
+
+1. **Every backend feature, route, middleware, and service MUST have tests:**
+   - Place unit tests and Supertest integration tests in `src/__tests__/<feature>.test.ts`.
+   - Test success paths, validation errors (Zod 400 responses), authentication failures (401), authorization checks (403), and error handling (500).
+   - Test session handling: JWT signing, token expiry, tampered tokens, and role checking.
+2. **Execution requirement:**
+   - Execute `pnpm test` (or `pnpm --filter @crm/backend test`) and ensure 100% tests pass with 0 errors.
 
 ---
 
 ## Mandatory Post-Change Verification
 
 After making any backend change, the agent MUST:
-1. Verify the running dev server (`pnpm dev`) shows no compile errors in its terminal output.
-2. If a new endpoint was added, confirm it is reachable (e.g., check that `routes/index.ts` mounts it).
-3. If a schema change was made, confirm `migrate.ts` runs without error on server restart.
-4. Update `README.md` in this directory if any of the following changed: routes, services, DB schema, env vars, middleware.
+1. Write/update automated tests in `src/__tests__/`.
+2. Run `pnpm --filter @crm/backend test` and confirm all tests pass.
+3. Verify the running dev server (`pnpm dev`) shows no compile errors in its terminal output.
+4. If a new endpoint was added, confirm it is reachable (e.g., check that `routes/index.ts` mounts it).
+5. If a schema change was made, confirm `migrate.ts` runs without error on server restart.
+6. Update `README.md` in this directory if any of the following changed: routes, services, DB schema, env vars, middleware.

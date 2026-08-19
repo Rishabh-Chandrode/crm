@@ -182,15 +182,36 @@ Attach documents to templates in the template editor (Settings → Documents →
 
 ---
 
+## Automated Testing (Zero Manual Testing)
+
+The project includes 100% automated test coverage across all packages using **Vitest**, **Supertest**, and **React Testing Library**. Manual testing is eliminated.
+
+```bash
+# Run all tests across the monorepo
+pnpm test
+
+# Run tests by package
+pnpm test:backend     # Backend Express APIs, services, auth/session logic
+pnpm test:frontend    # Frontend Next.js API client, types, middleware
+pnpm test:extension   # Chrome extension form-filler & DOM scrapers
+
+# Run in watch mode during development
+pnpm test:watch
+```
+
+See [TESTING.md](file:///Users/lonewolf/Projects/personal/crm/TESTING.md) for full testing documentation, architecture details, and guide on writing new tests.
+
+---
+
 ## Adding features — where to start
 
 | Task | Files to touch |
 |---|---|
 | New DB table | `backend/src/db/migrate.ts`, `backend/src/types/index.ts` |
-| New API route | Add file in `backend/src/routes/`, register in `backend/src/routes/index.ts` |
-| New frontend page | Add folder under `frontend/src/app/(dashboard)/`, add nav entry in `Sidebar.tsx` |
+| New API route | Add file in `backend/src/routes/`, register in `backend/src/routes/index.ts`, add test in `backend/src/__tests__/` |
+| New frontend page | Add folder under `frontend/src/app/(dashboard)/`, add nav entry in `Sidebar.tsx`, add test in `frontend/src/__tests__/` |
 | New template variable source | `backend/src/services/templateEngine.ts` + `backend/src/types/index.ts` + `frontend/src/lib/types.ts` |
 | Swap email provider | Implement `EmailProvider` interface in `backend/src/services/email/` |
-| New autofill platform | Add a file in `extension/src/formFiller/platforms/`, register in `extension/src/formFiller/index.ts` |
+| New autofill platform | Add a file in `extension/src/formFiller/platforms/`, register in `extension/src/formFiller/index.ts`, add test in `extension/src/__tests__/` |
 | New autofill field type | Add to `FieldType` + `PATTERNS` in `extension/src/formFiller/detector.ts` (ordering matters — specific before broad), add to `ALL_FIELD_TYPES` in `types.ts`, add field to `UserProfile` in `types.ts` and `extension/src/types.ts` |
 | New user profile field | `backend/src/db/migrate.ts` (ALTER TABLE), `backend/src/routes/auth.ts` (PATCH + GET), `frontend/src/lib/types.ts`, `frontend/src/lib/api.ts`, `frontend/src/app/(dashboard)/profile/page.tsx`, `extension/src/formFiller/types.ts`, `extension/src/types.ts` |

@@ -144,6 +144,29 @@ The following files define the shared data contract between all three packages. 
    - **UI & Components:** Component rendering, prop changes, user interactions, API client calls.
    - **Extension:** Scraper regex patterns, DOM selectors, form filler classification, Chrome message discriminators.
 
+### 10.1 Autonomous Pre-Commit Execution & Auto-Resolution (HARD RULE)
+
+**Never rely on the user to run pre-commit hooks or copy/paste hook errors into chat.** The agent is 100% responsible for executing the pre-commit script, catching any validation errors, and resolving them automatically before ending the turn.
+
+1. **Mandatory Pre-Commit Execution:**
+   - Before declaring any task complete or returning to the user, the agent **MUST** run:
+     ```bash
+     node scripts/pre-commit.mjs
+     ```
+     (or `pnpm run precommit`).
+2. **Proactive Git Staging:**
+   - The pre-commit hook validates *staged* files against the Type Trinity, test existence rules in `src/__tests__/`, and documentation synchronization.
+   - The agent **MUST** stage all created and modified files (including source code, test files, and READMEs) with `git add` *before* running `node scripts/pre-commit.mjs`.
+3. **Self-Healing Autonomous Error Loop:**
+   - If `node scripts/pre-commit.mjs` fails for ANY reason (missing test files, Type Trinity desync, README desync, TypeScript compiler error, failing Vitest test):
+     1. **DO NOT** stop and ask the user to fix it or report the failure.
+     2. **Read** the exact stdout/stderr error logs from the hook output.
+     3. **Implement the fix immediately** (e.g. create missing test files, synchronize Trinity types, update `README.md`, resolve TypeScript type errors, fix failing test assertions).
+     4. **Stage the fixes** (`git add <fixed-files>`).
+     5. **Re-run** `node scripts/pre-commit.mjs`.
+     6. **Repeat** until `node scripts/pre-commit.mjs` exits with exit code 0 (`✅ All pre-commit checks PASSED successfully!`).
+
+
 ---
 
 ## 11. Documentation Update Rules (HARD RULE)

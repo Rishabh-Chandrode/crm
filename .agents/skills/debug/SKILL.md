@@ -105,6 +105,12 @@ Once you've identified the layer, trace the specific code path:
 5. If extension was changed: `pnpm build`.
 6. Run through the sync checklist if the fix involved types or API shapes.
 
+### Step 5.1: Mandatory Pre-Commit Execution (HARD RULE)
+**Never rely on the user to run pre-commit or paste hook errors into chat.**
+1. Stage all fixed files and test files: `git add <files...>`.
+2. Run `node scripts/pre-commit.mjs`.
+3. If it fails, inspect the error output, fix the issue immediately, re-stage, and re-run until all checks pass (`✅ All pre-commit checks PASSED successfully!`).
+
 ---
 
 ## Anti-Patterns
@@ -113,3 +119,5 @@ Once you've identified the layer, trace the specific code path:
 - **DO NOT** add try/catch that silently swallows errors — log them
 - **DO NOT** fix symptoms (e.g., adding `|| []` fallback) without understanding root cause
 - **DO NOT** edit `dist/` files in the extension
+- **DO NOT** end the turn without running and passing `node scripts/pre-commit.mjs`
+

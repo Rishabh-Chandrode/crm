@@ -158,3 +158,24 @@ Update in parallel:
 4. Build extension if changed: `cd packages/extension && pnpm build`
 5. Confirm new route is accessible
 6. Confirm new page renders
+
+---
+
+## Step 12: Autonomous Pre-Commit Hook Execution (HARD RULE)
+
+**Never rely on the user to run pre-commit or paste hook errors into chat.**
+
+1. Stage all created and modified source, test, and documentation files:
+   ```bash
+   git add <modified-files>
+   ```
+2. Execute the pre-commit script:
+   ```bash
+   node scripts/pre-commit.mjs
+   ```
+3. If it fails for ANY reason (missing tests in `src/__tests__/`, Type Trinity desync, README desync, TypeScript error, Vitest failure):
+   - Read the exact error logs.
+   - Implement the fix immediately.
+   - Stage the fixes (`git add <files>`).
+   - Re-run `node scripts/pre-commit.mjs` until it outputs `✅ All pre-commit checks PASSED successfully!`.
+

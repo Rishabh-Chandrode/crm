@@ -205,3 +205,7 @@ pnpm run typecheck
 3. **Agent & Documentation Sync Check:** Ensures `README.md` and `AGENTS.md` are updated whenever routes, services, or new features are committed.
 4. **Hard TypeScript Checks:** Runs `tsc --noEmit` across backend, frontend, and extension packages.
 5. **Automated Test Execution:** Runs `vitest run` across all packages, requiring a 100% pass rate.
+
+### 6.1 Agent Autonomous Pre-Commit & Self-Healing Rule
+AI agents working in this repository are strictly prohibited from asking the user to run pre-commit or copy/paste pre-commit errors. The agent autonomously stages files, runs `node scripts/pre-commit.mjs`, parses any errors, fixes them in place, and loops until `✅ All pre-commit checks PASSED successfully!`.
+

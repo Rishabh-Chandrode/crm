@@ -94,10 +94,20 @@ Run automated test suites and compiler checks for each affected package:
 3. **Frontend:** Check the running dev server terminal for compile errors. Verify new pages render.
 4. **Extension:** Run `pnpm build` in the extension package. Remind user to reload the extension.
 
-### Verification Parallelism
-- Test execution runs in parallel across monorepo packages.
-- Backend and frontend dev server checks can be done in parallel (both are already running).
-- Extension build is independent and can run concurrently with other checks.
+### Phase 4.1: Mandatory Autonomous Pre-Commit Hook Execution (HARD RULE)
+
+**Never rely on the user to run pre-commit or paste hook errors into chat.**
+1. Proactively stage all changed files and test files: `git add <files...>`
+2. Execute the pre-commit script:
+   ```bash
+   node scripts/pre-commit.mjs
+   ```
+3. If it fails for ANY reason (missing tests in `src/__tests__/`, Type Trinity desync, README desync, TypeScript error, Vitest test failure):
+   - Read the exact error output.
+   - Immediately fix the code, test, types, or documentation.
+   - Re-stage with `git add <files...>`.
+   - Re-run `node scripts/pre-commit.mjs` until it exits cleanly with `✅ All pre-commit checks PASSED successfully!`.
+
 
 ---
 

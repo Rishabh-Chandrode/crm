@@ -111,34 +111,34 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl my-8 overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-2xl my-8 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+        <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-zinc-100">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
             </div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
               Import Prospects from Excel / CSV
             </h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1.5 rounded-lg">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1 rounded-lg">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-5">
 
           {/* ── Step: upload ──────────────────────────────────────────────────── */}
           {step === 'upload' && (
             <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                Upload a <strong className="text-slate-700 dark:text-slate-300">.xlsx</strong>, <strong className="text-slate-700 dark:text-slate-300">.xls</strong>, or <strong className="text-slate-700 dark:text-slate-300">.csv</strong> file.
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+                Upload a <strong className="text-zinc-700 dark:text-zinc-300">.xlsx</strong>, <strong className="text-zinc-700 dark:text-zinc-300">.xls</strong>, or <strong className="text-zinc-700 dark:text-zinc-300">.csv</strong> file.
                 The first row must be a header row. Column names are auto-detected.
               </p>
 
@@ -147,20 +147,20 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
                 onClick={() => fileRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-colors ${
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
                   dragging
-                    ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30'
-                    : 'border-slate-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    ? 'border-zinc-900 dark:border-zinc-100 bg-zinc-50 dark:bg-zinc-800/40'
+                    : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20'
                 }`}
               >
-                <div className="w-12 h-12 mx-auto mb-3 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 dark:text-slate-500">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-10 h-10 mx-auto mb-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-500 dark:text-zinc-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <p className="text-slate-800 dark:text-slate-200 font-semibold text-sm">Drop your file here</p>
-                <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">or click to browse from computer</p>
-                <p className="text-slate-400 dark:text-slate-500 text-[11px] mt-2">.xlsx · .xls · .csv · max 10 MB</p>
+                <p className="text-zinc-900 dark:text-zinc-100 font-semibold text-xs">Drop your file here</p>
+                <p className="text-zinc-500 dark:text-zinc-400 text-[11px] mt-0.5">or click to browse from computer</p>
+                <p className="text-zinc-400 dark:text-zinc-500 text-[10px] mt-1.5 font-mono">.xlsx · .xls · .csv · max 10 MB</p>
                 <input
                   ref={fileRef}
                   type="file"
@@ -170,32 +170,32 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                 />
               </div>
 
-              {error && <p className="text-red-500 dark:text-red-400 text-sm mt-3">{error}</p>}
+              {error && <p className="text-rose-600 dark:text-rose-400 text-xs mt-3">{error}</p>}
             </div>
           )}
 
           {/* ── Step: map ────────────────────────────────────────────────────── */}
           {step === 'map' && parseResult && (
-            <div className="space-y-6">
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                <strong className="text-slate-800 dark:text-slate-200">{parseResult.rowCount}</strong> rows found.
+            <div className="space-y-5">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <strong className="text-zinc-800 dark:text-zinc-200">{parseResult.rowCount}</strong> rows found.
                 Map each CRM field to a column from your spreadsheet.
               </p>
 
               {/* Column mapping table */}
               <div>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Column mapping</h3>
-                <div className="space-y-2">
+                <h3 className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2.5">Column mapping</h3>
+                <div className="space-y-1.5">
                   {MAPPABLE_FIELDS.map(({ key, label, required }) => (
                     <div key={key} className="grid grid-cols-2 gap-3 items-center">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                         {label}
-                        {required && <span className="text-red-500 ml-1">*</span>}
+                        {required && <span className="text-rose-500 ml-0.5">*</span>}
                       </label>
                       <select
                         value={mapping[key] ?? ''}
                         onChange={(e) => setField(key, e.target.value)}
-                        className="form-select text-xs py-1.5"
+                        className="form-select text-xs py-1"
                       >
                         <option value="">— skip —</option>
                         {parseResult.headers.map((h) => (
@@ -208,8 +208,8 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
               </div>
 
               {/* Options */}
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-4">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Options</h3>
+              <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
+                <h3 className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Options</h3>
 
                 <div>
                   <label className="form-label text-xs">Default company (applies when no company column is mapped or value is empty)</label>
@@ -225,40 +225,40 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                   </select>
                 </div>
 
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={createMissing}
                     onChange={(e) => setCreateMissing(e.target.checked)}
-                    className="rounded-md border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-zinc-950 dark:focus:ring-zinc-300"
                   />
-                  <span className="text-xs text-slate-700 dark:text-slate-300">
-                    Create new companies automatically if they don't exist yet
+                  <span className="text-xs text-zinc-700 dark:text-zinc-300">
+                    Create new companies automatically if they don&apos;t exist yet
                   </span>
                 </label>
               </div>
 
               {/* Preview table */}
               <div>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <h3 className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
                   Preview (first {parseResult.preview.length} rows)
                 </h3>
-                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-950/40">
+                <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50/50 dark:bg-zinc-950/40">
                   <table className="text-xs w-full">
                     <thead>
-                      <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/60">
+                      <tr className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-100/70 dark:bg-zinc-800/60">
                         {parseResult.headers.map((h) => (
-                          <th key={h} className="px-3 py-2 text-left text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">
+                          <th key={h} className="px-2.5 py-1.5 text-left text-zinc-500 dark:text-zinc-400 font-semibold whitespace-nowrap">
                             {h}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                       {parseResult.preview.map((row, i) => (
-                        <tr key={i} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40">
+                        <tr key={i} className="hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40">
                           {parseResult.headers.map((h) => (
-                            <td key={h} className="px-3 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[160px] truncate">
+                            <td key={h} className="px-2.5 py-1.5 text-zinc-600 dark:text-zinc-300 whitespace-nowrap max-w-[160px] truncate">
                               {row[h] ?? ''}
                             </td>
                           ))}
@@ -269,45 +269,45 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
                 </div>
               </div>
 
-              {error && <p className="text-red-500 dark:text-red-400 text-sm">{error}</p>}
+              {error && <p className="text-rose-600 dark:text-rose-400 text-xs">{error}</p>}
             </div>
           )}
 
           {/* ── Step: importing ───────────────────────────────────────────────── */}
           {step === 'importing' && (
-            <div className="text-center py-12">
-              <div className="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
-              <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">Importing prospects…</p>
+            <div className="text-center py-10">
+              <div className="inline-block w-6 h-6 border-2 border-zinc-900 dark:border-zinc-100 border-t-transparent rounded-full animate-spin mb-3" />
+              <p className="text-zinc-600 dark:text-zinc-300 font-medium text-xs">Importing prospects…</p>
             </div>
           )}
 
           {/* ── Step: done ────────────────────────────────────────────────────── */}
           {step === 'done' && result && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3 text-center">
                 {[
-                  { label: 'Imported', value: result.imported, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50' },
-                  { label: 'Skipped', value: result.skipped, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50' },
-                  { label: 'Total',   value: result.imported + result.skipped, color: 'text-slate-800 dark:text-slate-200', bg: 'bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700' },
+                  { label: 'Imported', value: result.imported, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10 border border-emerald-500/20' },
+                  { label: 'Skipped', value: result.skipped, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10 border border-amber-500/20' },
+                  { label: 'Total',   value: result.imported + result.skipped, color: 'text-zinc-900 dark:text-zinc-100', bg: 'bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700' },
                 ].map(({ label, value, color, bg }) => (
-                  <div key={label} className={`${bg} rounded-2xl p-4`}>
-                    <p className={`text-3xl font-bold ${color}`}>{value}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{label}</p>
+                  <div key={label} className={`${bg} rounded-xl p-3.5`}>
+                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 font-medium">{label}</p>
                   </div>
                 ))}
               </div>
 
               {result.errors.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  <h3 className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
                     Skipped rows ({result.errors.length})
                   </h3>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5">
+                  <div className="max-h-48 overflow-y-auto space-y-1">
                     {result.errors.map((e, i) => (
-                      <div key={i} className="flex gap-3 text-xs px-3.5 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl">
-                        <span className="text-red-500 dark:text-red-400 font-semibold whitespace-nowrap">Row {e.row}</span>
-                        {e.email && <span className="text-red-400 font-mono">{e.email}</span>}
-                        <span className="text-red-700 dark:text-red-300 flex-1">{e.error}</span>
+                      <div key={i} className="flex gap-2 text-xs px-3 py-2 bg-rose-500/10 border border-rose-500/20 rounded-lg">
+                        <span className="text-rose-600 dark:text-rose-400 font-semibold whitespace-nowrap">Row {e.row}</span>
+                        {e.email && <span className="text-rose-500 dark:text-rose-300 font-mono">{e.email}</span>}
+                        <span className="text-rose-700 dark:text-rose-300 flex-1">{e.error}</span>
                       </div>
                     ))}
                   </div>
@@ -318,10 +318,10 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/30">
+        <div className="px-5 py-3.5 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-950/30">
           <button
             onClick={onClose}
-            className="text-slate-600 dark:text-slate-400 text-sm font-medium px-4 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="btn-ghost"
           >
             {step === 'done' ? 'Close' : 'Cancel'}
           </button>
@@ -330,7 +330,7 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
             <button
               onClick={() => void handleImport()}
               disabled={!hasRequiredFields}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-xl transition-colors shadow-xs"
+              className="btn-primary"
             >
               Import {parseResult?.rowCount} rows →
             </button>
@@ -339,7 +339,7 @@ export default function ImportModal({ companies, onClose, onDone }: Props) {
           {step === 'done' && result && result.imported > 0 && (
             <button
               onClick={() => { onDone(); onClose(); }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-xl transition-colors shadow-xs"
+              className="btn-primary"
             >
               View prospects
             </button>

@@ -183,27 +183,27 @@ export default function DateTimePicker({
   }, [value]);
 
   const pickerPanel = (
-    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-3.5 shadow-[0_12px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)] space-y-3 select-none">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 shadow-lg space-y-3 select-none">
       {/* Quick Presets Bar */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <button
           type="button"
           onClick={() => applyPreset(2)}
-          className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200/60 dark:border-slate-700/60 transition-colors"
+          className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 transition-colors"
         >
           +2 Hours
         </button>
         <button
           type="button"
           onClick={() => applyPreset(24, 9, 0)}
-          className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200/60 dark:border-slate-700/60 transition-colors"
+          className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 transition-colors"
         >
           Tomorrow 9 AM
         </button>
         <button
           type="button"
           onClick={() => applyPreset(24, 14, 0)}
-          className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200/60 dark:border-slate-700/60 transition-colors"
+          className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 transition-colors"
         >
           Tomorrow 2 PM
         </button>
@@ -211,14 +211,14 @@ export default function DateTimePicker({
 
       {/* Month & Year Navigation Header */}
       <div className="flex items-center justify-between pt-0.5">
-        <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+        <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
           {MONTHS[viewMonth]} {viewYear}
         </span>
         <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={prevMonth}
-            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             aria-label="Previous Month"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,7 +228,7 @@ export default function DateTimePicker({
           <button
             type="button"
             onClick={nextMonth}
-            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             aria-label="Next Month"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -241,7 +241,7 @@ export default function DateTimePicker({
       {/* Day of week headers */}
       <div className="grid grid-cols-7 gap-0.5 text-center">
         {DAYS_SHORT.map((d) => (
-          <div key={d} className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider py-0.5">
+          <div key={d} className="text-[9px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider py-0.5">
             {d}
           </div>
         ))}
@@ -255,7 +255,7 @@ export default function DateTimePicker({
           return (
             <div
               key={`prev-${i}`}
-              className="w-7 h-7 mx-auto flex items-center justify-center text-[11px] text-slate-300 dark:text-slate-700"
+              className="w-7 h-7 mx-auto flex items-center justify-center text-[11px] text-zinc-300 dark:text-zinc-700"
             >
               {dayNum}
             </div>
@@ -276,17 +276,17 @@ export default function DateTimePicker({
               type="button"
               disabled={Boolean(isDisabled)}
               onClick={() => handleDateSelect(currentDayStr)}
-              className={`w-7 h-7 mx-auto rounded-lg text-[11px] font-semibold flex items-center justify-center transition-all duration-150 relative ${
+              className={`w-7 h-7 mx-auto rounded-md text-[11px] font-medium flex items-center justify-center transition-all duration-150 relative ${
                 isDisabled
-                  ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed opacity-40'
+                  ? 'text-zinc-300 dark:text-zinc-700 cursor-not-allowed opacity-40'
                   : isSelected
-                  ? 'bg-gradient-to-tr from-indigo-600 to-violet-500 text-white font-bold shadow-sm shadow-indigo-500/30 scale-105 z-10'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
               }`}
             >
               {dayNum}
               {isToday && !isSelected && (
-                <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-indigo-500" />
+                <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-zinc-900 dark:bg-zinc-100" />
               )}
             </button>
           );
@@ -294,9 +294,9 @@ export default function DateTimePicker({
       </div>
 
       {/* Time Selection Controls */}
-      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+      <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
             Time
           </span>
           <div className="flex items-center gap-1">
@@ -306,10 +306,10 @@ export default function DateTimePicker({
                 key={m}
                 type="button"
                 onClick={() => handleMinuteChange(m)}
-                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition-colors ${
+                className={`text-[9px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
                   minute === m
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-500/40 text-indigo-600 dark:text-indigo-400'
-                    : 'border-slate-200/60 dark:border-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100'
+                    : 'border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                 }`}
               >
                 :{pad(m)}
@@ -320,42 +320,42 @@ export default function DateTimePicker({
 
         <div className="flex items-center gap-1.5">
           {/* Hour Input with Stepper */}
-          <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5">
-            <span className="text-[9px] font-bold text-slate-400 mr-1 uppercase">Hr</span>
+          <div className="flex-1 flex items-center bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-2 py-1">
+            <span className="text-[9px] font-medium text-zinc-400 mr-1 uppercase">Hr</span>
             <input
               type="number"
               min={1}
               max={12}
               value={hour12}
               onChange={(e) => handleHourChange(parseInt(e.target.value, 10) || 1)}
-              className="w-full text-xs font-bold text-slate-900 dark:text-slate-100 bg-transparent focus:outline-none"
+              className="w-full text-xs font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent focus:outline-none"
             />
           </div>
 
-          <span className="text-slate-400 font-bold text-xs">:</span>
+          <span className="text-zinc-400 font-semibold text-xs">:</span>
 
           {/* Minute Input with Stepper */}
-          <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5">
-            <span className="text-[9px] font-bold text-slate-400 mr-1 uppercase">Min</span>
+          <div className="flex-1 flex items-center bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md px-2 py-1">
+            <span className="text-[9px] font-medium text-zinc-400 mr-1 uppercase">Min</span>
             <input
               type="number"
               min={0}
               max={59}
               value={pad(minute)}
               onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10) || 0)}
-              className="w-full text-xs font-bold text-slate-900 dark:text-slate-100 bg-transparent focus:outline-none font-mono"
+              className="w-full text-xs font-semibold text-zinc-900 dark:text-zinc-100 bg-transparent focus:outline-none font-mono"
             />
           </div>
 
           {/* AM / PM Toggle */}
-          <div className="flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200/60 dark:border-slate-700/60">
+          <div className="flex p-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200/60 dark:border-zinc-700/60">
             <button
               type="button"
               onClick={() => handlePeriodToggle('AM')}
-              className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
                 period === 'AM'
-                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-950 dark:text-zinc-50 shadow-2xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               AM
@@ -363,10 +363,10 @@ export default function DateTimePicker({
             <button
               type="button"
               onClick={() => handlePeriodToggle('PM')}
-              className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
                 period === 'PM'
-                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-950 dark:text-zinc-50 shadow-2xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
               }`}
             >
               PM
@@ -376,9 +376,9 @@ export default function DateTimePicker({
       </div>
 
       {/* Selected Time Banner */}
-      <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
-        <span className="text-slate-400 font-medium">Scheduled for:</span>
-        <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[190px]">
+      <div className="pt-1.5 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-[11px]">
+        <span className="text-zinc-500 dark:text-zinc-400 font-medium">Scheduled for:</span>
+        <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-[190px]">
           {formattedDisplay}
         </span>
       </div>
@@ -398,18 +398,18 @@ export default function DateTimePicker({
         aria-expanded={open}
         aria-controls={instanceId}
         onClick={() => setOpen((v) => !v)}
-        className="form-input w-full text-left flex items-center justify-between gap-2 pr-3 cursor-pointer hover:border-indigo-500/40 transition-colors"
+        className="form-input w-full text-left flex items-center justify-between gap-2 pr-3 cursor-pointer"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          <svg className="w-3.5 h-3.5 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+          <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">
             {formattedDisplay}
           </span>
         </div>
         <svg
-          className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 text-zinc-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -420,7 +420,7 @@ export default function DateTimePicker({
 
       {/* Popover Dropdown */}
       {open && (
-        <div id={instanceId} className="absolute z-50 mt-2 left-0 right-0 min-w-[300px]">
+        <div id={instanceId} className="absolute z-50 mt-1.5 left-0 right-0 min-w-[300px]">
           {pickerPanel}
         </div>
       )}

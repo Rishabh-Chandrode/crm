@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { CrmUser, Document, VariablePreset, VariableSource } from '@/lib/types';
-import Link from 'next/link';
 import { PROSPECT_FIELDS, COMPANY_FIELDS, SENDER_FIELDS, toVariableLabel } from '@/lib/types';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -83,19 +82,19 @@ function formatBytes(bytes: number | null): string {
 
 function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="mb-6 pb-5 border-b border-slate-100 dark:border-slate-800">
-      <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">{title}</h2>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{description}</p>
+    <div className="mb-5 pb-4 border-b border-zinc-100 dark:border-zinc-800">
+      <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{title}</h2>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</p>
     </div>
   );
 }
 
 function Alert({ type, message }: { type: 'error' | 'success'; message: string }) {
   const styles = type === 'error'
-    ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300'
-    : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300';
+    ? 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-300'
+    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300';
   return (
-    <div className={`border rounded-xl px-4 py-3 text-sm mb-4 ${styles}`}>{message}</div>
+    <div className={`border rounded-xl px-3.5 py-2.5 text-xs mb-4 ${styles}`}>{message}</div>
   );
 }
 
@@ -108,9 +107,9 @@ function AppearanceSection() {
     {
       id: 'light',
       title: 'Light Theme',
-      desc: 'Crisp, high-contrast light layout with neutral slate accents',
+      desc: 'Crisp, high-contrast light layout with neutral zinc accents',
       icon: (
-        <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-zinc-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
       ),
@@ -118,9 +117,9 @@ function AppearanceSection() {
     {
       id: 'dark',
       title: 'Dark Theme',
-      desc: 'Deep slate-950 dark background, easier on eyes in dark environments',
+      desc: 'Deep zinc-950 dark background, minimal and easy on the eyes',
       icon: (
-        <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
         </svg>
       ),
@@ -130,7 +129,7 @@ function AppearanceSection() {
       title: 'System (Auto)',
       desc: 'Synchronizes automatically with your operating system preference',
       icon: (
-        <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
       ),
@@ -144,7 +143,7 @@ function AppearanceSection() {
         description="Select your preferred theme or let CRM follow your device settings."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
         {themes.map((t) => {
           const isSelected = theme === t.id;
           return (
@@ -152,42 +151,42 @@ function AppearanceSection() {
               key={t.id}
               type="button"
               onClick={() => setTheme(t.id)}
-              className={`text-left p-4 rounded-2xl border-2 transition-all relative flex flex-col justify-between ${
+              className={`text-left p-4 rounded-xl border transition-all relative flex flex-col justify-between cursor-pointer ${
                 isSelected
-                  ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 shadow-sm'
-                  : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/60'
+                  ? 'border-zinc-900 dark:border-zinc-100 bg-zinc-50 dark:bg-zinc-850 shadow-xs ring-1 ring-zinc-900 dark:ring-zinc-100'
+                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900'
               }`}
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                  <div className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800">
                     {t.icon}
                   </div>
                   {isSelected && (
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">
+                    <span className="w-4 h-4 rounded-full bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 flex items-center justify-center text-[10px] font-bold">
                       ✓
                     </span>
                   )}
                 </div>
-                <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 mb-1">{t.title}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{t.desc}</p>
+                <h3 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 mb-0.5">{t.title}</h3>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{t.desc}</p>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+              <div className="mt-4 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-[10px] text-zinc-400">
                 <span>{t.id === 'system' ? `Current: ${resolvedTheme}` : t.id}</span>
-                <span className="font-medium text-indigo-600 dark:text-indigo-400">{isSelected ? 'Active' : 'Select'}</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">{isSelected ? 'Active' : 'Select'}</span>
               </div>
             </button>
           );
         })}
       </div>
 
-      <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            Current active theme: <strong className="text-slate-900 dark:text-white capitalize">{theme}</strong> (resolved as <strong className="text-indigo-600 dark:text-indigo-400 capitalize">{resolvedTheme}</strong> mode).
-          </p>
+      <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40">
+        <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+          <div className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span>
+            Active theme: <strong className="text-zinc-900 dark:text-zinc-100 capitalize">{theme}</strong> (resolved as <strong className="text-zinc-900 dark:text-zinc-100 capitalize">{resolvedTheme}</strong> mode).
+          </span>
         </div>
       </div>
     </div>
@@ -307,17 +306,17 @@ function GmailSection() {
 
       <div className="flex items-center gap-2 mb-4">
         {user?.has_gmail_configured
-          ? <span className="text-xs bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 rounded-full font-medium">Active · OAuth</span>
+          ? <span className="text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded font-medium">Active · OAuth</span>
           : user?.has_gmail_app_password
-          ? <span className="text-xs bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 rounded-full font-medium">Active · App Password</span>
-          : <span className="text-xs bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full font-medium">Not connected</span>
+          ? <span className="text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded font-medium">Active · App Password</span>
+          : <span className="text-[11px] bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 px-2 py-0.5 rounded font-medium">Not connected</span>
         }
         {user && (
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
             {user.has_gmail_app_password && !user.has_gmail_configured
-              ? <>Sending as <strong>{user.gmail_user}</strong> via App Password</>
+              ? <>Sending as <strong className="text-zinc-800 dark:text-zinc-200">{user.gmail_user}</strong> via App Password</>
               : user.has_gmail_configured
-              ? <>Sending as <strong>{user.gmail_user}</strong> via OAuth</>
+              ? <>Sending as <strong className="text-zinc-800 dark:text-zinc-200">{user.gmail_user}</strong> via OAuth</>
               : 'Connect Gmail to enable email sending.'}
           </span>
         )}
@@ -327,23 +326,23 @@ function GmailSection() {
       {gmailSuccess && <Alert type="success" message={gmailSuccess} />}
 
       {/* Option 1 — App Password */}
-      <div className="border-2 border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-2xl p-5 mb-4">
-        <div className="flex items-start justify-between gap-4 mb-3">
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/40 rounded-xl p-4 mb-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Option 1 — Gmail App Password</p>
-              <span className="text-[11px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-medium shadow-xs">Recommended</span>
+              <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Option 1 — Gmail App Password</p>
+              <span className="text-[10px] bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 px-1.5 py-0.5 rounded font-medium">Recommended</span>
               {user?.has_gmail_app_password && !user?.has_gmail_configured && (
-                <span className="text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-medium">Active</span>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-1.5 py-0.5 rounded font-medium">Active</span>
               )}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">No app verification needed. Works immediately with any Google account that has 2-Step Verification enabled.</p>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">No app verification needed. Works immediately with any Google account that has 2-Step Verification enabled.</p>
           </div>
           {user?.has_gmail_app_password && (
             <button
               onClick={() => void handleAppPwRemove()}
               disabled={removingAppPw}
-              className="flex-shrink-0 text-xs text-red-600 dark:text-red-400 hover:text-red-700 border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/30 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50"
+              className="btn-destructive text-xs py-1 px-2.5"
             >
               {removingAppPw ? 'Removing…' : 'Remove'}
             </button>
@@ -352,7 +351,7 @@ function GmailSection() {
 
         <button
           onClick={() => setShowAppPwGuide((v) => !v)}
-          className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium mb-3 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:underline font-medium mb-3 transition-colors"
         >
           <svg className={`w-3.5 h-3.5 transition-transform ${showAppPwGuide ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -361,8 +360,8 @@ function GmailSection() {
         </button>
 
         {showAppPwGuide && (
-          <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-4 mb-4 space-y-3">
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Setup guide — takes ~2 minutes</p>
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 mb-3 space-y-2.5 text-xs">
+            <p className="font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wide text-[10px]">Setup guide — takes ~2 minutes</p>
             {[
               {
                 n: 1,
@@ -389,16 +388,16 @@ function GmailSection() {
                 body: 'Copy the 16-character password (spaces are optional) and paste it into the App Password field below along with your Gmail address. Click Save.',
               },
             ].map((step) => (
-              <div key={step.n} className="flex gap-3">
-                <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div key={step.n} className="flex gap-2.5">
+                <div className="w-4 h-4 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                   {step.n}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-0.5">{step.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{step.body}</p>
+                  <p className="font-semibold text-zinc-800 dark:text-zinc-200 text-xs mb-0.5">{step.title}</p>
+                  <p className="text-zinc-500 dark:text-zinc-400 text-[11px]">{step.body}</p>
                   {'link' in step && step.link && (
                     <a href={step.link} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-0.5 inline-block">
+                      className="text-xs text-zinc-800 dark:text-zinc-200 hover:underline mt-0.5 inline-block font-medium">
                       {step.linkLabel}
                     </a>
                   )}
@@ -411,9 +410,9 @@ function GmailSection() {
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Gmail address</label>
+              <label className="form-label text-xs">Gmail address</label>
               <input
-                className="form-input"
+                className="form-input text-xs"
                 type="email"
                 placeholder="you@gmail.com"
                 value={appPwForm.gmail_user}
@@ -421,9 +420,9 @@ function GmailSection() {
               />
             </div>
             <div>
-              <label className="form-label">App Password</label>
+              <label className="form-label text-xs">App Password</label>
               <input
-                className="form-input font-mono tracking-widest"
+                className="form-input text-xs font-mono tracking-widest"
                 type="password"
                 placeholder="xxxx xxxx xxxx xxxx"
                 value={appPwForm.app_password}
@@ -435,7 +434,7 @@ function GmailSection() {
           <button
             onClick={() => void handleAppPwSave()}
             disabled={appPwSaving || !appPwForm.gmail_user.trim() || !appPwForm.app_password.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-xs"
+            className="btn-primary"
           >
             {appPwSaving ? 'Saving…' : user?.has_gmail_app_password ? 'Update App Password' : 'Save App Password'}
           </button>
@@ -443,23 +442,23 @@ function GmailSection() {
       </div>
 
       {/* Option 2 — OAuth */}
-      <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 rounded-2xl p-5 mb-4">
-        <div className="flex items-start justify-between gap-4">
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-4 mb-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Option 2 — Google OAuth</p>
+              <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Option 2 — Google OAuth</p>
               {user?.has_gmail_configured && (
-                <span className="text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-medium">Active</span>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-1.5 py-0.5 rounded font-medium">Active</span>
               )}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Connects directly via your Google account consent screen.</p>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Connects directly via your Google account consent screen.</p>
           </div>
           <div className="flex-shrink-0 ml-2">
             {user?.has_gmail_configured ? (
               <button
                 onClick={() => void handleGmailDisconnect()}
                 disabled={disconnecting}
-                className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/30 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50"
+                className="btn-destructive text-xs py-1 px-2.5"
               >
                 {disconnecting ? 'Removing…' : 'Disconnect'}
               </button>
@@ -467,7 +466,7 @@ function GmailSection() {
               <button
                 onClick={() => void handleGmailConnect()}
                 disabled={connecting}
-                className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3.5 py-2 rounded-xl transition-colors disabled:opacity-50 shadow-xs"
+                className="btn-secondary text-xs"
               >
                 {connecting ? 'Redirecting…' : 'Connect via Google'}
               </button>
@@ -478,35 +477,35 @@ function GmailSection() {
 
       {/* Sending preferences */}
       {(user?.has_gmail_configured || user?.has_gmail_app_password) && (
-        <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Sending preferences</p>
+        <div className="space-y-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+          <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">Sending preferences</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Display name</label>
+              <label className="form-label text-xs">Display name</label>
               <input
-                className="form-input"
+                className="form-input text-xs"
                 placeholder={user?.username ?? 'Your Name'}
                 value={gmailForm.from_name}
                 onChange={(e) => setGmailForm((prev) => ({ ...prev, from_name: e.target.value }))}
               />
-              <p className="text-xs text-slate-400 mt-1">Shown as sender name in outreach emails</p>
+              <p className="text-[11px] text-zinc-400 mt-1">Shown as sender name in outreach emails</p>
             </div>
             <div>
-              <label className="form-label">Reply-to address</label>
+              <label className="form-label text-xs">Reply-to address</label>
               <input
-                className="form-input"
+                className="form-input text-xs"
                 type="email"
                 placeholder="you@example.com"
                 value={gmailForm.reply_to_email}
                 onChange={(e) => setGmailForm((prev) => ({ ...prev, reply_to_email: e.target.value }))}
               />
-              <p className="text-xs text-slate-400 mt-1">Optional — defaults to your connected email</p>
+              <p className="text-[11px] text-zinc-400 mt-1">Optional — defaults to your connected email</p>
             </div>
           </div>
           <button
             onClick={() => void handleGmailSettingsSave()}
             disabled={gmailSaving}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-xs"
+            className="btn-primary"
           >
             {gmailSaving ? 'Saving…' : 'Save preferences'}
           </button>
@@ -596,38 +595,38 @@ function DocumentsSection() {
       {success && <Alert type="success" message={success} />}
 
       {/* Upload card */}
-      <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 mb-4">
-        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Upload a file</p>
+      <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 space-y-3 mb-4">
+        <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Upload a file</p>
         <div>
-          <label className="form-label">Label *</label>
+          <label className="form-label text-xs">Label *</label>
           <input
-            className="form-input"
+            className="form-input text-xs"
             placeholder="e.g. Backend Resume, Cover Letter – Stripe"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
         </div>
         <div>
-          <label className="form-label">
-            File * <span className="text-slate-400 font-normal">(PDF, DOC, DOCX · max 10 MB)</span>
+          <label className="form-label text-xs">
+            File * <span className="text-zinc-400 font-normal">(PDF, DOC, DOCX · max 10 MB)</span>
           </label>
           {pendingFile ? (
-            <div className="flex items-center gap-3 px-4 py-2.5 border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl text-sm">
-              <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center gap-2.5 px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-xs">
+              <svg className="w-4 h-4 text-zinc-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span className="flex-1 truncate text-slate-800 dark:text-slate-200 font-medium">{pendingFile.name}</span>
+              <span className="flex-1 truncate text-zinc-800 dark:text-zinc-200 font-medium">{pendingFile.name}</span>
               <button
                 onClick={() => { setPendingFile(null); if (fileRef.current) fileRef.current.value = ''; }}
-                className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                className="text-zinc-400 hover:text-rose-500 transition-colors p-1"
               >✕</button>
             </div>
           ) : (
             <button
               onClick={() => fileRef.current?.click()}
-              className="flex items-center justify-center gap-2 w-full border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 rounded-xl px-4 py-3.5 text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors bg-white/50 dark:bg-slate-900/30"
+              className="flex items-center justify-center gap-2 w-full border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 rounded-lg px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors bg-white/50 dark:bg-zinc-900/30"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
               Choose file to upload
@@ -637,62 +636,62 @@ function DocumentsSection() {
         <button
           onClick={() => void handleUpload()}
           disabled={uploading || !pendingFile || !name.trim()}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-xs"
+          className="btn-primary"
         >
           {uploading ? 'Uploading…' : 'Upload document'}
         </button>
       </div>
 
       {/* Drive link */}
-      <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 mb-5">
+      <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 mb-4">
         <button
           onClick={() => { setShowDrive((v) => !v); setDriveError(''); }}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors w-full text-left"
+          className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors w-full text-left cursor-pointer"
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
           </svg>
           Link from Google Drive / Docs
-          <svg className={`w-3.5 h-3.5 text-slate-400 ml-auto transition-transform ${showDrive ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-3.5 h-3.5 text-zinc-400 ml-auto transition-transform ${showDrive ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
 
         {showDrive && (
-          <div className="mt-4 space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-3 space-y-2.5 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
               Paste a public Google Drive or Google Docs link. The document will be cached locally and synced periodically.
             </p>
             <div>
-              <label className="form-label">Label *</label>
+              <label className="form-label text-xs">Label *</label>
               <input
-                className="form-input"
+                className="form-input text-xs"
                 placeholder="e.g. My Resume"
                 value={driveName}
                 onChange={(e) => setDriveName(e.target.value)}
               />
             </div>
             <div>
-              <label className="form-label">Google Drive URL *</label>
+              <label className="form-label text-xs">Google Drive URL *</label>
               <input
-                className="form-input"
+                className="form-input text-xs"
                 placeholder="https://drive.google.com/file/d/… or docs.google.com/document/d/…"
                 value={driveUrl}
                 onChange={(e) => setDriveUrl(e.target.value)}
               />
             </div>
-            {driveError && <p className="text-xs text-red-600 dark:text-red-400">{driveError}</p>}
+            {driveError && <p className="text-xs text-rose-600 dark:text-rose-400">{driveError}</p>}
             <div className="flex gap-2">
               <button
                 onClick={() => void handleAddFromDrive()}
                 disabled={driveLoading || !driveName.trim() || !driveUrl.trim()}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-xs"
+                className="btn-primary"
               >
                 {driveLoading ? 'Fetching…' : 'Fetch & save'}
               </button>
               <button
                 onClick={() => { setShowDrive(false); setDriveError(''); setDriveName(''); setDriveUrl(''); }}
-                className="text-slate-600 dark:text-slate-400 text-sm font-medium px-4 py-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                className="btn-ghost"
               >
                 Cancel
               </button>
@@ -704,21 +703,21 @@ function DocumentsSection() {
       <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleFileChange} />
 
       {documents.length === 0 ? (
-        <p className="text-slate-400 text-sm text-center py-6">No documents added yet.</p>
+        <p className="text-zinc-400 text-xs text-center py-6">No documents added yet.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {documents.map((doc) => (
-            <div key={doc.id} className="flex items-center gap-3 px-4 py-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-              <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-950/80 rounded-xl flex items-center justify-center flex-shrink-0 text-indigo-600 dark:text-indigo-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 transition-colors">
+              <div className="w-7 h-7 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0 text-zinc-600 dark:text-zinc-300">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{doc.name}</p>
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{doc.name}</p>
                   {doc.drive_url && (
-                    <span className="flex items-center gap-1 text-[11px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-full flex-shrink-0">
+                    <span className="flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded flex-shrink-0 font-medium">
                       <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
                       </svg>
@@ -726,10 +725,10 @@ function DocumentsSection() {
                     </span>
                   )}
                   {doc.drive_sync_error && (
-                    <span className="text-xs text-red-500" title={doc.drive_sync_error}>sync error</span>
+                    <span className="text-[10px] text-rose-500" title={doc.drive_sync_error}>sync error</span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 truncate mt-0.5">
+                <p className="text-[11px] text-zinc-400 truncate mt-0.5">
                   {doc.filename}
                   {doc.size ? ` · ${formatBytes(doc.size)}` : ''}
                   {doc.drive_url && doc.drive_synced_at
@@ -739,7 +738,7 @@ function DocumentsSection() {
               </div>
               <button
                 onClick={() => void handleDelete(doc.id, doc.name)}
-                className="text-xs font-medium text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex-shrink-0"
+                className="text-[11px] font-medium text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded transition-colors flex-shrink-0"
               >
                 Remove
               </button>
@@ -817,16 +816,16 @@ function VariablesSection() {
 
       {error && <Alert type="error" message={error} />}
 
-      <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 mb-5">
-        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+      <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 space-y-3 mb-4">
+        <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
           {editing ? `Editing: ${editing.key}` : 'Add a variable preset'}
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="form-label">Variable name *</label>
+            <label className="form-label text-xs">Variable name *</label>
             <input
-              className="form-input font-mono"
+              className="form-input text-xs font-mono"
               placeholder="e.g. firstName"
               value={form.key}
               disabled={!!editing}
@@ -835,12 +834,12 @@ function VariablesSection() {
                 setForm((prev) => ({ ...prev, key: k, label: prev.label || toVariableLabel(k) }));
               }}
             />
-            <p className="text-xs text-slate-400 mt-1">Used as <span className="font-mono text-indigo-600 dark:text-indigo-400">{`{{${form.key || 'name'}}}`}</span> in templates</p>
+            <p className="text-[11px] text-zinc-400 mt-1">Used as <span className="font-mono text-zinc-800 dark:text-zinc-200">{`{{${form.key || 'name'}}}`}</span> in templates</p>
           </div>
           <div>
-            <label className="form-label">Display label *</label>
+            <label className="form-label text-xs">Display label *</label>
             <input
-              className="form-input"
+              className="form-input text-xs"
               placeholder="e.g. First Name"
               value={form.label}
               onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
@@ -850,9 +849,9 @@ function VariablesSection() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="form-label">Source *</label>
+            <label className="form-label text-xs">Source *</label>
             <select
-              className="form-select"
+              className="form-select text-xs"
               value={form.source}
               onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value as VariableSource, field: '' }))}
             >
@@ -860,16 +859,16 @@ function VariablesSection() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-[11px] text-zinc-400 mt-1">
               {SOURCE_OPTIONS.find((o) => o.value === form.source)?.description}
             </p>
           </div>
 
           {fieldOptions.length > 0 ? (
             <div>
-              <label className="form-label">Database field</label>
+              <label className="form-label text-xs">Database field</label>
               <select
-                className="form-select"
+                className="form-select text-xs"
                 value={form.field}
                 onChange={(e) => setForm((prev) => ({ ...prev, field: e.target.value }))}
               >
@@ -881,9 +880,9 @@ function VariablesSection() {
             </div>
           ) : (
             <div>
-              <label className="form-label">Default value</label>
+              <label className="form-label text-xs">Default value</label>
               <input
-                className="form-input"
+                className="form-input text-xs"
                 placeholder="Fallback when empty"
                 value={form.default_value}
                 onChange={(e) => setForm((prev) => ({ ...prev, default_value: e.target.value }))}
@@ -896,14 +895,14 @@ function VariablesSection() {
           <button
             onClick={() => void save()}
             disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-xs"
+            className="btn-primary"
           >
             {saving ? 'Saving…' : editing ? 'Update preset' : 'Add preset'}
           </button>
           {editing && (
             <button
               onClick={cancelEdit}
-              className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="btn-ghost"
             >
               Cancel
             </button>
@@ -912,7 +911,7 @@ function VariablesSection() {
       </div>
 
       {presets.length === 0 ? (
-        <p className="text-slate-400 text-sm text-center py-6">No presets yet. Add one above.</p>
+        <p className="text-zinc-400 text-xs text-center py-6">No presets yet. Add one above.</p>
       ) : (
         <>
           {(['prospect', 'company', 'sender', 'static', 'custom'] as VariableSource[]).map((src) => {
@@ -920,32 +919,32 @@ function VariablesSection() {
             if (group.length === 0) return null;
             const srcLabel = SOURCE_OPTIONS.find((o) => o.value === src)?.label ?? src;
             return (
-              <div key={src} className="mb-5">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{srcLabel}</p>
-                <div className="space-y-1.5">
+              <div key={src} className="mb-4">
+                <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">{srcLabel}</p>
+                <div className="space-y-1">
                   {group.map((preset) => (
-                    <div key={preset.id} className="flex items-center gap-3 px-4 py-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                    <div key={preset.id} className="flex items-center gap-3 px-3.5 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 transition-colors">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <code className="text-xs bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md font-mono border border-indigo-200/50 dark:border-indigo-900/50">{`{{${preset.key}}}`}</code>
-                          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{preset.label}</span>
+                          <code className="text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-1.5 py-0.5 rounded font-mono border border-zinc-200 dark:border-zinc-700">{`{{${preset.key}}}`}</code>
+                          <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{preset.label}</span>
                         </div>
                         {preset.field && (
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-[11px] text-zinc-400 mt-0.5">
                             → <span className="font-mono">{preset.field}</span>
                             {preset.default_value ? ` · default: "${preset.default_value}"` : ''}
                           </p>
                         )}
                         {!preset.field && preset.default_value && (
-                          <p className="text-xs text-slate-400 mt-1">default: "{preset.default_value}"</p>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">default: "{preset.default_value}"</p>
                         )}
                       </div>
                       <button onClick={() => openEdit(preset)}
-                        className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0">
+                        className="text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:underline px-2 py-1 transition-colors flex-shrink-0">
                         Edit
                       </button>
                       <button onClick={() => void remove(preset.id, preset.key)}
-                        className="text-xs font-medium text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex-shrink-0">
+                        className="text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 transition-colors flex-shrink-0">
                         Remove
                       </button>
                     </div>
@@ -981,32 +980,32 @@ function SettingsContent() {
   const current = NAV.find((n) => n.id === active)!;
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Settings</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Configure your CRM and display preferences</p>
+    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-5">
+      <div className="pb-1 border-b border-zinc-200/80 dark:border-zinc-800/80">
+        <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Settings</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-0.5">Configure your CRM and display preferences</p>
       </div>
 
-      <div className="flex flex-col gap-4 md:flex-row md:gap-6">
-        {/* Sidebar nav */}
-        <nav className="flex-shrink-0 md:w-56">
-          <ul className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-x-visible md:pb-0 md:space-y-1">
+      <div className="flex flex-col gap-4 md:flex-row md:gap-5">
+        {/* Sidebar nav (macOS Preferences style) */}
+        <nav className="flex-shrink-0 md:w-52">
+          <ul className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-x-visible md:pb-0 md:space-y-0.5">
             {NAV.map((item) => (
               <li key={item.id} className="flex-shrink-0 md:flex-shrink">
                 <button
                   onClick={() => switchTab(item.id)}
-                  className={`w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-left transition-all md:items-start md:gap-3 ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all md:items-start md:gap-2.5 cursor-pointer ${
                     active === item.id
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-100'
+                      ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-850 hover:text-zinc-900 dark:hover:text-zinc-100'
                   }`}
                 >
-                  <span className={`flex-shrink-0 mt-0.5 ${active === item.id ? 'text-white' : 'text-slate-400'}`}>
+                  <span className={`flex-shrink-0 mt-0.5 ${active === item.id ? 'text-white dark:text-zinc-900' : 'text-zinc-400'}`}>
                     {item.icon}
                   </span>
                   <span>
-                    <span className="block text-sm font-semibold whitespace-nowrap md:whitespace-normal">{item.label}</span>
-                    <span className={`hidden md:block text-xs mt-0.5 ${active === item.id ? 'text-indigo-100' : 'text-slate-400'}`}>{item.description}</span>
+                    <span className="block text-xs font-medium whitespace-nowrap md:whitespace-normal">{item.label}</span>
+                    <span className={`hidden md:block text-[10px] mt-0.5 ${active === item.id ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-400'}`}>{item.description}</span>
                   </span>
                 </button>
               </li>
@@ -1015,7 +1014,7 @@ function SettingsContent() {
         </nav>
 
         {/* Content panel */}
-        <div className="flex-1 bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-6 min-w-0 shadow-xs transition-colors">
+        <div className="flex-1 card p-5 min-w-0">
           <p className="sr-only">{current.label}</p>
           {active === 'appearance' && <AppearanceSection />}
           {active === 'documents'  && <DocumentsSection />}
@@ -1029,8 +1028,9 @@ function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading settings…</div>}>
+    <Suspense fallback={<div className="p-8 text-xs text-zinc-400">Loading settings…</div>}>
       <SettingsContent />
     </Suspense>
   );
 }
+

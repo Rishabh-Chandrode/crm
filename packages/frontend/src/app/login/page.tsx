@@ -74,33 +74,33 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl p-8 space-y-4">
+    <form onSubmit={handleSubmit} className="card p-6 sm:p-8 space-y-4 shadow-sm">
       <button
         type="button"
         onClick={() => void handleGoogleLogin()}
         disabled={googleLoading || loading}
-        className="w-full flex items-center justify-center gap-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 disabled:opacity-60 text-slate-200 text-xs font-semibold py-2.5 px-4 rounded-xl transition-all shadow-xs"
+        className="btn-secondary w-full py-2.5 flex items-center justify-center gap-2.5 text-xs font-semibold"
       >
         <GoogleIcon />
         <span>{googleLoading ? 'Redirecting…' : 'Continue with Google'}</span>
       </button>
 
-      <div className="relative my-4">
+      <div className="relative my-3">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-slate-800" />
+          <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
         </div>
-        <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
-          <span className="bg-slate-900 px-3">or credentials</span>
+        <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider text-zinc-400 dark:text-zinc-500">
+          <span className="bg-white dark:bg-zinc-900 px-3">or credentials</span>
         </div>
       </div>
 
       <div>
-        <label className="form-label text-xs text-slate-300">Username</label>
+        <label className="form-label text-xs">Username</label>
         <input
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="form-input text-xs bg-slate-950/60 border-slate-800 text-slate-100 placeholder-slate-500"
+          className="form-input text-xs"
           placeholder="Enter your username"
           autoComplete="username"
           required
@@ -108,12 +108,12 @@ function LoginForm() {
       </div>
 
       <div>
-        <label className="form-label text-xs text-slate-300">Password</label>
+        <label className="form-label text-xs">Password</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="form-input text-xs bg-slate-950/60 border-slate-800 text-slate-100 placeholder-slate-500"
+          className="form-input text-xs"
           placeholder="Enter your password"
           autoComplete="current-password"
           required
@@ -121,20 +121,20 @@ function LoginForm() {
       </div>
 
       {error && (
-        <p className="text-red-400 text-xs bg-red-950/50 border border-red-900/60 p-2.5 rounded-xl">{error}</p>
+        <p className="text-rose-600 dark:text-rose-400 text-xs bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-lg">{error}</p>
       )}
 
       <button
         type="submit"
         disabled={loading || googleLoading}
-        className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold py-2.5 px-4 rounded-xl transition-all shadow-xs shadow-indigo-500/25 mt-2"
+        className="btn-primary w-full py-2.5 text-xs font-semibold justify-center mt-1"
       >
         {loading ? 'Signing in…' : 'Sign In'}
       </button>
 
-      <p className="text-center text-xs text-slate-400 pt-2">
+      <p className="text-center text-xs text-zinc-500 dark:text-zinc-400 pt-1">
         Don&apos;t have an account?{' '}
-        <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 font-semibold">
+        <Link href="/signup" className="text-zinc-900 dark:text-zinc-100 hover:underline font-semibold">
           Create account
         </Link>
       </p>
@@ -144,25 +144,21 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
-      {/* Ambient background glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="w-full max-w-sm relative z-10">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 rounded-2xl mb-4 shadow-xl shadow-indigo-500/25">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-10 h-10 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-xl mb-3 shadow-xs font-bold text-sm tracking-tighter">
+            CR
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Welcome to CRM</h1>
-          <p className="text-slate-400 text-xs mt-1">Recruiter & Outreach Automation Suite</p>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Welcome back</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-0.5">Recruiter & Outreach Automation Suite</p>
         </div>
 
-        <Suspense fallback={<div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center text-slate-400 text-xs">Loading…</div>}>
+        <Suspense fallback={<div className="card p-8 text-center text-zinc-400 text-xs">Loading…</div>}>
           <LoginForm />
         </Suspense>
       </div>
     </div>
   );
 }
+

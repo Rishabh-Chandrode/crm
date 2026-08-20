@@ -40,29 +40,29 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-      <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h2>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{description}</p>
+    <div className="mb-5 pb-4 border-b border-zinc-100 dark:border-zinc-800">
+      <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{title}</h2>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</p>
     </div>
   );
 }
 
 function Alert({ type, message }: { type: 'error' | 'success'; message: string }) {
   const s = type === 'error'
-    ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300'
-    : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300';
-  return <div className={`border rounded-xl px-4 py-3 text-xs font-medium mb-4 ${s}`}>{message}</div>;
+    ? 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-300'
+    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300';
+  return <div className={`border rounded-xl px-3.5 py-2.5 text-xs font-medium mb-4 ${s}`}>{message}</div>;
 }
 
 function SaveRow({ saving, onSave, error, success }: { saving: boolean; onSave: () => void; error?: string; success?: string }) {
   return (
-    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+    <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
       {error   && <Alert type="error"   message={error} />}
       {success && <Alert type="success" message={success} />}
       <button
         onClick={onSave}
         disabled={saving}
-        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
+        className="btn-primary"
       >
         {saving ? 'Saving…' : 'Save Changes'}
       </button>
@@ -71,7 +71,7 @@ function SaveRow({ saving, onSave, error, success }: { saving: boolean; onSave: 
 }
 
 function FieldGroup({ label }: { label: string }) {
-  return <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pt-2">{label}</p>;
+  return <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider pt-2">{label}</p>;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -169,7 +169,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
     <div>
       <SectionHeader title="Personal Info" description="Your identity and contact details — used by the extension to fill job application forms." />
 
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         <FieldGroup label="Name" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {inp('first_name', 'First name', 'Jane')}
@@ -212,7 +212,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
             <label className="form-label text-xs">Phone</label>
             <div className="flex gap-2">
               <input
-                className="form-input text-xs w-20 shrink-0"
+                className="form-input text-xs w-16 shrink-0"
                 type="text"
                 placeholder="+1"
                 value={form.phone_country_code}
@@ -236,7 +236,7 @@ function PersonalTab({ user }: { user: CrmUser }) {
 
         <FieldGroup label="Location" />
         {inp('location', 'Current location (combined)', 'San Francisco, CA, USA')}
-        <p className="text-[11px] text-slate-400 -mt-2">
+        <p className="text-[11px] text-zinc-400 -mt-1.5">
           Single-line location string — used by Lever and similar ATS platforms
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -325,7 +325,7 @@ function ExpForm({
         <div>
           <label className="form-label text-xs">End date</label>
           {isPresent ? (
-            <div className="form-input text-xs flex items-center gap-2 text-slate-500 bg-slate-50 dark:bg-slate-950">
+            <div className="form-input text-xs flex items-center gap-2 text-zinc-500 bg-zinc-50 dark:bg-zinc-950">
               Currently working here
             </div>
           ) : (
@@ -341,9 +341,9 @@ function ExpForm({
               type="checkbox"
               checked={isPresent}
               onChange={e => setDraft(p => ({ ...p, end_date: e.target.checked ? 'Present' : '' }))}
-              className="rounded border-slate-300 dark:border-slate-700 text-indigo-600"
+              className="rounded border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
             />
-            <span className="text-[11px] text-slate-500">Currently working here</span>
+            <span className="text-[11px] text-zinc-500">Currently working here</span>
           </label>
         </div>
         <div>
@@ -363,11 +363,11 @@ function ExpForm({
         <button
           onClick={onSubmit}
           disabled={saving || (!draft.company.trim() && !draft.title.trim())}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
+          className="btn-primary"
         >
           {saving ? 'Saving…' : submitLabel}
         </button>
-        <button onClick={onCancel} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-semibold px-4 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+        <button onClick={onCancel} className="btn-ghost">
           Cancel
         </button>
       </div>
@@ -472,35 +472,35 @@ function WorkTab({ user }: { user: CrmUser }) {
       <SectionHeader title="Work Experience" description="Your employment history and job search details — used to autofill job application forms." />
 
       {/* Experience list */}
-      <div className="space-y-3 mb-4">
+      <div className="space-y-2.5 mb-4">
         {experiences.map(exp => (
-          <div key={exp.id} className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/40">
+          <div key={exp.id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-zinc-50/50 dark:bg-zinc-950/40">
             {editId === exp.id ? (
-              <div className="p-4 bg-white dark:bg-slate-900">
+              <div className="p-3.5 bg-white dark:bg-zinc-900">
                 <ExpForm draft={draft} setDraft={setDraft} saving={savingExp} onSubmit={commitEdit} submitLabel="Save" onCancel={cancelEdit} />
               </div>
             ) : (
-              <div className="p-4 flex items-start justify-between gap-3">
+              <div className="p-3.5 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{exp.title}{exp.company && ` · ${exp.company}`}</p>
+                  <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{exp.title}{exp.company && ` · ${exp.company}`}</p>
                   {(exp.start_date || exp.end_date) && (
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5 font-medium">
+                    <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-0.5 font-medium">
                       {formatMonthYear(exp.start_date)}{exp.end_date ? ` — ${formatMonthYear(exp.end_date)}` : ''}
                       {exp.location ? ` · ${exp.location}` : ''}
                     </p>
                   )}
                   {exp.description && (
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed whitespace-pre-wrap">{exp.description}</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed whitespace-pre-wrap">{exp.description}</p>
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => startEdit(exp)} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button onClick={() => startEdit(exp)} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button onClick={() => void persistExp(experiences.filter(x => x.id !== exp.id))} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button onClick={() => void persistExp(experiences.filter(x => x.id !== exp.id))} className="p-1 text-zinc-400 hover:text-rose-500 rounded transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -512,15 +512,15 @@ function WorkTab({ user }: { user: CrmUser }) {
       </div>
 
       {adding ? (
-        <div className="border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/40 rounded-2xl p-4 mb-6">
+        <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3.5 mb-5">
           <ExpForm draft={draft} setDraft={setDraft} saving={savingExp} onSubmit={commitAdd} submitLabel="Add experience" onCancel={cancelEdit} />
         </div>
       ) : (
         <button
           onClick={() => { setAdding(true); setEditId(null); setDraft(EMPTY_WORK); }}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 px-3.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors mb-6"
+          className="btn-secondary text-xs mb-5"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Add Experience
@@ -528,9 +528,9 @@ function WorkTab({ user }: { user: CrmUser }) {
       )}
 
       {/* Job search info */}
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-6 mt-2">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Job Search Preferences</h3>
-        <div className="space-y-4">
+      <div className="border-t border-zinc-100 dark:border-zinc-800 pt-5 mt-2">
+        <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">Job Search Preferences</h3>
+        <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {jobInp('current_company', 'Current company', 'Acme Inc.')}
             {jobInp('job_title',       'Current job title', 'Software Engineer')}
@@ -542,13 +542,13 @@ function WorkTab({ user }: { user: CrmUser }) {
             {jobInp('expected_ctc', 'Expected CTC / salary', '$175,000')}
           </div>
         </div>
-        <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <div className="mt-5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
           {error   && <Alert type="error"   message={error} />}
           {success && <Alert type="success" message={success} />}
           <button
             onClick={() => void saveJob()}
             disabled={savingJob}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
+            className="btn-primary"
           >
             {savingJob ? 'Saving…' : 'Save Preferences'}
           </button>
@@ -614,7 +614,7 @@ function EducationTab({ user }: { user: CrmUser }) {
     <div>
       <SectionHeader title="Education" description="Your academic background — used to fill education fields in job applications." />
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {inp('education',       'Degree / Qualification', 'B.S. in Computer Science')}
         {inp('college_name',    'College / University',   'University of California, Berkeley')}
         {inp('graduation_year', 'Graduation year',        '2022')}
@@ -669,12 +669,12 @@ function ResumeTab() {
     <div>
       <SectionHeader title="Resume Files" description="Upload your resume and cover letter files. These can be attached when sending outreach emails." />
 
-      <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-5 mb-5 bg-slate-50/50 dark:bg-slate-950/40 space-y-3">
-        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Upload New Resume or Document</p>
+      <div className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl p-4 mb-4 bg-zinc-50/50 dark:bg-zinc-950/40 space-y-2.5">
+        <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Upload New Resume or Document</p>
         <input
           ref={fileRef}
           type="file"
-          className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-950 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100 cursor-pointer"
+          className="block w-full text-xs text-zinc-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-zinc-200 dark:file:bg-zinc-800 file:text-zinc-700 dark:file:text-zinc-300 hover:file:bg-zinc-300 cursor-pointer"
           onChange={e => {
             const f = e.target.files?.[0];
             if (f) { setUploadFile(f); setUploadName(f.name.replace(/\.[^.]+$/, '')); }
@@ -694,7 +694,7 @@ function ResumeTab() {
               <button
                 onClick={() => void upload()}
                 disabled={uploading}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl shrink-0 transition-colors shadow-xs"
+                className="btn-primary"
               >
                 {uploading ? 'Uploading…' : 'Upload File'}
               </button>
@@ -710,22 +710,22 @@ function ResumeTab() {
       </div>
 
       {documents.length === 0 ? (
-        <p className="text-xs text-slate-400 py-8 text-center">No resume documents uploaded yet.</p>
+        <p className="text-xs text-zinc-400 py-8 text-center">No resume documents uploaded yet.</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-1.5">
           {documents.map(doc => (
-            <li key={doc.id} className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs">
+            <li key={doc.id} className="flex items-center justify-between px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{doc.name}</p>
-                <p className="text-[11px] text-slate-400 font-mono">
+                <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">{doc.name}</p>
+                <p className="text-[11px] text-zinc-400 font-mono">
                   {doc.filename}{formatBytes(doc.size) ? ` · ${formatBytes(doc.size)}` : ''}
                 </p>
               </div>
               <button
                 onClick={() => void del(doc.id)}
-                className="ml-3 shrink-0 p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                className="ml-3 shrink-0 p-1 text-zinc-400 hover:text-rose-500 rounded transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
@@ -818,11 +818,11 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
           <button
             onClick={onSubmit}
             disabled={saving || !draft.name.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors shadow-xs"
+            className="btn-primary"
           >
             {saving ? 'Saving…' : submitLabel}
           </button>
-          <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-semibold px-4 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={cancelEdit} className="btn-ghost">
             Cancel
           </button>
         </div>
@@ -835,26 +835,26 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
       <SectionHeader title="Projects" description="Highlight your notable work. Used to fill project-related fields in job applications." />
       {error   && <Alert type="error"   message={error} />}
       {success && <Alert type="success" message={success} />}
-      <div className="space-y-3 mb-4">
+      <div className="space-y-2.5 mb-4">
         {projects.map(p => (
-          <div key={p.id} className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/40">
+          <div key={p.id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-zinc-50/50 dark:bg-zinc-950/40">
             {editId === p.id ? (
-              <div className="p-4 bg-white dark:bg-slate-900">
+              <div className="p-3.5 bg-white dark:bg-zinc-900">
                 <ProjectForm onSubmit={commitEdit} submitLabel="Save project" />
               </div>
             ) : (
-              <div className="p-4 flex items-start justify-between gap-3">
+              <div className="p-3.5 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{p.name}</p>
-                  {p.role && <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5 font-medium">{p.role}</p>}
-                  {p.description && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">{p.description}</p>}
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{p.name}</p>
+                  {p.role && <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-0.5 font-medium">{p.role}</p>}
+                  {p.description && <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">{p.description}</p>}
+                  <div className="flex flex-wrap gap-1.5 mt-2">
                     {p.tech && (
-                      <span className="text-[11px] bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 rounded-md font-mono">{p.tech}</span>
+                      <span className="text-[10px] bg-zinc-200/80 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-2 py-0.5 rounded font-mono">{p.tech}</span>
                     )}
                     {p.url && (
                       <a href={p.url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold flex items-center gap-1">
+                        className="text-xs text-zinc-800 dark:text-zinc-200 hover:underline font-semibold flex items-center gap-1">
                         Link →
                       </a>
                     )}
@@ -863,17 +863,17 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
                 <div className="flex gap-1 shrink-0">
                   <button
                     onClick={() => startEdit(p)}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded transition-colors"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
                   <button
                     onClick={() => void persist(projects.filter(x => x.id !== p.id))}
-                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="p-1 text-zinc-400 hover:text-rose-500 rounded transition-colors"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -885,15 +885,15 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
       </div>
 
       {adding ? (
-        <div className="border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/40 rounded-2xl p-4">
+        <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3.5">
           <ProjectForm onSubmit={commitAdd} submitLabel="Add project" />
         </div>
       ) : (
         <button
           onClick={() => { setAdding(true); setEditId(null); setDraft(EMPTY_PROJECT); }}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 px-3.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+          className="btn-secondary text-xs"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Add Project
@@ -945,23 +945,23 @@ function SkillsTab({ initialSkills }: { initialSkills: string[] }) {
       {error   && <Alert type="error"   message={error} />}
       {success && <Alert type="success" message={success} />}
 
-      <div className="flex flex-wrap gap-2 mb-5 min-h-[44px] p-3.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200/90 dark:border-slate-800 rounded-2xl">
+      <div className="flex flex-wrap gap-1.5 mb-4 min-h-[40px] p-3 bg-zinc-50/50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 rounded-xl">
         {skills.map(skill => (
           <span
             key={skill}
-            className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full shadow-xs"
+            className="flex items-center gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-medium px-2.5 py-0.5 rounded-full"
           >
             {skill}
             <button
               onClick={() => removeSkill(skill)}
-              className="text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-200 transition-colors ml-0.5"
+              className="text-zinc-400 hover:text-rose-500 transition-colors ml-0.5 cursor-pointer"
             >
               ✕
             </button>
           </span>
         ))}
         {skills.length === 0 && (
-          <p className="text-xs text-slate-400 py-1">No skills added yet.</p>
+          <p className="text-xs text-zinc-400 py-1">No skills added yet.</p>
         )}
       </div>
 
@@ -977,13 +977,13 @@ function SkillsTab({ initialSkills }: { initialSkills: string[] }) {
         <button
           onClick={addSkill}
           disabled={saving || !input.trim()}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl shrink-0 transition-colors shadow-xs"
+          className="btn-primary"
         >
           Add Skill
         </button>
       </div>
 
-      <p className="text-[11px] text-slate-400 mt-2">
+      <p className="text-[11px] text-zinc-400 mt-2">
         Tip: You can paste a comma-separated list to add multiple skills at once.
       </p>
     </div>
@@ -1011,43 +1011,45 @@ function ProfileContent() {
   }, []);
 
   if (loading) {
-    return <div className="p-8 text-sm text-slate-400">Loading profile…</div>;
+    return <div className="p-8 text-xs text-zinc-400">Loading profile…</div>;
   }
   if (!user) {
-    return <div className="p-8 text-sm text-red-500">Could not load profile data.</div>;
+    return <div className="p-8 text-xs text-rose-500">Could not load profile data.</div>;
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-5">
       {/* Header */}
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Candidate Profile</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+      <div className="pb-1 border-b border-zinc-200/80 dark:border-zinc-800/80">
+        <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Candidate Profile</h1>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
           Your autofill details and resume files — used by the browser extension to fill job applications.
         </p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-5 items-start">
         {/* Left nav */}
-        <nav className="w-full md:w-52 shrink-0 flex flex-row md:flex-col overflow-x-auto gap-1.5 md:gap-1 pb-1 md:pb-0 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <nav className="w-full md:w-52 shrink-0 flex flex-row md:flex-col overflow-x-auto gap-1 md:gap-0.5 pb-1 md:pb-0 card p-1.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => goTab(t.id)}
-              className={`flex-none md:w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left whitespace-nowrap ${
+              className={`flex-none md:w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left whitespace-nowrap cursor-pointer ${
                 tab === t.id
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-850 hover:text-zinc-900 dark:hover:text-zinc-100'
               }`}
             >
-              {t.icon}
+              <span className={tab === t.id ? 'text-white dark:text-zinc-900' : 'text-zinc-400'}>
+                {t.icon}
+              </span>
               {t.label}
             </button>
           ))}
         </nav>
 
         {/* Content panel */}
-        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-xs min-w-0 w-full">
+        <div className="flex-1 card p-5 md:p-6 min-w-0 w-full">
           {tab === 'personal'  && <PersonalTab  user={user} />}
           {tab === 'work'      && <WorkTab      user={user} />}
           {tab === 'education' && <EducationTab user={user} />}
@@ -1062,8 +1064,9 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading…</div>}>
+    <Suspense fallback={<div className="p-8 text-xs text-zinc-400">Loading…</div>}>
       <ProfileContent />
     </Suspense>
   );
 }
+

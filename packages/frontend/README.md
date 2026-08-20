@@ -150,25 +150,29 @@ Key exports:
 
 ---
 
-## Styling & Antigravity Design System
+## Styling & Design System (Apple / Twitter / shadcn/ui Aesthetic)
 
-Tailwind CSS v4 with custom utility classes and Antigravity spatial glassmorphism tokens defined in `globals.css`:
+Tailwind CSS v4 with custom tokens and clean monochrome typography defined in `globals.css`:
 
 ```css
-.form-label       /* <label> */
-.form-input       /* <input> */
-.form-select      /* <select> */
-.form-textarea    /* <textarea> */
-.card             /* Container styling with border and shadow */
-.glass-card       /* Antigravity elevated 3D glass card with backdrop-blur and specular border */
-.glass-panel      /* Frosted elevated surface container */
-.glass-button     /* Interactive translucent button with hover-lift */
+.form-label       /* Clean label with tight typography */
+.form-input       /* Crisp input with zinc focus ring */
+.form-select      /* Minimalist dropdown select */
+.form-textarea    /* Textarea with subtle zinc borders */
+.card             /* Crisp white / dark zinc container with subtle borders and micro-shadow */
+.segmented-control/* iOS / macOS / Twitter style segmented tab pill container */
+.segmented-item   /* Segmented toggle button with active pill transition */
+.btn-primary      /* Crisp black/white high-contrast action button */
+.btn-secondary    /* Clean subtle outline button */
+.btn-ghost        /* Borderless hover-subtle interactive button */
+.btn-destructive  /* Destructive action button with soft red accent */
 ```
 
-Animations & Keyframes:
-- `@keyframes antigravity-float`: Subtle floating levitation for badges/elements
-- `@keyframes antigravity-pulse-glow`: Ambient backdrop lighting pulsation
-- Full `prefers-reduced-motion` accessibility support
+### Aesthetic Principles:
+- **Monochrome & High Contrast**: Neutral zinc tokens (`zinc-50` through `zinc-950`), removing artificial neon glowing effects in favor of clean Apple and shadcn/ui styling.
+- **Micro-Interactions**: Smooth 150ms transitions, subtle scale shifts on press, and crisp focus rings (`ring-1 ring-zinc-900 dark:ring-zinc-100`).
+- **Semantic Status Badges**: Refined status pills (`emerald`, `amber`, `blue`, `rose`, `zinc`) with 10% opacity tints and 20% opacity borders.
+- **Full Theme Support**: Zero-FOUC theme hydration with light, dark, and system synchronization.
 
 ---
 
@@ -185,11 +189,11 @@ pnpm test:watch
 ```
 
 Test suites live in `src/__tests__/`:
-- `dashboard.test.tsx` — Dashboard UI rendering, Antigravity KPI float cards, 14-day continuous activity timeline chart, responsive mid-size breakpoint (1024px) layout, loading skeletons, and empty states
+- `dashboard.test.tsx` — Dashboard UI rendering, stats cards, 14-day continuous activity timeline chart, responsive mid-size breakpoint (1024px) layout, loading skeletons, and empty states
 - `applications.test.tsx` — Applications tracker page, status summary card styling, and interactive status filters
 - `prospects.test.tsx` — Prospects page listing, Combobox company and role category filter dropdowns
 - `combobox.test.tsx` — Searchable dropdown opening, filtering, keyboard navigation, and option selection
-- `dateTimePicker.test.tsx` — Antigravity date & time picker, calendar navigation, time stepper, and preset chips
+- `dateTimePicker.test.tsx` — Apple calendar navigation, time stepper, and preset chips
 - `sidebar.test.tsx` — Navigation links, route active state, admin role visibility, and sign-out flow
 - `importModal.test.tsx` — Multi-step prospect file import, column auto-mapping, and bulk import execution
 - `theme.test.tsx` — ThemeProvider context, localStorage persistence, `.dark` class application, matchMedia listener
@@ -197,3 +201,4 @@ Test suites live in `src/__tests__/`:
 - `apiResources.test.ts` — CRUD resources and error handlers
 - `middleware.test.ts` — Edge auth redirects
 - `types.test.ts` — Utility functions (`prospectFullName`, `toVariableLabel`, `buildVariableFromKey`)
+

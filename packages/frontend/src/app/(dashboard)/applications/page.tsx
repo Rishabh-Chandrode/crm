@@ -7,6 +7,8 @@ import type { JobApplication } from '@/lib/types';
 
 const STATUS_OPTIONS = ['not_applied', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'] as const;
 
+const PLATFORM_OPTIONS = ['Greenhouse', 'Lever', 'Workday', 'LinkedIn', 'Ashby', 'SmartRecruiters', 'Email', 'Generic'] as const;
+
 const STATUS_COLORS: Record<string, string> = {
   not_applied: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800',
   applied:     'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
@@ -18,10 +20,14 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const PLATFORM_ICONS: Record<string, string> = {
-  Greenhouse: 'G',
-  Lever:      'L',
-  Workday:    'W',
-  Generic:    '·',
+  Greenhouse:      'G',
+  Lever:           'L',
+  Workday:         'W',
+  LinkedIn:        'in',
+  Ashby:           'A',
+  SmartRecruiters: 'S',
+  Email:           '✉',
+  Generic:         '·',
 };
 
 function formatLabel(status: string): string {
@@ -146,9 +152,29 @@ export default function ApplicationsPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  // Edit modal state
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editStatus, setEditStatus] = useState('');
+  const [editCompany, setEditCompany] = useState('');
+  const [editJobTitle, setEditJobTitle] = useState('');
+  const [editJobUrl, setEditJobUrl] = useState('');
+  const [editPlatform, setEditPlatform] = useState('Generic');
+  const [editStatus, setEditStatus] = useState<string>('applied');
   const [editNotes, setEditNotes] = useState('');
+  const [editAppliedAt, setEditAppliedAt] = useState('');
+  const [editError, setEditError] = useState('');
+
+  // Create modal state
+  const [isCreating, setIsCreating] = useState(false);
+  const [newCompany, setNewCompany] = useState('');
+  const [newJobTitle, setNewJobTitle] = useState('');
+  const [newJobUrl, setNewJobUrl] = useState('');
+  const [newPlatform, setNewPlatform] = useState('Generic');
+  const [newStatus, setNewStatus] = useState<string>('applied');
+  const [newNotes, setNewNotes] = useState('');
+  const [newAppliedAt, setNewAppliedAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [createError, setCreateError] = useState('');
+
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -174,19 +200,78 @@ export default function ApplicationsPage() {
 
   function openEdit(app: JobApplication) {
     setEditingId(app.id);
+    setEditCompany(app.company_name);
+    setEditJobTitle(app.job_title);
+    setEditJobUrl(app.job_url);
+    setEditPlatform(app.platform || 'Generic');
     setEditStatus(app.status);
     setEditNotes(app.notes ?? '');
+    setEditAppliedAt(
+      app.applied_at ? new Date(app.applied_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
+    );
+    setEditError('');
+  }
+
+  function resetCreateForm() {
+    setNewCompany('');
+    setNewJobTitle('');
+    setNewJobUrl('');
+    setNewPlatform('Generic');
+    setNewStatus('applied');
+    setNewNotes('');
+    setNewAppliedAt(new Date().toISOString().slice(0, 10));
+    setCreateError('');
   }
 
   async function saveEdit() {
     if (!editingId) return;
+    if (!editCompany.trim()) { setEditError('Company name is required'); return; }
+    if (!editJobTitle.trim()) { setEditError('Job title is required'); return; }
+    if (!editJobUrl.trim()) { setEditError('Job URL is required'); return; }
+
     setSaving(true);
+    setEditError('');
     try {
-      await api.applications.update(editingId, { status: editStatus, notes: editNotes || undefined });
+      await api.applications.update(editingId, {
+        company_name: editCompany.trim(),
+        job_title: editJobTitle.trim(),
+        job_url: editJobUrl.trim(),
+        platform: editPlatform.trim() || 'Generic',
+        status: editStatus,
+        notes: editNotes.trim() || null,
+        applied_at: editAppliedAt ? new Date(editAppliedAt).toISOString() : undefined,
+      });
       setEditingId(null);
       await load();
-    } catch {
-      // keep modal open
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveCreate() {
+    if (!newCompany.trim()) { setCreateError('Company name is required'); return; }
+    if (!newJobTitle.trim()) { setCreateError('Job title is required'); return; }
+    if (!newJobUrl.trim()) { setCreateError('Job URL is required'); return; }
+
+    setSaving(true);
+    setCreateError('');
+    try {
+      await api.applications.create({
+        company_name: newCompany.trim(),
+        job_title: newJobTitle.trim(),
+        job_url: newJobUrl.trim(),
+        platform: newPlatform.trim() || 'Generic',
+        status: newStatus || 'applied',
+        notes: newNotes.trim() || undefined,
+        applied_at: newAppliedAt ? new Date(newAppliedAt).toISOString() : undefined,
+      });
+      setIsCreating(false);
+      resetCreateForm();
+      await load();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create application');
     } finally {
       setSaving(false);
     }
@@ -231,6 +316,15 @@ export default function ApplicationsPage() {
             {total} application{total !== 1 ? 's' : ''} tracked across platforms
           </p>
         </div>
+        <button
+          onClick={() => { resetCreateForm(); setIsCreating(true); }}
+          className="btn-primary inline-flex items-center gap-1.5 text-xs py-2 px-3.5 shadow-sm"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Application
+        </button>
       </div>
 
       {/* Quick status summary */}
@@ -297,9 +391,15 @@ export default function ApplicationsPage() {
             </svg>
           </div>
           <p className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm mb-0.5">No applications yet</p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
-            Use the Autofill feature in the Chrome extension — applications are automatically logged whenever you submit job forms.
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto mb-4">
+            Track applications automatically via the Chrome extension or email sends, or click below to add one manually.
           </p>
+          <button
+            onClick={() => { resetCreateForm(); setIsCreating(true); }}
+            className="btn-primary text-xs py-1.5 px-3"
+          >
+            + Add First Application
+          </button>
         </div>
       ) : (
         <>
@@ -423,55 +523,256 @@ export default function ApplicationsPage() {
       )}
 
       {/* Edit modal */}
-      {editingId && (() => {
-        const app = applications.find(a => a.id === editingId);
-        if (!app) return null;
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm p-5">
-              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">{app.company_name}</h2>
-              <p className="text-zinc-500 dark:text-zinc-400 text-xs mb-3.5">{app.job_title}</p>
-
-              <label className="form-label text-xs">Application Status</label>
-              <select
-                value={editStatus}
-                onChange={e => setEditStatus(e.target.value)}
-                className="form-select text-xs mb-3.5"
+      {editingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg p-6 animate-in fade-in zoom-in-95 duration-150 my-8">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-100 dark:border-zinc-800">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Edit Application</h2>
+              <button
+                onClick={() => setEditingId(null)}
+                className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
               >
-                {STATUS_OPTIONS.map(s => (
-                  <option key={s} value={s} className="capitalize">{formatLabel(s).replace(/\b\w/g, c => c.toUpperCase())}</option>
-                ))}
-              </select>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
-              <label className="form-label text-xs">Notes</label>
-              <textarea
-                value={editNotes}
-                onChange={e => setEditNotes(e.target.value)}
-                rows={3}
-                placeholder="Interview stages, contacts, follow-up dates…"
-                className="form-textarea text-xs mb-4 resize-none"
-              />
+            {editError && (
+              <div className="mb-4 p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-200 dark:border-rose-900">
+                {editError}
+              </div>
+            )}
 
-              <div className="flex gap-2 justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                <button
-                  onClick={() => setEditingId(null)}
-                  className="btn-ghost"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => void saveEdit()}
-                  disabled={saving}
-                  className="btn-primary"
-                >
-                  {saving ? 'Saving…' : 'Save Changes'}
-                </button>
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label text-xs">Company Name *</label>
+                  <input
+                    type="text"
+                    value={editCompany}
+                    onChange={e => setEditCompany(e.target.value)}
+                    placeholder="e.g. Stripe"
+                    className="form-input text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="form-label text-xs">Job Title / Role *</label>
+                  <input
+                    type="text"
+                    value={editJobTitle}
+                    onChange={e => setEditJobTitle(e.target.value)}
+                    placeholder="e.g. Senior Software Engineer"
+                    className="form-input text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label text-xs">Job / Application URL *</label>
+                <input
+                  type="url"
+                  value={editJobUrl}
+                  onChange={e => setEditJobUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="form-input text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="form-label text-xs">Platform</label>
+                  <select
+                    value={editPlatform}
+                    onChange={e => setEditPlatform(e.target.value)}
+                    className="form-select text-xs"
+                  >
+                    {PLATFORM_OPTIONS.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={e => setEditStatus(e.target.value)}
+                    className="form-select text-xs"
+                  >
+                    {STATUS_OPTIONS.map(s => (
+                      <option key={s} value={s} className="capitalize">
+                        {formatLabel(s).replace(/\b\w/g, c => c.toUpperCase())}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Applied Date</label>
+                  <input
+                    type="date"
+                    value={editAppliedAt}
+                    onChange={e => setEditAppliedAt(e.target.value)}
+                    className="form-input text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label text-xs">Notes</label>
+                <textarea
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Interview stages, recruiters, referral info, follow-up dates…"
+                  className="form-textarea text-xs resize-none"
+                />
               </div>
             </div>
+
+            <div className="flex gap-2 justify-end pt-4 mt-5 border-t border-zinc-100 dark:border-zinc-800">
+              <button
+                onClick={() => setEditingId(null)}
+                className="btn-ghost text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveEdit()}
+                disabled={saving}
+                className="btn-primary text-xs py-1.5 px-4"
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
+
+      {/* Create modal */}
+      {isCreating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg p-6 animate-in fade-in zoom-in-95 duration-150 my-8">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-100 dark:border-zinc-800">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Track New Application</h2>
+              <button
+                onClick={() => setIsCreating(false)}
+                className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {createError && (
+              <div className="mb-4 p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-200 dark:border-rose-900">
+                {createError}
+              </div>
+            )}
+
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label text-xs">Company Name *</label>
+                  <input
+                    type="text"
+                    value={newCompany}
+                    onChange={e => setNewCompany(e.target.value)}
+                    placeholder="e.g. OpenAI"
+                    className="form-input text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="form-label text-xs">Job Title / Role *</label>
+                  <input
+                    type="text"
+                    value={newJobTitle}
+                    onChange={e => setNewJobTitle(e.target.value)}
+                    placeholder="e.g. Machine Learning Engineer"
+                    className="form-input text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label text-xs">Job / Application URL *</label>
+                <input
+                  type="url"
+                  value={newJobUrl}
+                  onChange={e => setNewJobUrl(e.target.value)}
+                  placeholder="https://jobs.lever.co/openai/..."
+                  className="form-input text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="form-label text-xs">Platform</label>
+                  <select
+                    value={newPlatform}
+                    onChange={e => setNewPlatform(e.target.value)}
+                    className="form-select text-xs"
+                  >
+                    {PLATFORM_OPTIONS.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Status</label>
+                  <select
+                    value={newStatus}
+                    onChange={e => setNewStatus(e.target.value)}
+                    className="form-select text-xs"
+                  >
+                    {STATUS_OPTIONS.map(s => (
+                      <option key={s} value={s} className="capitalize">
+                        {formatLabel(s).replace(/\b\w/g, c => c.toUpperCase())}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Applied Date</label>
+                  <input
+                    type="date"
+                    value={newAppliedAt}
+                    onChange={e => setNewAppliedAt(e.target.value)}
+                    className="form-input text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label text-xs">Notes</label>
+                <textarea
+                  value={newNotes}
+                  onChange={e => setNewNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Interview stages, recruiters, referral info, follow-up dates…"
+                  className="form-textarea text-xs resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-4 mt-5 border-t border-zinc-100 dark:border-zinc-800">
+              <button
+                onClick={() => setIsCreating(false)}
+                className="btn-ghost text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveCreate()}
+                disabled={saving}
+                className="btn-primary text-xs py-1.5 px-4"
+              >
+                {saving ? 'Creating…' : 'Track Application'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

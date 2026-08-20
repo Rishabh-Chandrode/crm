@@ -188,6 +188,44 @@ async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | nul
   return document.querySelector(EXPERIENCE_SELECTOR);
 }
 
+function extractEmail(): string {
+  // 1. Look for mailto links on the page
+  const mailto = document.querySelector<HTMLAnchorElement>('a[href^="mailto:"]');
+  if (mailto) {
+    const raw = mailto.getAttribute('href') ?? '';
+    const email = raw.replace(/^mailto:/i, '').split('?')[0]?.trim();
+    if (email && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+      return email;
+    }
+  }
+
+  // 2. Look in contact info section or overlay if present
+  const contactSection = document.querySelector('.pv-contact-info, section.ci-email, #contact-info');
+  if (contactSection) {
+    const text = (contactSection as HTMLElement).innerText ?? '';
+    const match = text.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
+    if (match?.[0]) return match[0];
+  }
+
+  // 3. Look in the About / Summary section
+  const aboutSection = document.querySelector('#about, section[componentkey$="AboutTopLevelSection"]');
+  if (aboutSection) {
+    const text = (aboutSection as HTMLElement).innerText ?? '';
+    const match = text.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
+    if (match?.[0]) return match[0];
+  }
+
+  // 4. Look across the top card header / headline
+  const topCard = document.querySelector('.pv-top-card, .ph5, .pv-text-details__left-panel');
+  if (topCard) {
+    const text = (topCard as HTMLElement).innerText ?? '';
+    const match = text.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
+    if (match?.[0]) return match[0];
+  }
+
+  return '';
+}
+
 async function scrape(): Promise<void> {
   await waitForExperienceSection();
   // Give LinkedIn a moment to render content inside the section
@@ -196,6 +234,7 @@ async function scrape(): Promise<void> {
   const { firstName, lastName } = extractName();
   const company = extractCompany();
   const jobTitle = extractJobTitle();
+  const email = extractEmail();
   const linkedinUrl = window.location.href.includes('linkedin.com/in/')
     ? window.location.href.split('?')[0] ?? ''
     : '';
@@ -207,6 +246,7 @@ async function scrape(): Promise<void> {
     company,
     jobTitle,
     linkedinUrl,
+    email: email || undefined,
   };
 
   chrome.runtime.sendMessage(message);

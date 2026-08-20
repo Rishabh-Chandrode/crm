@@ -348,7 +348,10 @@ router.post('/send', async (req, res, next) => {
       );
 
       // Auto-track job application if jobUrl is present
-      maybeCreateApplicationFromEmail(req.user!.id, customValues).catch((err) =>
+      maybeCreateApplicationFromEmail(req.user!.id, customValues, {
+        companyName: company?.name,
+        jobTitle: prospect.job_title,
+      }).catch((err) =>
         console.error('Auto-track application error:', err)
       );
 
@@ -467,7 +470,10 @@ router.post('/send-company', async (req, res, next) => {
           );
 
           // Auto-track job application if jobUrl is present (fire-and-forget per prospect)
-          maybeCreateApplicationFromEmail(userId, customValues).catch((err) =>
+          maybeCreateApplicationFromEmail(userId, customValues, {
+            companyName: company.name,
+            jobTitle: prospect.job_title,
+          }).catch((err) =>
             console.error('Auto-track application error:', err)
           );
 
@@ -580,7 +586,10 @@ router.post('/send-batch', async (req, res, next) => {
           );
 
           // Auto-track job application if jobUrl is present (fire-and-forget per prospect)
-          maybeCreateApplicationFromEmail(userId, customValues).catch((err) =>
+          maybeCreateApplicationFromEmail(userId, customValues, {
+            companyName: company?.name,
+            jobTitle: prospect.job_title,
+          }).catch((err) =>
             console.error('Auto-track application error:', err)
           );
 
@@ -599,6 +608,7 @@ router.post('/send-batch', async (req, res, next) => {
     const summary = results.map((r) =>
       r.status === 'fulfilled' ? r.value : { status: 'failed', error: String(r.reason) }
     );
+
     const sent = summary.filter((s) => s.status === 'sent').length;
     const failed = summary.filter((s) => s.status === 'failed').length;
 
@@ -611,11 +621,24 @@ router.post('/send-batch', async (req, res, next) => {
 // Send a quick email without a template
 router.post('/quick-send', async (req, res, next) => {
   try {
-    const { email, subject, body, documentIds = [] } = req.body as {
+    const {
+      email,
+      subject,
+      body,
+      documentIds = [],
+      job_url,
+      jobUrl,
+      company_name,
+      job_title,
+    } = req.body as {
       email: string;
       subject: string;
       body: string;
       documentIds?: string[];
+      job_url?: string;
+      jobUrl?: string;
+      company_name?: string;
+      job_title?: string;
     };
 
     if (!email || !subject || !body) {
@@ -654,9 +677,9 @@ router.post('/quick-send', async (req, res, next) => {
     const attachments = await getAttachments(documentIds);
 
     const sendRecord = await pool.query<EmailSend>(
-      `INSERT INTO email_sends (prospect_id, company_id, subject, body, status, created_by)
-       VALUES ($1, $2, $3, $4, 'pending', $5) RETURNING *`,
-      [prospect.id, prospect.company_id ?? null, subject, body, userId]
+      `INSERT INTO email_sends (prospect_id, company_id, subject, body, status, created_by, job_url)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6) RETURNING *`,
+      [prospect.id, prospect.company_id ?? null, subject, body, userId, jobUrl || job_url || null]
     );
     const sendId = sendRecord.rows[0]!.id;
     const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
@@ -673,6 +696,20 @@ router.post('/quick-send', async (req, res, next) => {
         `UPDATE email_sends SET status = 'sent', resend_id = $1, sent_at = NOW() WHERE id = $2`,
         [result.id, sendId]
       );
+
+      const targetJobUrl = jobUrl || job_url;
+      if (targetJobUrl) {
+        maybeCreateApplicationFromEmail(
+          userId,
+          { jobUrl: targetJobUrl },
+          {
+            companyName: company_name,
+            jobTitle: job_title || prospect.job_title,
+          }
+        ).catch((err) =>
+          console.error('Auto-track application error (quick-send):', err)
+        );
+      }
 
       res.json({ data: { id: sendId, status: 'sent', resend_id: result.id } });
     } catch (sendErr) {

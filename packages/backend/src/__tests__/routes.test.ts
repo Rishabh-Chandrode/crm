@@ -95,7 +95,7 @@ describe('Backend API Feature Routes', () => {
   });
 
   describe('Job Applications API (/api/applications)', () => {
-    it('returns 400 when required fields are missing', async () => {
+    it('returns 400 when required fields are missing on create', async () => {
       const res = await request(app)
         .post('/api/applications')
         .set('Authorization', `Bearer ${userToken}`)
@@ -103,6 +103,48 @@ describe('Backend API Feature Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('error');
+    });
+
+    it('updates application fields via PATCH /api/applications/:id', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          id: 'app-1',
+          company_name: 'Stripe',
+          job_title: 'Staff Engineer',
+          job_url: 'https://stripe.com/jobs/1',
+          platform: 'Greenhouse',
+          status: 'interview',
+          notes: 'Round 2 scheduled',
+        }],
+      } as any);
+
+      const res = await request(app)
+        .patch('/api/applications/app-1')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          company_name: 'Stripe',
+          job_title: 'Staff Engineer',
+          job_url: 'https://stripe.com/jobs/1',
+          platform: 'Greenhouse',
+          status: 'interview',
+          notes: 'Round 2 scheduled',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.company_name).toBe('Stripe');
+      expect(res.body.job_title).toBe('Staff Engineer');
+      expect(res.body.status).toBe('interview');
+    });
+
+    it('returns 400 on PATCH when status is invalid', async () => {
+      const res = await request(app)
+        .patch('/api/applications/app-1')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ status: 'invalid_status' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('status must be one of');
     });
   });
 

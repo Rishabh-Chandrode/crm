@@ -247,6 +247,8 @@ export const COMPANY_FIELDS: { value: string; label: string }[] = [
   { value: 'industry', label: 'Industry' },
 ];
 
+export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+
 export interface JobApplication {
   id: string;
   user_id: string;
@@ -254,7 +256,7 @@ export interface JobApplication {
   job_title: string;
   job_url: string;
   platform: string;
-  status: 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+  status: JobApplicationStatus;
   notes: string | null;
   applied_at: string;
   created_at: string;

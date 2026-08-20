@@ -190,7 +190,7 @@ pnpm test:watch
 
 Test suites live in `src/__tests__/`:
 - `dashboard.test.tsx` — Dashboard UI rendering, stats cards, 14-day continuous activity timeline chart, responsive mid-size breakpoint (1024px) layout, loading skeletons, and empty states
-- `applications.test.tsx` — Applications tracker page, status summary card styling, and interactive status filters
+- `applications.test.tsx` — Applications tracker page, status summary cards, interactive status filters, full application editing modal, and manual application creation
 - `prospects.test.tsx` — Prospects page listing, Combobox company and role category filter dropdowns
 - `combobox.test.tsx` — Searchable dropdown opening, filtering, keyboard navigation, and option selection
 - `dateTimePicker.test.tsx` — Apple calendar navigation, time stepper, and preset chips

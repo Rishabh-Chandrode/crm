@@ -7,7 +7,7 @@ Manifest V3 Chrome side panel extension. Scrapes contact info from LinkedIn prof
 ## What it does
 
 - **CRM match card** — when you open the side panel on any `linkedin.com/in/*` page, the extension immediately looks up the profile in your CRM by LinkedIn URL. If a match is found, a green card is shown above the form with the stored details. The card updates automatically as you switch tabs.
-- **LinkedIn scraper** — click **Scrape LinkedIn** from any LinkedIn profile tab. The background service worker finds the active LinkedIn tab, injects the content script, which scrolls the page to lazy-load the experience section and extracts name, job title, company, and LinkedIn URL.
+- **LinkedIn scraper** — click **Scrape LinkedIn** from any LinkedIn profile tab. The background service worker finds the active LinkedIn tab, injects the content script, which scrolls the page to lazy-load the experience section and extracts name, job title, company, contact email (if available), and LinkedIn URL.
 - **Quick-add to CRM** — review the extracted (or manually entered) data and save it as a new prospect via `POST /api/prospects/quick-add`.
 - **Form autofiller** — click **Autofill This Page** to fill any job application form (Greenhouse, Lever, Workday, Google Forms, or generic) with your CRM profile data. Optionally select a resume from the picker to attach it to file upload inputs. After you submit the form, the extension auto-records the application in the CRM dashboard.
 - **Compose email** — select a template and send an email to a prospect without leaving the side panel.

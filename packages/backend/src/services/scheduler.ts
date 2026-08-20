@@ -184,7 +184,10 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
         // Auto-track job application if jobUrl is present
         if (schedule.created_by) {
-          maybeCreateApplicationFromEmail(schedule.created_by, schedule.custom_values).catch((err) =>
+          maybeCreateApplicationFromEmail(schedule.created_by, schedule.custom_values, {
+            companyName: company?.name,
+            jobTitle: prospect.job_title,
+          }).catch((err) =>
             console.error('Auto-track application error (scheduler):', err)
           );
         }

@@ -424,9 +424,28 @@ export const api = {
         `/applications${qs ? `?${qs}` : ''}`,
       );
     },
-    create: (body: { company_name: string; job_title: string; job_url: string; platform?: string; notes?: string }) =>
+    create: (body: {
+      company_name: string;
+      job_title: string;
+      job_url: string;
+      platform?: string;
+      status?: string;
+      notes?: string;
+      applied_at?: string;
+    }) =>
       request<import('./types').JobApplication>('/applications', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: { status?: string; notes?: string }) =>
+    update: (
+      id: string,
+      body: {
+        company_name?: string;
+        job_title?: string;
+        job_url?: string;
+        platform?: string;
+        status?: string;
+        notes?: string | null;
+        applied_at?: string;
+      }
+    ) =>
       request<import('./types').JobApplication>(`/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/applications/${id}`, { method: 'DELETE' }),

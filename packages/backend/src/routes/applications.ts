@@ -47,12 +47,14 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { company_name, job_title, job_url, platform, notes } = req.body as {
+    const { company_name, job_title, job_url, platform, status, notes, applied_at } = req.body as {
       company_name: string;
       job_title: string;
       job_url: string;
       platform?: string;
+      status?: string;
       notes?: string;
+      applied_at?: string;
     };
 
     if (!company_name || !job_title || !job_url) {
@@ -60,11 +62,25 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
+    if (status && !VALID_STATUSES.includes(status)) {
+      res.status(400).json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` });
+      return;
+    }
+
     const result = await pool.query(
-      `INSERT INTO job_applications (user_id, company_name, job_title, job_url, platform, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO job_applications (user_id, company_name, job_title, job_url, platform, status, notes, applied_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [userId, company_name, job_title, job_url, platform ?? 'Generic', notes ?? null],
+      [
+        userId,
+        company_name.trim(),
+        job_title.trim(),
+        job_url.trim(),
+        platform?.trim() || 'Generic',
+        status || 'applied',
+        notes?.trim() || null,
+        applied_at ? new Date(applied_at) : new Date(),
+      ],
     );
 
     res.status(201).json(result.rows[0]);
@@ -79,21 +95,78 @@ router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { status, notes } = req.body as { status?: string; notes?: string };
+    const { company_name, job_title, job_url, platform, status, notes, applied_at } = req.body as {
+      company_name?: string;
+      job_title?: string;
+      job_url?: string;
+      platform?: string;
+      status?: string;
+      notes?: string | null;
+      applied_at?: string;
+    };
 
     if (status && !VALID_STATUSES.includes(status)) {
       res.status(400).json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` });
       return;
     }
 
+    const updates: string[] = ['updated_at = NOW()'];
+    const params: unknown[] = [id, userId];
+    let i = 3;
+
+    if (company_name !== undefined) {
+      if (!company_name.trim()) {
+        res.status(400).json({ error: 'company_name cannot be empty' });
+        return;
+      }
+      updates.push(`company_name = $${i++}`);
+      params.push(company_name.trim());
+    }
+
+    if (job_title !== undefined) {
+      if (!job_title.trim()) {
+        res.status(400).json({ error: 'job_title cannot be empty' });
+        return;
+      }
+      updates.push(`job_title = $${i++}`);
+      params.push(job_title.trim());
+    }
+
+    if (job_url !== undefined) {
+      if (!job_url.trim()) {
+        res.status(400).json({ error: 'job_url cannot be empty' });
+        return;
+      }
+      updates.push(`job_url = $${i++}`);
+      params.push(job_url.trim());
+    }
+
+    if (platform !== undefined) {
+      updates.push(`platform = $${i++}`);
+      params.push(platform.trim() || 'Generic');
+    }
+
+    if (status !== undefined) {
+      updates.push(`status = $${i++}`);
+      params.push(status);
+    }
+
+    if (notes !== undefined) {
+      updates.push(`notes = $${i++}`);
+      params.push(notes ? notes.trim() : null);
+    }
+
+    if (applied_at !== undefined) {
+      updates.push(`applied_at = $${i++}`);
+      params.push(applied_at ? new Date(applied_at) : new Date());
+    }
+
     const result = await pool.query(
       `UPDATE job_applications
-       SET status     = COALESCE($1, status),
-           notes      = COALESCE($2, notes),
-           updated_at = NOW()
-       WHERE id = $3 AND user_id = $4
+       SET ${updates.join(', ')}
+       WHERE id = $1 AND user_id = $2
        RETURNING *`,
-      [status ?? null, notes ?? null, id, userId],
+      params,
     );
 
     if (!result.rowCount) {

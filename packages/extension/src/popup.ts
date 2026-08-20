@@ -626,6 +626,20 @@ function extractJobInfoFromTab(tab: chrome.tabs.Tab): TrackJobInfo {
   } else if (hostname.includes('workday.com') || hostname.includes('myworkdayjobs.com')) {
     platform = 'Workday';
     company = hostname.split('.')[0] ?? '';
+  } else if (hostname.includes('ashbyhq.com')) {
+    platform = 'Ashby';
+    const m = url.match(/ashbyhq\.com\/([^/?#]+)/);
+    company = m?.[1]?.replace(/-/g, ' ') ?? '';
+  } else if (hostname.includes('linkedin.com')) {
+    platform = 'LinkedIn';
+  }
+
+  if (!company && hostname) {
+    const parts = hostname.split('.');
+    const main = parts.length >= 2 ? parts[parts.length - 2] : hostname;
+    if (main && !['jobs', 'careers', 'apply', 'app', 'hire', 'work', 'www'].includes(main)) {
+      company = main.charAt(0).toUpperCase() + main.slice(1);
+    }
   }
 
   return { company_name: company, job_title: jobTitle, job_url: url, platform };
@@ -744,18 +758,20 @@ chrome.runtime.onMessage.addListener((message: ScrapeMessage | AutofillResultMes
     return;
   }
   if (message.action !== 'scraped') return;
+  const scrapedMsg = message as ScrapeMessage;
   setFormData({
-    firstName:   message.firstName,
-    lastName:    message.lastName,
-    company:     message.company,
-    jobTitle:    message.jobTitle,
-    linkedinUrl: message.linkedinUrl,
+    firstName:   scrapedMsg.firstName,
+    lastName:    scrapedMsg.lastName,
+    company:     scrapedMsg.company,
+    jobTitle:    scrapedMsg.jobTitle,
+    linkedinUrl: scrapedMsg.linkedinUrl,
+    email:       scrapedMsg.email || undefined,
   });
   persistForm();
   showContactStatus('Profile data scraped', 'success');
   scrapeBtn.disabled    = false;
   scrapeBtn.textContent = 'Scrape LinkedIn';
-  void lookupProspect(message.linkedinUrl, '');
+  void lookupProspect(scrapedMsg.linkedinUrl, scrapedMsg.email || '');
 });
 
 enrichBtn.addEventListener('click', async () => {

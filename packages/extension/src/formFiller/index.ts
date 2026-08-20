@@ -298,8 +298,12 @@ function extractJobInfo(): { company_name: string; job_title: string; job_url: s
   const h1 = document.querySelector('h1');
   const ogTitle = document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.content;
   let jobTitle = h1?.textContent?.trim() ?? ogTitle ?? document.title;
-  // Strip trailing "| Company" suffixes
-  jobTitle = jobTitle.replace(/\s*[-|·—]\s*.+$/, '').trim();
+  // Strip trailing "| Company" suffixes and prefix words like "Apply for"
+  jobTitle = jobTitle
+    .replace(/^Apply\s+(?:for\s+)?/i, '')
+    .replace(/^Job\s+Application\s+for\s+/i, '')
+    .replace(/\s*[-|·—]\s*.+$/, '')
+    .trim();
 
   let company = '';
   let platform = 'Generic';
@@ -315,14 +319,26 @@ function extractJobInfo(): { company_name: string; job_title: string; job_url: s
   } else if (hostname.includes('workday.com') || hostname.includes('myworkdayjobs.com')) {
     platform = 'Workday';
     company = hostname.split('.')[0] ?? '';
+  } else if (hostname.includes('ashbyhq.com')) {
+    platform = 'Ashby';
+    const m = url.match(/ashbyhq\.com\/([^/?#]+)/);
+    company = m?.[1]?.replace(/-/g, ' ') ?? '';
   } else {
     const siteName = document.querySelector<HTMLMetaElement>('meta[property="og:site_name"]')?.content;
-    company = siteName ?? hostname;
+    if (siteName) {
+      company = siteName;
+    } else {
+      const parts = hostname.split('.');
+      const main = parts.length >= 2 ? parts[parts.length - 2] : hostname;
+      if (main && !['jobs', 'careers', 'apply', 'app', 'hire', 'work', 'www'].includes(main)) {
+        company = main.charAt(0).toUpperCase() + main.slice(1);
+      }
+    }
   }
 
   return {
-    company_name: company || 'Unknown Company',
-    job_title: jobTitle || 'Unknown Position',
+    company_name: company || 'Company',
+    job_title: jobTitle || 'Position',
     job_url: url,
     platform,
   };

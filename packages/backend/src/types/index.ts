@@ -108,6 +108,7 @@ export interface EmailSend {
   template?: Pick<EmailTemplate, 'name'>;
 }
 
+// Job Applications
 export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
 
 export interface JobApplication {

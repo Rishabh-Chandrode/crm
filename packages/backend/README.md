@@ -271,8 +271,8 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `GET` | `/api/applications` | **Query:** `status?` (`not_applied` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn`), `search?` (company_name or job_title), `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` |
-| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, notes?: string }` — platform defaults to `'Generic'` | `JobApplication` — `201` |
-| `PATCH` | `/api/applications/:id` | `{ status?: string, notes?: string }` — validates status against allowed values | `JobApplication` |
+| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string }` — platform defaults to `'Generic'`, status defaults to `'applied'` | `JobApplication` — `201` |
+| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string }` — validates status against allowed values | `JobApplication` |
 | `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
 
 ---

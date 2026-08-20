@@ -41,6 +41,7 @@ export interface ScrapeMessage {
   company: string;
   jobTitle: string;
   linkedinUrl: string;
+  email?: string;
 }
 
 export interface WorkExperience {

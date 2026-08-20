@@ -21,6 +21,20 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(msg.firstName).toBe('Alice');
   });
 
+  it('validates ScrapeMessage with optional email', () => {
+    const msg: ScrapeMessage = {
+      action: 'scraped',
+      firstName: 'Alice',
+      lastName: 'Smith',
+      company: 'Google',
+      jobTitle: 'Staff Engineer',
+      linkedinUrl: 'https://www.linkedin.com/in/alicesmith',
+      email: 'alice@google.com',
+    };
+
+    expect(msg.email).toBe('alice@google.com');
+  });
+
   it('validates AutofillResultMessage structure', () => {
     const msg: AutofillResultMessage = {
       action: 'autofillResult',

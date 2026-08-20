@@ -46,11 +46,11 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20',
 };
 
-const STATUS_TABS = [
+const STATUS_TABS: { value: string; label: string; dot?: string }[] = [
   { value: 'all',     label: 'All' },
-  { value: 'sent',    label: 'Sent' },
-  { value: 'failed',  label: 'Failed' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'sent',    label: 'Sent',    dot: 'bg-emerald-500' },
+  { value: 'failed',  label: 'Failed',  dot: 'bg-rose-500' },
+  { value: 'pending', label: 'Pending', dot: 'bg-amber-500' },
 ];
 
 function formatOpenedAt(dateStr: string): string {
@@ -286,33 +286,51 @@ export default function HistoryPage() {
       </div>
 
       {/* Filters toolbar */}
-      <div className="card p-2.5 flex flex-wrap items-center gap-2.5">
-        <div className="segmented-control">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => handleStatusChange(tab.value)}
-              className={`segmented-item ${statusFilter === tab.value ? 'active' : ''}`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="card p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        {/* Status Pills */}
+        <div className="flex items-center gap-1.5 p-1 bg-zinc-100 dark:bg-zinc-850 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {STATUS_TABS.map((tab) => {
+            const isActive = statusFilter === tab.value;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => handleStatusChange(tab.value)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none whitespace-nowrap ${
+                  isActive
+                    ? 'bg-white dark:bg-zinc-900 text-zinc-950 dark:text-zinc-50 shadow-xs border border-zinc-200/50 dark:border-zinc-700/80'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'
+                }`}
+              >
+                {tab.dot && (
+                  <span
+                    className={`w-2 h-2 rounded-full ${tab.dot} ${
+                      isActive ? 'ring-2 ring-zinc-300 dark:ring-zinc-600' : 'opacity-70'
+                    }`}
+                  />
+                )}
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
-        <div className="relative min-w-[220px] flex-1 sm:flex-initial">
+
+        {/* Search input */}
+        <div className="relative min-w-[240px] flex-1 sm:flex-initial">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
-            placeholder="Search name, email, subject…"
+            placeholder="Search recipient, email, subject…"
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="form-input pl-8 py-1.5 text-xs"
+            className="form-input pl-8.5 pr-8 py-1.5 text-xs w-full"
           />
           {searchInput && (
             <button
               onClick={() => { setSearchInput(''); setPage(0); setSearch(''); }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 text-xs"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 text-xs"
+              title="Clear search"
             >
               ✕
             </button>

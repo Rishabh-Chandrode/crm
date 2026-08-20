@@ -52,4 +52,36 @@ describe('HistoryPage Component', () => {
       expect(screen.getByText('Intro - Full Dev')).toBeInTheDocument();
     });
   });
+
+  it('filters history when clicking status buttons', async () => {
+    vi.mocked(api.email.history).mockResolvedValue({
+      data: [],
+      total: 0,
+    });
+
+    const { fireEvent } = await import('@testing-library/react');
+    render(<HistoryPage />);
+
+    const sentBtn = screen.getByRole('button', { name: 'Sent' });
+    fireEvent.click(sentBtn);
+
+    await waitFor(() => {
+      expect(api.email.history).toHaveBeenCalledWith(
+        25,
+        0,
+        expect.objectContaining({ status: 'sent' })
+      );
+    });
+
+    const failedBtn = screen.getByRole('button', { name: 'Failed' });
+    fireEvent.click(failedBtn);
+
+    await waitFor(() => {
+      expect(api.email.history).toHaveBeenCalledWith(
+        25,
+        0,
+        expect.objectContaining({ status: 'failed' })
+      );
+    });
+  });
 });

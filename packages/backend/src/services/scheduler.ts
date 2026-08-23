@@ -2,7 +2,6 @@ import cron from 'node-cron';
 import { pool } from '../db/index.js';
 import { getEmailProviderForUser } from './email/index.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from './templateEngine.js';
-import { syncDriveDocuments } from './driveSync.js';
 
 function pixelUrl(sendId: string): string {
   const base = (process.env['TRACKING_BASE_URL'] ?? 'http://localhost:3001').replace(/\/$/, '');
@@ -219,40 +218,43 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   );
 }
 
-export function startScheduler(): void {
-  cron.schedule('* * * * *', async () => {
-    try {
-      const due = await pool.query<ScheduleRow>(
-        `SELECT * FROM email_schedules
-         WHERE status = 'pending' AND scheduled_for <= NOW()
-         ORDER BY scheduled_for ASC`
-      );
-      for (const schedule of due.rows) {
-        processSchedule(schedule).catch((err: unknown) => {
-          console.error(`Scheduler failed for schedule ${schedule.id}:`, err);
-          pool.query(
-            `UPDATE email_schedules SET status = 'failed', error_message = $1 WHERE id = $2`,
-            [String(err), schedule.id]
-          ).catch(() => undefined);
-        });
-      }
-    } catch (err) {
-      console.error('Scheduler poll error:', err);
+export async function processPendingSchedules(): Promise<number> {
+  try {
+    const due = await pool.query<ScheduleRow>(
+      `SELECT * FROM email_schedules
+       WHERE status = 'pending' AND scheduled_for <= NOW()
+       ORDER BY scheduled_for ASC`
+    );
+    if (due.rows.length === 0) {
+      return 0;
     }
-  });
-  // Sync Drive-linked documents every 2 hours
-  cron.schedule('0 */2 * * *', () => {
-    syncDriveDocuments().catch((err: unknown) => {
-      console.error('Drive sync error:', err);
-    });
-  });
-  // Also sync once at startup (after a short delay to let the DB settle)
-  setTimeout(() => {
-    syncDriveDocuments().catch((err: unknown) => {
-      console.error('Drive sync (startup) error:', err);
-    });
-  }, 10_000);
+    console.log(`[Scheduler] Processing ${due.rows.length} pending email schedule(s)...`);
+    for (const schedule of due.rows) {
+      try {
+        await processSchedule(schedule);
+      } catch (err: unknown) {
+        console.error(`Scheduler failed for schedule ${schedule.id}:`, err);
+        await pool.query(
+          `UPDATE email_schedules SET status = 'failed', error_message = $1 WHERE id = $2`,
+          [String(err), schedule.id]
+        ).catch(() => undefined);
+      }
+    }
+    console.log(`[Scheduler] Finished processing batch of ${due.rows.length} schedule(s). Database can rest.`);
+    return due.rows.length;
+  } catch (err) {
+    console.error('Scheduler poll error:', err);
+    return 0;
+  }
+}
 
-  console.log('Email scheduler started (polling every minute)');
-  console.log('Drive sync scheduled every 2 hours');
+const EMAIL_SCHEDULER_CRON = '*/30 * * * *';
+
+export function startScheduler(customCron?: string): void {
+  const emailCron = customCron ?? EMAIL_SCHEDULER_CRON;
+  cron.schedule(emailCron, async () => {
+    await processPendingSchedules();
+  });
+
+  console.log(`Email scheduler started (polling every 30 minutes with cron '${emailCron}')`);
 }

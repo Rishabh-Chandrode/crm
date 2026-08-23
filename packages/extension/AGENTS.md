@@ -60,6 +60,11 @@ These rules apply to all files within `packages/extension/`. They supplement the
 - Auth token is stored in `chrome.storage.local` and sent as `Authorization: Bearer <token>`.
 - All `fetch()` calls must have error handling (try/catch + response status checks).
 
+### Environment Variables (Package-Scoped Isolation HARD RULE)
+- Extension build-time env vars MUST be kept isolated in `packages/extension/.env` (and `packages/extension/.env.example`).
+- Read during build via `build.mjs` (e.g. `BACKEND_URL`, `FRONTEND_URL`).
+- NEVER put extension environment variables in the monorepo root directory.
+
 ### UI (`popup.html` + `popup.css` + `popup.ts`)
 - The popup UI is a single-page application built with raw DOM manipulation in `popup.ts`.
 - Tabs, modals, and dynamic content are all managed via `classList.toggle`, `innerHTML`, and event listeners.

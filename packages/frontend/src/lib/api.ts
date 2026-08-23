@@ -329,6 +329,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ name, drive_url }),
       }),
+    sync: (id: string) =>
+      request<{ data: import('./types').Document }>(`/documents/${id}/sync`, {
+        method: 'POST',
+      }),
     delete: (id: string) =>
       request<{ data: { id: string } }>(`/documents/${id}`, { method: 'DELETE' }),
   },

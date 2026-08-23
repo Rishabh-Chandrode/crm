@@ -5,6 +5,9 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: CONFIG.databaseUrl,
+  max: 10,
+  idleTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 10_000,
 });
 
 pool.on('error', (err: Error) => {

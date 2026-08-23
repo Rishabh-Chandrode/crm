@@ -54,10 +54,11 @@ Request → Route (parse + validate) → Service (business logic) → Database (
 - Route response types must use `ApiResponse<T>` or `ApiError` from `src/types/index.ts`.
 - When adding a new entity or field, update `src/types/index.ts` FIRST, then update `packages/frontend/src/lib/types.ts` and `packages/extension/src/types.ts` to match.
 
-### Environment Variables
-- All env vars are loaded through `src/config.ts` via the `CONFIG` object.
+### Environment Variables (Package-Scoped Isolation HARD RULE)
+- All backend env vars are loaded through `src/config.ts` via the `CONFIG` object.
 - NEVER access `process.env` directly outside of `config.ts`.
-- New env vars must be added to: `src/config.ts`, root `.env.example`, and documented in this package's `README.md`.
+- Backend env vars MUST be kept isolated in `packages/backend/.env` and documented in `packages/backend/.env.example` and `packages/backend/README.md`.
+- NEVER put backend environment variables in the monorepo root directory.
 
 ---
 

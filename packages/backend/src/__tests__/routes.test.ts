@@ -191,4 +191,31 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.data).toEqual([{ id: '1', username: 'admin', role: 'admin' }]);
     });
   });
+
+  describe('Documents API (/api/documents)', () => {
+    it('POST /api/documents/:id/sync returns 404 when document is not found', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({ rows: [] } as any);
+
+      const res = await request(app)
+        .post('/api/documents/non-existent-doc/sync')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body).toHaveProperty('error', 'Document not found');
+    });
+
+    it('POST /api/documents/:id/sync returns 400 when document is not linked to Drive', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rows: [{ id: 'doc-local', name: 'Resume', path: 'uploads/resume.pdf', drive_url: null }],
+      } as any);
+
+      const res = await request(app)
+        .post('/api/documents/doc-local/sync')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('error', 'Document is not linked to Google Drive');
+    });
+  });
 });
+

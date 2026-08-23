@@ -46,6 +46,11 @@ These rules apply to all files within `packages/frontend/`. They supplement the 
 - Public paths are hardcoded in `middleware.ts` (`/login`, `/signup`). If you add a new public route, add it to `PUBLIC_PATHS`.
 - After login, users are redirected to `/dashboard`.
 
+### Environment Variables (Package-Scoped Isolation HARD RULE)
+- Frontend env vars MUST be kept isolated in `packages/frontend/.env` (and `packages/frontend/.env.example`).
+- Client-side variables must be prefixed with `NEXT_PUBLIC_` (e.g., `NEXT_PUBLIC_API_URL`).
+- NEVER put frontend environment variables in the monorepo root directory.
+
 ---
 
 ## File Reference

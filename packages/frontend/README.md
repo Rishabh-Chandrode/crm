@@ -114,7 +114,7 @@ api.email.retry(id)
 
 // Schedules, Documents, Variable Presets, Stats, Import
 api.schedules.list() / .create() / .get(id) / .cancel(id)
-api.documents.list() / .upload(file, name) / .delete(id) / .download(id)
+api.documents.list() / .upload(file, name) / .fromDrive(name, url) / .sync(id) / .delete(id) / .download(id)
 api.variablePresets.list() / .create() / .update() / .delete()
 api.stats.get()
 api.import.parse(file)

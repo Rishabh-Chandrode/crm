@@ -71,4 +71,25 @@ describe('Frontend Types & Utility Functions', () => {
       });
     });
   });
+
+  describe('Document Type Contract', () => {
+    it('validates Document structure with Google Drive properties', () => {
+      const doc: import('../lib/types').Document = {
+        id: 'doc-123',
+        name: 'Resume 2026',
+        filename: 'resume.pdf',
+        size: 2048,
+        drive_url: 'https://docs.google.com/document/d/xyz/edit',
+        drive_file_id: 'xyz',
+        drive_synced_at: '2026-08-23T20:00:00Z',
+        drive_sync_error: null,
+        created_at: '2026-08-23T19:00:00Z',
+      };
+
+      expect(doc.id).toBe('doc-123');
+      expect(doc.name).toBe('Resume 2026');
+      expect(doc.drive_url).toContain('docs.google.com');
+    });
+  });
 });
+

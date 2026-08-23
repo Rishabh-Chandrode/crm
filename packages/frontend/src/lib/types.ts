@@ -189,8 +189,10 @@ export interface Document {
   id: string;
   name: string;
   filename: string;
+  path?: string | null;
   size: number | null;
   drive_url: string | null;
+  drive_file_id?: string | null;
   drive_synced_at: string | null;
   drive_sync_error: string | null;
   created_at: string;

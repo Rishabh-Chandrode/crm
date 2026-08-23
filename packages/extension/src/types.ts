@@ -128,3 +128,15 @@ export interface ScrapeErrorMessage {
 export interface TriggerScrapeMessage {
   action: 'triggerScrape';
 }
+
+export interface Document {
+  id: string;
+  name: string;
+  filename: string;
+  size?: number | null;
+  drive_url?: string | null;
+  drive_synced_at?: string | null;
+  drive_sync_error?: string | null;
+  created_at?: string;
+}
+

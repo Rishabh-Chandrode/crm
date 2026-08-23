@@ -175,4 +175,49 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+router.post('/:id/sync', async (req, res, next) => {
+  try {
+    const { sql, value } = ownerFilter(req.user!, 'documents', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [req.params['id']];
+    if (value) params.push(value);
+
+    const result = await pool.query<{ id: string; name: string; path: string; drive_url: string | null }>(
+      `SELECT id, name, path, drive_url FROM documents WHERE id = $1 ${ownerWhere}`,
+      params
+    );
+    const doc = result.rows[0];
+    if (!doc) {
+      res.status(404).json({ error: 'Document not found' });
+      return;
+    }
+    if (!doc.drive_url) {
+      res.status(400).json({ error: 'Document is not linked to Google Drive' });
+      return;
+    }
+
+    try {
+      const { filePath, filename, size } = await fetchAndSaveFile(doc.drive_url, doc.path);
+      const updateRes = await pool.query(
+        `UPDATE documents
+         SET path = $1, filename = $2, size = $3, drive_synced_at = NOW(), drive_sync_error = NULL
+         WHERE id = $4
+         RETURNING id, name, filename, size, drive_url, drive_synced_at, drive_sync_error, created_at`,
+        [filePath, filename, size, doc.id]
+      );
+      res.json({ data: updateRes.rows[0] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await pool.query(
+        `UPDATE documents SET drive_sync_error = $1, drive_synced_at = NOW() WHERE id = $2`,
+        [msg, doc.id]
+      );
+      res.status(400).json({ error: `Failed to sync from Drive: ${msg}` });
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
+

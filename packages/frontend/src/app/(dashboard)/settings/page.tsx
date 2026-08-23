@@ -531,6 +531,7 @@ function DocumentsSection() {
   const [driveUrl, setDriveUrl]       = useState('');
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveError, setDriveError]   = useState('');
+  const [syncingId, setSyncingId]     = useState<string | null>(null);
 
   useEffect(() => {
     api.documents.list().then((r) => setDocuments(r.data)).catch(console.error);
@@ -572,6 +573,19 @@ function DocumentsSection() {
     } finally { setDriveLoading(false); }
   }
 
+  async function handleSync(doc: Document) {
+    setError(''); setSuccess(''); setSyncingId(doc.id);
+    try {
+      const r = await api.documents.sync(doc.id);
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? r.data : d)));
+      setSuccess(`"${doc.name}" updated from Google Drive.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to re-fetch document from Google Drive');
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
   async function handleDelete(id: string, docName: string) {
     if (!confirm(`Remove "${docName}"?`)) return;
     setError(''); setSuccess('');
@@ -588,7 +602,7 @@ function DocumentsSection() {
     <div>
       <SectionHeader
         title="Documents"
-        description="Upload resumes, cover letters, and portfolios to attach to outreach emails. Drive-linked files re-sync every 2 hours automatically."
+        description="Upload resumes, cover letters, and portfolios to attach to outreach emails. Drive-linked files can be manually re-fetched on demand."
       />
 
       {error   && <Alert type="error"   message={error} />}
@@ -660,7 +674,7 @@ function DocumentsSection() {
         {showDrive && (
           <div className="mt-3 space-y-2.5 pt-3 border-t border-zinc-200 dark:border-zinc-800">
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Paste a public Google Drive or Google Docs link. The document will be cached locally and synced periodically.
+              Paste a public Google Drive or Google Docs link. The document will be cached locally and can be re-fetched on demand.
             </p>
             <div>
               <label className="form-label text-xs">Label *</label>
@@ -736,6 +750,19 @@ function DocumentsSection() {
                     : ` · ${new Date(doc.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}`}
                 </p>
               </div>
+              {doc.drive_url && (
+                <button
+                  onClick={() => void handleSync(doc)}
+                  disabled={syncingId === doc.id}
+                  className="flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline px-2 py-1 rounded transition-colors flex-shrink-0 disabled:opacity-50"
+                  title="Re-fetch file from Google Drive"
+                >
+                  <svg className={`w-3 h-3 ${syncingId === doc.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {syncingId === doc.id ? 'Re-fetching…' : 'Re-fetch'}
+                </button>
+              )}
               <button
                 onClick={() => void handleDelete(doc.id, doc.name)}
                 className="text-[11px] font-medium text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded transition-colors flex-shrink-0"

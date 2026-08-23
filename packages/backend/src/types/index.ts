@@ -86,6 +86,20 @@ export interface EmailTemplate {
   updated_at: Date;
 }
 
+export interface Document {
+  id: string;
+  name: string;
+  filename: string;
+  path: string;
+  size: number | null;
+  drive_url: string | null;
+  drive_file_id: string | null;
+  drive_synced_at: Date | null;
+  drive_sync_error: string | null;
+  created_by: string | null;
+  created_at: Date;
+}
+
 export type EmailSendStatus = 'pending' | 'sent' | 'failed';
 
 export interface EmailSend {

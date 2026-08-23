@@ -129,4 +129,21 @@ describe('Frontend API Client Resource Domains', () => {
       expect(res.prospects).toBe(50);
     });
   });
+
+  describe('Documents Resource', () => {
+    it('api.documents.sync sends POST /documents/:id/sync', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { id: 'doc-1', name: 'Resume', drive_synced_at: '2026-08-23T20:00:00Z' } }),
+      });
+
+      const res = await api.documents.sync('doc-1');
+      expect(res.data.id).toBe('doc-1');
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/documents/doc-1/sync'),
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+  });
 });
+

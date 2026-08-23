@@ -82,6 +82,11 @@ The following files define the shared data contract between all three packages. 
 
 **When you modify any shared type (User, Company, Prospect, EmailTemplate, EmailSend, TemplateVariable, etc.), you MUST update all three files in the same change.**
 
+### 8.3 Package-Scoped Environment Isolation (HARD RULE)
+- **Every package (`packages/backend/`, `packages/frontend/`, `packages/extension/`) MUST maintain its own separate `.env` and `.env.example` file within its package directory.**
+- **NEVER define, copy, or combine package-specific environment variables in the monorepo root directory.**
+- Each package is completely self-contained with its own configuration lifecycle.
+
 ---
 
 ## 9. Mandatory Sync Checklist (HARD RULE)
@@ -107,10 +112,12 @@ The following files define the shared data contract between all three packages. 
 - [ ] If a new service file is created: imported and used in the appropriate route
 - [ ] `packages/backend/README.md` services section updated
 
-### 9.4 Adding or Modifying an Environment Variable
-- [ ] Variable added to `packages/backend/src/config.ts` (backend) or `.env` (frontend/extension)
-- [ ] Variable added to `.env.example` at the repo root
-- [ ] `packages/backend/README.md` environment variables section updated
+### 9.4 Adding or Modifying an Environment Variable (Package-Scoped Isolation HARD RULE)
+- [ ] Backend variables added to `packages/backend/src/config.ts` and `packages/backend/.env.example`
+- [ ] Frontend variables added to `packages/frontend/.env.example`
+- [ ] Extension variables added to `packages/extension/.env.example`
+- [ ] `packages/backend/README.md` or respective package README environment variables section updated
+- [ ] **NEVER** put package-specific variables in the project root directory
 
 ### 9.5 Adding or Modifying Frontend Pages/Components
 - [ ] Page added under `packages/frontend/src/app/(dashboard)/`

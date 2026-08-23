@@ -261,6 +261,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `GET` | `/api/documents` | — | `{ data: Document[] }` — includes `drive_url`, `drive_synced_at`, `drive_sync_error` |
 | `POST` | `/api/documents` | **multipart/form-data:** `document` (file, max 10MB, .pdf/.doc/.docx only) + `name` (string) | `{ data: Document }` — `201`. File stored via object storage service. |
 | `POST` | `/api/documents/from-drive` | `{ name: string, drive_url: string }` — accepts Google Drive/Docs/Sheets/Slides share URLs | `{ data: Document }` — `201`. Downloads file immediately. |
+| `POST` | `/api/documents/:id/sync` | — | `{ data: Document }` — Re-fetches updated file on demand from Google Drive. |
 | `GET` | `/api/documents/:id/download` | — | Binary file response with `Content-Disposition: attachment` header |
 | `DELETE` | `/api/documents/:id` | — | `{ data: { id } }` — deletes from storage + removes document ID from any templates that reference it |
 
@@ -411,18 +412,20 @@ To add a new provider, implement `EmailProvider` and update the factory in `serv
 
 ## Email scheduler
 
-`services/scheduler.ts` runs two `node-cron` jobs:
+`services/scheduler.ts` runs a `node-cron` job:
 
-- **Every minute** — picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs, updates counts. The sender profile (including Gmail credentials) is loaded from `created_by` so `{{sender…}}` variables resolve correctly.
-- **Every 2 hours** (`0 */2 * * *`) — calls `syncDriveDocuments()` from `driveSync.ts`. For each document with a `drive_url`, it re-downloads the file from Google Drive and overwrites the local copy in place. If the file is gone from Drive (403/404), it is deleted from `documents` and its ID is removed from all `email_templates.document_ids` arrays. Sync also runs once 10 seconds after startup.
+- **Every 30 minutes** (`*/30 * * * *`) — picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs, updates counts, and finishes work in batch. The PostgreSQL pool is configured with `idleTimeoutMillis: 10000` so that after processing finishes, all idle connections are dropped within 10 seconds, allowing serverless Neon DB compute to suspend after 5 minutes of inactivity and rest for the remainder of the interval.
 
 ## Google Drive sync
+
+Drive files are synced on-demand via `POST /api/documents/:id/sync` rather than an automatic cron to conserve compute.
 
 `services/driveSync.ts` handles Drive-linked documents:
 
 - **`parseDriveUrl(url)`** — extracts the file ID from Drive/Docs/Sheets/Slides share URLs.
-- **`fetchAndSaveFile(driveUrl, existingPath?)`** — downloads the file. If `existingPath` is provided and exists on disk, it overwrites that path (no orphaned files). Handles Google's virus-scan confirmation redirect for large files.
-- **`syncDriveDocuments()`** — iterates all documents with a `drive_url` and refreshes them. Removes deleted ones from the DB and templates.
+- **`fetchAndSaveFile(driveUrl, existingPath?)`** — downloads the file. If `existingPath` is provided and exists on disk/storage, it overwrites that path (no orphaned files). Handles Google's virus-scan confirmation redirect for large files.
+- **`syncDriveDocuments()`** — utility function to refresh documents with a `drive_url`.
+
 
 ---
 

@@ -28,6 +28,7 @@ vi.mock('../lib/api', () => ({
     documents: {
       list: vi.fn(),
       upload: vi.fn(),
+      sync: vi.fn(),
       delete: vi.fn(),
     },
     variablePresets: {

@@ -4,6 +4,7 @@ import type {
   AutofillResultMessage,
   UserProfile,
   ProspectData,
+  Document,
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
@@ -93,4 +94,21 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(prospect.firstName).toBe('Bob');
     expect(prospect.company).toBe('Acme');
   });
+
+  it('validates Document structure with optional Drive metadata', () => {
+    const doc: Document = {
+      id: 'doc-1',
+      name: 'My Resume',
+      filename: 'resume.pdf',
+      drive_url: 'https://docs.google.com/document/d/123/edit',
+      drive_synced_at: '2026-08-23T20:00:00Z',
+      drive_sync_error: null,
+      size: 1024,
+    };
+
+    expect(doc.name).toBe('My Resume');
+    expect(doc.drive_url).toBe('https://docs.google.com/document/d/123/edit');
+    expect(doc.size).toBe(1024);
+  });
 });
+

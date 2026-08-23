@@ -27,3 +27,4 @@ export const CONFIG = {
   prospeoApiKey: process.env['PROSPEO_API_KEY'] ?? '',
   activeEnrichmentProvider: process.env['ACTIVE_ENRICHMENT_PROVIDER'] ?? 'prospeo',
 } as const;
+

@@ -4,6 +4,8 @@ import type {
   AutofillResultMessage,
   UserProfile,
   ProspectData,
+  Job,
+  JobStatus,
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
@@ -92,5 +94,22 @@ describe('Extension Data Shapes & Message Contracts', () => {
 
     expect(prospect.firstName).toBe('Bob');
     expect(prospect.company).toBe('Acme');
+  });
+
+  it('validates Job and JobStatus contracts', () => {
+    const status: JobStatus = 'open';
+    const sampleJob: Job = {
+      id: 'job-1',
+      title: 'Senior Software Engineer',
+      job_url: 'https://careers.google.com/jobs/123',
+      company_id: 'comp-1',
+      status,
+      notes: 'Referral requested',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    expect(sampleJob.status).toBe('open');
+    expect(sampleJob.title).toBe('Senior Software Engineer');
   });
 });

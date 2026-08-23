@@ -74,7 +74,7 @@ function pixelUrl(sendId: string): string {
 
 router.get('/history', async (req, res, next) => {
   try {
-    const { limit = '50', offset = '0', status, search, company_id, template_id, prospect_id } = req.query as Record<string, string>;
+    const { limit = '50', offset = '0', status, search, company_id, template_id, prospect_id, job_id } = req.query as Record<string, string>;
 
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -95,9 +95,13 @@ router.get('/history', async (req, res, next) => {
       params.push(prospect_id);
       conditions.push(`es.prospect_id = $${params.length}`);
     }
+    if (job_id) {
+      params.push(job_id);
+      conditions.push(`es.job_id = $${params.length}`);
+    }
     if (search) {
       params.push(`%${search}%`);
-      conditions.push(`(p.first_name ILIKE $${params.length} OR p.last_name ILIKE $${params.length} OR p.email ILIKE $${params.length} OR es.subject ILIKE $${params.length})`);
+      conditions.push(`(p.first_name ILIKE $${params.length} OR p.last_name ILIKE $${params.length} OR p.email ILIKE $${params.length} OR es.subject ILIKE $${params.length} OR j.title ILIKE $${params.length})`);
     }
 
     const { sql, value } = ownerFilter(req.user!, 'es', params.length + 1);
@@ -110,11 +114,15 @@ router.get('/history', async (req, res, next) => {
       `SELECT es.*,
               json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email, 'job_title', p.job_title) AS prospect,
               json_build_object('name', c.name) AS company,
-              json_build_object('name', t.name) AS template
+              json_build_object('name', t.name) AS template,
+              CASE WHEN j.id IS NOT NULL THEN
+                json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url)
+              ELSE NULL END AS job
        FROM email_sends es
        LEFT JOIN prospects p ON p.id = es.prospect_id
        LEFT JOIN companies c ON c.id = es.company_id
        LEFT JOIN email_templates t ON t.id = es.template_id
+       LEFT JOIN jobs j ON j.id = es.job_id
        ${where}
        ORDER BY es.created_at DESC
        LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
@@ -123,6 +131,7 @@ router.get('/history', async (req, res, next) => {
     const countRes = await pool.query<{ count: string }>(
       `SELECT COUNT(*) FROM email_sends es
        LEFT JOIN prospects p ON p.id = es.prospect_id
+       LEFT JOIN jobs j ON j.id = es.job_id
        ${where}`,
       params
     );
@@ -271,11 +280,13 @@ router.post('/preview', async (req, res, next) => {
 
 router.post('/send', async (req, res, next) => {
   try {
-    const { templateId, prospectId, customValues = {}, documentIds = [] } = req.body as {
+    const { templateId, prospectId, customValues = {}, documentIds = [], jobId, job_id } = req.body as {
       templateId: string;
       prospectId: string;
       customValues?: Record<string, string>;
       documentIds?: string[];
+      jobId?: string;
+      job_id?: string;
     };
 
     if (!templateId || !prospectId) {
@@ -325,14 +336,26 @@ router.post('/send', async (req, res, next) => {
     const attachments = await getAttachments(allDocumentIds);
 
     const jobUrl = customValues['jobUrl'] ?? customValues['job_url'] ?? null;
+    const targetJobId = jobId || job_id || null;
 
     const sendRecord = await pool.query<EmailSend>(
-      `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url)
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING *`,
-      [template.id, prospect.id, prospect.company_id, resolvedSubject, resolvedBody, req.user!.id, jobUrl]
+      `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url, job_id)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8) RETURNING *`,
+      [template.id, prospect.id, prospect.company_id, resolvedSubject, resolvedBody, req.user!.id, jobUrl, targetJobId]
     );
     const sendId = sendRecord.rows[0]!.id;
     const html = wrapEmailHtml(plainTextToHtml(resolvedBody), pixelUrl(sendId));
+
+    if (targetJobId) {
+      pool.query(
+        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
+        [targetJobId, req.user!.id]
+      ).catch(() => undefined);
+      pool.query(
+        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
+        [targetJobId, req.user!.id]
+      ).catch(() => undefined);
+    }
 
     try {
       const result = await provider.send({
@@ -371,12 +394,14 @@ router.post('/send', async (req, res, next) => {
 
 router.post('/send-company', async (req, res, next) => {
   try {
-    const { templateId, companyId, prospectIds, customValues = {}, documentIds = [] } = req.body as {
+    const { templateId, companyId, prospectIds, customValues = {}, documentIds = [], jobId, job_id } = req.body as {
       templateId: string;
       companyId: string;
       prospectIds?: string[];
       customValues?: Record<string, string>;
       documentIds?: string[];
+      jobId?: string;
+      job_id?: string;
     };
 
     if (!templateId || !companyId) {
@@ -440,6 +465,18 @@ router.post('/send-company', async (req, res, next) => {
     const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
     const attachments = await getAttachments(allDocumentIds);
     const sender = userConfig.senderProfile;
+    const targetJobId = jobId || job_id || null;
+
+    if (targetJobId) {
+      pool.query(
+        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
+        [targetJobId, userId]
+      ).catch(() => undefined);
+      pool.query(
+        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
+        [targetJobId, userId]
+      ).catch(() => undefined);
+    }
 
     const results = await Promise.allSettled(
       prospects.map(async (prospect) => {
@@ -450,9 +487,9 @@ router.post('/send-company', async (req, res, next) => {
         const jobUrl = customValues['jobUrl'] ?? customValues['job_url'] ?? null;
 
         const sendRecord = await pool.query<EmailSend>(
-          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url)
-           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING id`,
-          [template.id, prospect.id, company.id, subject, body, userId, jobUrl]
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url, job_id)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8) RETURNING id`,
+          [template.id, prospect.id, company.id, subject, body, userId, jobUrl, targetJobId]
         );
         const sendId = sendRecord.rows[0]!.id;
         const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
@@ -506,11 +543,13 @@ router.post('/send-company', async (req, res, next) => {
 // Each prospect is resolved with its own company for template variables.
 router.post('/send-batch', async (req, res, next) => {
   try {
-    const { templateId, prospectIds, customValues = {}, documentIds = [] } = req.body as {
+    const { templateId, prospectIds, customValues = {}, documentIds = [], jobId, job_id } = req.body as {
       templateId: string;
       prospectIds: string[];
       customValues?: Record<string, string>;
       documentIds?: string[];
+      jobId?: string;
+      job_id?: string;
     };
 
     if (!templateId || !Array.isArray(prospectIds) || prospectIds.length === 0) {
@@ -555,6 +594,18 @@ router.post('/send-batch', async (req, res, next) => {
     const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
     const attachments = await getAttachments(allDocumentIds);
     const sender = userConfig.senderProfile;
+    const targetJobId = jobId || job_id || null;
+
+    if (targetJobId) {
+      pool.query(
+        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
+        [targetJobId, userId]
+      ).catch(() => undefined);
+      pool.query(
+        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
+        [targetJobId, userId]
+      ).catch(() => undefined);
+    }
 
     const results = await Promise.allSettled(
       prospects.map(async (prospect) => {
@@ -566,9 +617,9 @@ router.post('/send-batch', async (req, res, next) => {
         const jobUrl = customValues['jobUrl'] ?? customValues['job_url'] ?? null;
 
         const sendRecord = await pool.query<EmailSend>(
-          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url)
-           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING id`,
-          [template.id, prospect.id, prospect.company_id ?? null, subject, body, userId, jobUrl]
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url, job_id)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8) RETURNING id`,
+          [template.id, prospect.id, prospect.company_id ?? null, subject, body, userId, jobUrl, targetJobId]
         );
         const sendId = sendRecord.rows[0]!.id;
         const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));
@@ -628,6 +679,8 @@ router.post('/quick-send', async (req, res, next) => {
       documentIds = [],
       job_url,
       jobUrl,
+      jobId,
+      job_id,
       company_name,
       job_title,
     } = req.body as {
@@ -637,6 +690,8 @@ router.post('/quick-send', async (req, res, next) => {
       documentIds?: string[];
       job_url?: string;
       jobUrl?: string;
+      jobId?: string;
+      job_id?: string;
       company_name?: string;
       job_title?: string;
     };
@@ -675,11 +730,23 @@ router.post('/quick-send', async (req, res, next) => {
     }
 
     const attachments = await getAttachments(documentIds);
+    const targetJobId = jobId || job_id || null;
+
+    if (targetJobId) {
+      pool.query(
+        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
+        [targetJobId, userId]
+      ).catch(() => undefined);
+      pool.query(
+        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
+        [targetJobId, userId]
+      ).catch(() => undefined);
+    }
 
     const sendRecord = await pool.query<EmailSend>(
-      `INSERT INTO email_sends (prospect_id, company_id, subject, body, status, created_by, job_url)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6) RETURNING *`,
-      [prospect.id, prospect.company_id ?? null, subject, body, userId, jobUrl || job_url || null]
+      `INSERT INTO email_sends (prospect_id, company_id, subject, body, status, created_by, job_url, job_id)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7) RETURNING *`,
+      [prospect.id, prospect.company_id ?? null, subject, body, userId, jobUrl || job_url || null, targetJobId]
     );
     const sendId = sendRecord.rows[0]!.id;
     const html = wrapEmailHtml(plainTextToHtml(body), pixelUrl(sendId));

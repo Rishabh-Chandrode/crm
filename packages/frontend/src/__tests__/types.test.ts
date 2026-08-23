@@ -71,4 +71,12 @@ describe('Frontend Types & Utility Functions', () => {
       });
     });
   });
+
+  describe('JOB_FIELDS', () => {
+    it('contains expected job schema fields', async () => {
+      const { JOB_FIELDS } = await import('../lib/types');
+      expect(JOB_FIELDS).toContainEqual({ value: 'title', label: 'Job Title / Role' });
+      expect(JOB_FIELDS).toContainEqual({ value: 'job_url', label: 'Job URL' });
+    });
+  });
 });

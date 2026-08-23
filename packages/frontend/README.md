@@ -17,7 +17,7 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Stats overview + activity charts + recent sends
+│       ├── dashboard/page.tsx     # Stats overview + Ready to Apply jobs hub + activity charts + recent sends
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile + email history
@@ -25,7 +25,8 @@ src/
 │       ├── send/page.tsx          # Multi-step send wizard & quick compose
 │       ├── history/page.tsx       # Paginated email send log with open tracking
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel
-│       ├── applications/page.tsx  # Job application tracker — CRUD + status/search filters
+│       ├── jobs/page.tsx          # Redirects /jobs → /applications
+│       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + waiting period + stages
 │       ├── profile/page.tsx       # Full profile editor — personal, professional, preferences
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, Documents, Variables
 │       └── users/page.tsx         # Admin-only user management
@@ -105,26 +106,37 @@ api.companies.update(id, body)
 api.companies.delete(id)
 api.companies.merge(targetId, sourceId)
 
+// Jobs & Referral Outreach
+api.jobs.list(filters?)           // GET /api/jobs — search, status, companyId, limit, offset
+api.jobs.get(id)                  // GET /api/jobs/:id
+api.jobs.create(body)             // POST /api/jobs — title, job_url, company_id, company_name, status, notes
+api.jobs.update(id, body)         // PATCH /api/jobs/:id
+api.jobs.delete(id)               // DELETE /api/jobs/:id
+api.jobs.getEmails(id)            // GET /api/jobs/:id/emails — outreach history
+
 // Email
 api.email.preview(templateId, prospectId, customValues?)
-api.email.send(templateId, prospectId, customValues?, documentIds?)
-api.email.sendCompany(templateId, companyId, prospectIds?, customValues?, documentIds?)
+api.email.send(templateId, prospectId, customValues?, documentIds?, jobId?)
+api.email.sendCompany(templateId, companyId, prospectIds?, customValues?, documentIds?, jobId?)
+api.email.sendBatch(templateId, prospectIds, customValues?, documentIds?, jobId?)
+api.email.quickSend(email, subject, body, documentIds?, jobId?)
 api.email.history(limit, offset, filters?)
 api.email.retry(id)
 
 // Schedules, Documents, Variable Presets, Stats, Import
-api.schedules.list() / .create() / .get(id) / .cancel(id)
+api.schedules.list() / .create() / .get(id) / .cancel(id) / .quick()
 api.documents.list() / .upload(file, name) / .delete(id) / .download(id)
 api.variablePresets.list() / .create() / .update() / .delete()
 api.stats.get()
 api.import.parse(file)
 api.import.prospects(body)
 
-// Job Applications
-api.applications.list(filters?)       // GET  /api/applications — status, search, limit, offset
+// Job Applications & Opportunities
+api.applications.list(filters?)       // GET  /api/applications — status, search, job_id, limit, offset
 api.applications.create(body)         // POST /api/applications
 api.applications.update(id, body)     // PATCH /api/applications/:id
 api.applications.delete(id)           // DELETE /api/applications/:id
+api.applications.getEmails(id)        // GET  /api/applications/:id/emails — outreach history
 ```
 
 ---
@@ -192,6 +204,7 @@ Test suites live in `src/__tests__/`:
 - `dashboard.test.tsx` — Dashboard UI rendering, stats cards, 14-day continuous activity timeline chart, responsive mid-size breakpoint (1024px) layout, loading skeletons, and empty states
 - `applications.test.tsx` — Applications tracker page, status summary cards, interactive status filters, full application editing modal, and manual application creation
 - `history.test.tsx` — Email history log viewer, status filter pills, search filtering, and delivery retry
+- `jobs.test.tsx` — Jobs & referral outreach tracker, KPI summary cards, status filters, create/edit modals, and email history drawer
 - `prospects.test.tsx` — Prospects page listing, Combobox company and role category filter dropdowns
 - `combobox.test.tsx` — Searchable dropdown opening, filtering, keyboard navigation, and option selection
 - `dateTimePicker.test.tsx` — Apple calendar navigation, time stepper, and preset chips

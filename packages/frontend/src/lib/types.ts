@@ -146,6 +146,7 @@ export interface EmailSend {
   template_id: string | null;
   prospect_id: string | null;
   company_id: string | null;
+  job_id?: string | null;
   subject: string | null;
   body: string | null;
   status: EmailSendStatus;
@@ -159,6 +160,7 @@ export interface EmailSend {
   prospect?: { first_name: string; last_name: string | null; email: string; job_title?: string | null };
   company?: { name: string };
   template?: { name: string };
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
 }
 
 export type EmailScheduleStatus = 'pending' | 'sending' | 'sent' | 'cancelled' | 'failed';
@@ -167,6 +169,7 @@ export interface EmailSchedule {
   id: string;
   template_id: string | null;
   company_id: string | null;
+  job_id?: string | null;
   prospect_ids: string[];
   custom_values: Record<string, string>;
   scheduled_for: string;
@@ -179,6 +182,7 @@ export interface EmailSchedule {
   sent_at: string | null;
   company?: { name: string };
   template?: { name: string; subject?: string };
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
 }
 
 export interface EmailScheduleDetail extends EmailSchedule {
@@ -247,18 +251,55 @@ export const COMPANY_FIELDS: { value: string; label: string }[] = [
   { value: 'industry', label: 'Industry' },
 ];
 
-export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+export const JOB_FIELDS: { value: string; label: string }[] = [
+  { value: 'title', label: 'Job Title / Role' },
+  { value: 'job_url', label: 'Job URL' },
+];
+
+// Jobs & Job Opportunities
+export type JobStatus = 'open' | 'referral_requested' | 'applied' | 'interviewing' | 'closed';
+
+export interface Job {
+  id: string;
+  company_id: string | null;
+  title: string;
+  job_url: string;
+  status: JobStatus | string;
+  notes: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  company?: Pick<Company, 'id' | 'name' | 'website' | 'industry'>;
+  application?: JobApplication;
+  email_count?: number;
+  referral_requested_at?: string | null;
+}
+
+export type JobApplicationStatus =
+  | 'not_applied'
+  | 'referral_requested'
+  | 'applied'
+  | 'screening'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'withdrawn'
+  | 'closed';
 
 export interface JobApplication {
   id: string;
   user_id: string;
+  job_id?: string | null;
   company_name: string;
   job_title: string;
   job_url: string;
   platform: string;
-  status: JobApplicationStatus;
+  status: JobApplicationStatus | string;
   notes: string | null;
   applied_at: string;
   created_at: string;
   updated_at: string;
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
+  email_count?: number;
+  referral_requested_at?: string | null;
 }

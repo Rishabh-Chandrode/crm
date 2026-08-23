@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import DashboardPage from '../app/(dashboard)/dashboard/page';
@@ -9,6 +9,9 @@ vi.mock('../lib/api', () => ({
   api: {
     stats: {
       get: vi.fn(),
+    },
+    applications: {
+      update: vi.fn(),
     },
   },
 }));
@@ -26,7 +29,7 @@ describe('DashboardPage (Antigravity Redesign)', () => {
     expect(pulses.length).toBeGreaterThan(0);
   });
 
-  it('renders dashboard with stats, KPIs, and pipeline stages when data loads', async () => {
+  it('renders dashboard with stats, KPIs, ready to apply, and not applied jobs when data loads', async () => {
     const mockStats = {
       companies: 12,
       prospects: 48,
@@ -41,6 +44,8 @@ describe('DashboardPage (Antigravity Redesign)', () => {
         openRate: 49,
       },
       applicationsByStatus: [
+        { status: 'not_applied', count: 3 },
+        { status: 'referral_requested', count: 5 },
         { status: 'applied', count: 10 },
         { status: 'screening', count: 4 },
         { status: 'interview', count: 3 },
@@ -79,6 +84,34 @@ describe('DashboardPage (Antigravity Redesign)', () => {
           applied_at: new Date().toISOString(),
         },
       ],
+      readyToApplyApplications: [
+        {
+          id: 'app-ready-1',
+          user_id: 'u1',
+          company_name: 'Stripe',
+          job_title: 'Backend Engineer',
+          status: 'referral_requested',
+          email_count: 2,
+          referral_requested_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+          job_url: 'https://stripe.com/jobs/backend',
+          applied_at: new Date().toISOString(),
+        },
+      ],
+      readyToApplyCount: 1,
+      notAppliedApplications: [
+        {
+          id: 'app-not-applied-1',
+          user_id: 'u1',
+          company_name: 'Airbnb',
+          job_title: 'Design Technologist',
+          status: 'not_applied',
+          platform: 'Lever',
+          job_url: 'https://airbnb.com/jobs/design',
+          created_at: new Date().toISOString(),
+          applied_at: new Date().toISOString(),
+        },
+      ],
+      notAppliedCount: 1,
       upcomingSchedules: [
         {
           id: 'sched-1',
@@ -110,10 +143,23 @@ describe('DashboardPage (Antigravity Redesign)', () => {
     expect(screen.getByText('49%')).toBeInTheDocument(); // Open Rate
     expect(screen.getByText('48')).toBeInTheDocument(); // Prospects
     expect(screen.getAllByText('12').length).toBeGreaterThan(0); // Companies
-    expect(screen.getByText('5')).toBeInTheDocument(); // Templates
+    expect(screen.getAllByText('5').length).toBeGreaterThan(0); // Templates
+
+    // Check Ready to Apply Hub
+    expect(screen.getByText('Ready to Apply Directly')).toBeInTheDocument();
+    expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+    expect(screen.getByText('Stripe')).toBeInTheDocument();
+    expect(screen.getByText('2 referral emails sent')).toBeInTheDocument();
+
+    // Check Saved / Not Applied Jobs Hub
+    expect(screen.getByText('Saved / Not Applied Jobs')).toBeInTheDocument();
+    expect(screen.getByText('Design Technologist')).toBeInTheDocument();
+    expect(screen.getByText('Airbnb')).toBeInTheDocument();
+    expect(screen.getByText('Ask Referral')).toBeInTheDocument();
 
     // Check Pipeline Stages
     expect(screen.getByText('Application Pipeline Stages')).toBeInTheDocument();
+    expect(screen.getAllByText('Not Applied').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Applied').length).toBeGreaterThan(0);
     expect(screen.getByText('Interviewing')).toBeInTheDocument();
     expect(screen.getByText('Offers')).toBeInTheDocument();
@@ -124,9 +170,12 @@ describe('DashboardPage (Antigravity Redesign)', () => {
     expect(screen.getByText('Senior Engineer')).toBeInTheDocument();
     expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0);
 
-    // Check Action Buttons
-    expect(screen.getByRole('link', { name: /Compose \/ Send/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Add Prospect/i })).toBeInTheDocument();
+    // Test Mark as Applied button on ready to apply item
+    const markBtn = screen.getByText('✓ Mark as Applied');
+    fireEvent.click(markBtn);
+    await waitFor(() => {
+      expect(api.applications.update).toHaveBeenCalledWith('app-ready-1', { status: 'applied' });
+    });
   });
 
   it('renders graceful empty states when collections are empty', async () => {
@@ -148,6 +197,10 @@ describe('DashboardPage (Antigravity Redesign)', () => {
       topCompanies: [],
       recentSends: [],
       recentApplications: [],
+      readyToApplyApplications: [],
+      readyToApplyCount: 0,
+      notAppliedApplications: [],
+      notAppliedCount: 0,
       upcomingSchedules: [],
       dailyActivity: [],
     };

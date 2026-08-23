@@ -137,6 +137,31 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.status).toBe('interview');
     });
 
+    it('returns emails for an application via GET /api/applications/:id/emails', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({
+          rows: [{ job_id: 'job-1' }],
+        } as any)
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'send-1',
+              subject: 'Referral inquiry',
+              status: 'sent',
+              prospect: { first_name: 'Alex', email: 'alex@stripe.com' },
+            },
+          ],
+        } as any);
+
+      const res = await request(app)
+        .get('/api/applications/app-1/emails')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].subject).toBe('Referral inquiry');
+    });
+
     it('returns 400 on PATCH when status is invalid', async () => {
       const res = await request(app)
         .patch('/api/applications/app-1')
@@ -165,6 +190,57 @@ describe('Backend API Feature Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('success', true);
       expect(res.body).toHaveProperty('rowCount', 1);
+    });
+  });
+
+  describe('Stats API (/api/stats)', () => {
+    it('returns dashboard statistics including readyToApply metrics', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ companies: '5', prospects: '20', templates: '3', applications: '8' }] } as any) // counts
+        .mockResolvedValueOnce({ rows: [{ status: 'sent', count: '10', opened: '4' }] } as any) // emailStats
+        .mockResolvedValueOnce({ rows: [{ category: 'engineer', count: '15' }] } as any) // category
+        .mockResolvedValueOnce({ rows: [{ name: 'Stripe', count: '5' }] } as any) // topCompanies
+        .mockResolvedValueOnce({ rows: [] } as any) // recentSends
+        .mockResolvedValueOnce({ rows: [] } as any) // upcomingSchedules
+        .mockResolvedValueOnce({ rows: [{ day: '2026-08-20', sent: '5', failed: '0' }] } as any) // dailyActivity
+        .mockResolvedValueOnce({ rows: [{ status: 'referral_requested', count: '2' }] } as any) // appStats
+        .mockResolvedValueOnce({ rows: [] } as any) // recentApps
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'app-ready-1',
+              company_name: 'Stripe',
+              job_title: 'Staff Engineer',
+              status: 'referral_requested',
+              email_count: 2,
+              referral_requested_at: new Date().toISOString(),
+            },
+          ],
+        } as any) // readyToApply
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'app-not-applied-1',
+              company_name: 'Airbnb',
+              job_title: 'Design Technologist',
+              status: 'not_applied',
+              email_count: 0,
+            },
+          ],
+        } as any); // notApplied
+
+      const res = await request(app)
+        .get('/api/stats')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('companies', 5);
+      expect(res.body).toHaveProperty('readyToApplyCount', 1);
+      expect(res.body.readyToApplyApplications).toHaveLength(1);
+      expect(res.body.readyToApplyApplications[0].job_title).toBe('Staff Engineer');
+      expect(res.body).toHaveProperty('notAppliedCount', 1);
+      expect(res.body.notAppliedApplications).toHaveLength(1);
+      expect(res.body.notAppliedApplications[0].job_title).toBe('Design Technologist');
     });
   });
 

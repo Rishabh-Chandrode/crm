@@ -266,14 +266,28 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 ---
 
+### Jobs & Referral Outreach
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/jobs` | **Query:** `companyId?`, `status?` (`open` \| `referral_requested` \| `applied` \| `interviewing` \| `closed`), `search?` (job title or company name), `limit?` (default 50), `offset?` | `{ data: Job[], total: number }` — each includes nested `company`, `application`, `email_count`, and `referral_requested_at` |
+| `POST` | `/api/jobs` | `{ title: string, job_url: string, company_id?: string, company_name?: string, status?: string, notes?: string }` — auto-creates/links company if `company_name` given | `{ data: Job }` — `201` |
+| `GET` | `/api/jobs/:id` | — | `{ data: Job & { emails: EmailSend[] } }` |
+| `PATCH` | `/api/jobs/:id` | Any subset of: `title`, `job_url`, `company_id`, `status`, `notes` | `{ data: Job }` |
+| `DELETE` | `/api/jobs/:id` | — | `{ data: { id, deleted: true } }` |
+| `GET` | `/api/jobs/:id/emails` | — | `{ data: EmailSend[] }` — all outreach emails sent for this job |
+
+---
+
 ### Job Applications
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/applications` | **Query:** `status?` (`not_applied` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn`), `search?` (company_name or job_title), `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` |
-| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string }` — platform defaults to `'Generic'`, status defaults to `'applied'` | `JobApplication` — `201` |
-| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string }` — validates status against allowed values | `JobApplication` |
+| `GET` | `/api/applications` | **Query:** `status?` (`open` \| `referral_requested` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn` \| `closed`), `search?` (company_name or job_title), `job_id?`, `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `email_count`, and `referral_requested_at` |
+| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'` | `JobApplication` — `201` |
+| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values | `JobApplication` |
 | `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
+| `GET` | `/api/applications/:id/emails` | — | `{ data: EmailSend[] }` — all outreach emails sent for this application / role |
 
 ---
 
@@ -290,7 +304,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, emails: { total, sent, failed, pending, opened, openRate }, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, notAppliedApplications, notAppliedCount, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
 
 ---
 
@@ -340,7 +354,11 @@ users (id UUID PK, username, email, password_hash, role, is_active,
        from_name, reply_to_email,          -- email display name / reply-to overrides
        created_at, updated_at)
 
-job_applications (id UUID PK, user_id→users,
+jobs             (id UUID PK, company_id→companies, title, job_url,
+                  status,       -- open|referral_requested|applied|interviewing|closed
+                  notes, created_by→users, created_at, updated_at)
+
+job_applications (id UUID PK, user_id→users, job_id→jobs,
                   company_name, job_title, job_url, platform,
                   status,       -- applied|screening|interview|offer|rejected|withdrawn
                   notes, applied_at, created_at, updated_at)
@@ -354,11 +372,11 @@ email_templates (id, name, description, subject, body, job_description,
                  created_by→users, created_at, updated_at)
 email_sends     (id, template_id, prospect_id, company_id, subject, body,
                  status, resend_id, sent_at, error_message, opened_at, open_count,
-                 created_by→users, created_at)
+                 job_url, job_id→jobs, created_by→users, created_at)
 email_schedules (id, template_id, company_id, prospect_ids UUID[],
                  custom_values JSONB, scheduled_for, status,
                  total_prospects, sent_count, failed_count, document_ids UUID[],
-                 created_by→users, created_at, sent_at)
+                 job_id→jobs, created_by→users, created_at, sent_at)
 documents       (id, name, filename, path, size,
                  drive_url,          -- original Drive share URL (NULL for uploads)
                  drive_file_id,      -- extracted Drive file ID

@@ -96,20 +96,50 @@ export interface UserProfile {
   work_experiences: WorkExperience[] | null;
 }
 
-export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+// Jobs & Job Opportunities
+export type JobStatus = 'open' | 'referral_requested' | 'applied' | 'interviewing' | 'closed';
+
+export interface Job {
+  id: string;
+  company_id: string | null;
+  title: string;
+  job_url: string;
+  status: JobStatus | string;
+  notes: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  email_count?: number;
+  referral_requested_at?: string | null;
+}
+
+export type JobApplicationStatus =
+  | 'not_applied'
+  | 'referral_requested'
+  | 'applied'
+  | 'screening'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'withdrawn'
+  | 'closed';
 
 export interface JobApplication {
   id: string;
   user_id: string;
+  job_id?: string | null;
   company_name: string;
   job_title: string;
   job_url: string;
   platform: string;
-  status: JobApplicationStatus;
+  status: JobApplicationStatus | string;
   notes: string | null;
   applied_at: string;
   created_at: string;
   updated_at: string;
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
+  email_count?: number;
+  referral_requested_at?: string | null;
 }
 
 export interface AutofillResultMessage {

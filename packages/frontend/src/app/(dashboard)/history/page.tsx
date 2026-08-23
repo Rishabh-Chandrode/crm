@@ -98,14 +98,22 @@ function SendCard({
               {send.prospect ? prospectFullName(send.prospect) : 'Unknown recipient'}
             </div>
             <div className="text-[11px] text-zinc-400 font-mono truncate">{send.prospect?.email ?? ''}</div>
-            {(send.company?.name ?? send.template?.name ?? send.job_url) && (
+            {(send.company?.name ?? send.template?.name ?? send.job ?? send.job_url) && (
               <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1.5 flex-wrap">
                 {[send.company?.name, send.template?.name].filter(Boolean).join(' · ')}
-                {send.job_url && (
+                {send.job && (
+                  <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold px-2 py-0.5 rounded text-[10px] border border-amber-500/20">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Job: {send.job.title}
+                  </span>
+                )}
+                {(send.job_url || send.job?.job_url) && (
                   <>
-                    {(send.company?.name || send.template?.name) && <span>·</span>}
+                    <span>·</span>
                     <a
-                      href={send.job_url}
+                      href={send.job?.job_url || send.job_url || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-zinc-700 dark:text-zinc-300 hover:underline inline-flex items-center gap-0.5 font-medium"
@@ -114,7 +122,7 @@ function SendCard({
                       <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
-                      Job Post
+                      Posting
                     </a>
                   </>
                 )}

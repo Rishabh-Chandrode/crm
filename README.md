@@ -126,6 +126,10 @@ users           ← accounts (username, password_hash, role, full profile fields
 companies       ← target companies
   └── created_by → users.id
 
+jobs            ← tracked target job opportunities with referral outreach & application links
+  ├── company_id  → companies.id
+  └── created_by  → users.id
+
 prospects       ← contacts at companies
   ├── company_id  → companies.id
   └── created_by  → users.id
@@ -136,12 +140,15 @@ email_templates ← reusable templates with {{variable}} placeholders
 email_sends     ← log of every sent / failed email
   ├── template_id → email_templates.id
   ├── prospect_id → prospects.id
+  ├── job_id      → jobs.id
   └── created_by  → users.id
 
 email_schedules ← future sends processed by the scheduler
+  ├── job_id      → jobs.id
   └── created_by  → users.id
 
 job_applications← applications tracked by extension or entered manually
+  ├── job_id    → jobs.id
   └── user_id   → users.id
 
 documents       ← uploaded PDF/DOC attachments + Drive-linked files (auto-synced every 2 h)

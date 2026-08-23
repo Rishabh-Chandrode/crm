@@ -21,6 +21,10 @@ interface ExtendedStats {
   };
   applicationsByStatus?: { status: string; count: number }[];
   recentApplications?: JobApplication[];
+  readyToApplyApplications?: JobApplication[];
+  readyToApplyCount?: number;
+  notAppliedApplications?: JobApplication[];
+  notAppliedCount?: number;
   prospectsByCategory: { category: string; count: number }[];
   topCompanies: { name: string; count: number }[];
   recentSends: EmailSend[];
@@ -243,6 +247,8 @@ export default function DashboardPage() {
 
   // Application pipeline aggregation
   const appStatusCounts: Record<string, number> = {
+    not_applied: 0,
+    referral_requested: 0,
     applied: 0,
     screening: 0,
     interview: 0,
@@ -251,7 +257,9 @@ export default function DashboardPage() {
   };
   if (stats.applicationsByStatus) {
     for (const item of stats.applicationsByStatus) {
-      if (item.status in appStatusCounts) {
+      if (item.status === 'open' || item.status === 'not_applied') {
+        appStatusCounts.not_applied = (appStatusCounts.not_applied ?? 0) + item.count;
+      } else if (item.status in appStatusCounts) {
         appStatusCounts[item.status] = item.count;
       }
     }
@@ -370,6 +378,211 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Ready to Apply Action Hub (2d+ Referral Timer Expired) */}
+      {stats.readyToApplyApplications && stats.readyToApplyApplications.length > 0 && (
+        <div className="card p-5 border-l-4 border-l-emerald-500 bg-emerald-500/5 dark:bg-emerald-950/15">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 tracking-tight flex items-center gap-1.5">
+                  <span className="text-emerald-600 dark:text-emerald-400">⚡</span> Ready to Apply Directly
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                  {stats.readyToApplyApplications.length} role{stats.readyToApplyApplications.length !== 1 ? 's' : ''} (2d+ waited)
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Referral outreach was sent over 48 hours ago without a response. You can now apply directly so you don&apos;t miss the window.
+              </p>
+            </div>
+            <Link
+              href="/applications"
+              className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline inline-flex items-center gap-1 shrink-0"
+            >
+              View in Applications →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {stats.readyToApplyApplications.map((app) => {
+              const daysWaited = app.referral_requested_at
+                ? Math.max(0, Math.floor((Date.now() - new Date(app.referral_requested_at).getTime()) / (24 * 60 * 60 * 1000)))
+                : 2;
+              return (
+                <div
+                  key={app.id}
+                  className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 shadow-2xs flex flex-col justify-between gap-3 transition-all hover:border-emerald-500/50"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{app.company_name}</p>
+                        <p className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium mt-0.5">{app.job_title}</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
+                        Waited {daysWaited}d
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {app.email_count && app.email_count > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          {app.email_count} referral email{app.email_count !== 1 ? 's' : ''} sent
+                        </span>
+                      ) : (
+                        <span>Outreach sent</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80">
+                    {app.job_url ? (
+                      <a
+                        href={app.job_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 inline-flex items-center gap-1 hover:underline"
+                      >
+                        Open Portal
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    ) : (
+                      <span />
+                    )}
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.applications.update(app.id, { status: 'applied' });
+                          setStats((prev) => {
+                            if (!prev) return null;
+                            return {
+                              ...prev,
+                              readyToApplyApplications: prev.readyToApplyApplications?.filter((a) => a.id !== app.id),
+                              readyToApplyCount: Math.max(0, (prev.readyToApplyCount ?? 1) - 1),
+                            };
+                          });
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                      className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      ✓ Mark as Applied
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Saved / Not Applied Opportunities Action Hub */}
+      {stats.notAppliedApplications && stats.notAppliedApplications.length > 0 && (
+        <div className="card p-5 border-l-4 border-l-zinc-400 bg-zinc-500/5 dark:bg-zinc-800/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 tracking-tight flex items-center gap-1.5">
+                  <span className="text-zinc-500 dark:text-zinc-400">📌</span> Saved / Not Applied Jobs
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700">
+                  {stats.notAppliedApplications.length} saved opening{stats.notAppliedApplications.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Opportunities captured that are awaiting referral outreach or direct application submission.
+              </p>
+            </div>
+            <Link
+              href="/applications"
+              className="text-xs font-semibold text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 hover:underline inline-flex items-center gap-1 shrink-0"
+            >
+              View all applications →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {stats.notAppliedApplications.map((app) => (
+              <div
+                key={app.id}
+                className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 shadow-2xs flex flex-col justify-between gap-3 transition-all hover:border-zinc-400 dark:hover:border-zinc-700"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{app.company_name}</p>
+                      <p className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium mt-0.5">{app.job_title}</p>
+                    </div>
+                    {app.platform && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700/60 shrink-0">
+                        {app.platform}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] text-zinc-400 font-mono mt-2">
+                    Saved {new Date(app.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-1.5 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80">
+                  {app.job_url ? (
+                    <a
+                      href={app.job_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 inline-flex items-center gap-1 hover:underline"
+                    >
+                      Listing
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  ) : (
+                    <span />
+                  )}
+
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/send?jobId=${app.job_id ?? app.id}&companyName=${encodeURIComponent(app.company_name)}`}
+                      className="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 px-2 py-0.8 rounded-lg transition-colors"
+                    >
+                      Ask Referral
+                    </Link>
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.applications.update(app.id, { status: 'applied' });
+                          setStats((prev) => {
+                            if (!prev) return null;
+                            return {
+                              ...prev,
+                              notAppliedApplications: prev.notAppliedApplications?.filter((a) => a.id !== app.id),
+                              notAppliedCount: Math.max(0, (prev.notAppliedCount ?? 1) - 1),
+                            };
+                          });
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                      className="text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 px-2 py-0.8 rounded-lg transition-colors cursor-pointer"
+                    >
+                      ✓ Mark Applied
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Application Funnel & Stages Tracker */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
@@ -387,8 +600,10 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-7 gap-2.5">
           {[
+            { key: 'not_applied', label: 'Not Applied', count: appStatusCounts.not_applied ?? 0, color: 'text-zinc-600 dark:text-zinc-400' },
+            { key: 'referral_requested', label: 'Referral Asked', count: appStatusCounts.referral_requested ?? 0, color: 'text-amber-600 dark:text-amber-400' },
             { key: 'applied', label: 'Applied', count: appStatusCounts.applied, color: 'text-blue-600 dark:text-blue-400' },
             { key: 'screening', label: 'Screening', count: appStatusCounts.screening, color: 'text-indigo-600 dark:text-indigo-400' },
             { key: 'interview', label: 'Interviewing', count: appStatusCounts.interview, color: 'text-purple-600 dark:text-purple-400' },

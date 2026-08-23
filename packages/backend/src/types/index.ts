@@ -93,6 +93,7 @@ export interface EmailSend {
   template_id: string | null;
   prospect_id: string | null;
   company_id: string | null;
+  job_id?: string | null;
   subject: string | null;
   body: string | null;
   status: EmailSendStatus;
@@ -106,23 +107,56 @@ export interface EmailSend {
   prospect?: Pick<Prospect, 'first_name' | 'last_name' | 'email'>;
   company?: Pick<Company, 'name'>;
   template?: Pick<EmailTemplate, 'name'>;
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
+}
+
+// Jobs & Job Opportunities
+export type JobStatus = 'open' | 'referral_requested' | 'applied' | 'interviewing' | 'closed';
+
+export interface Job {
+  id: string;
+  company_id: string | null;
+  title: string;
+  job_url: string;
+  status: JobStatus | string;
+  notes: string | null;
+  created_by?: string | null;
+  created_at: Date;
+  updated_at: Date;
+  company?: Company;
+  application?: JobApplication;
+  email_count?: number;
+  referral_requested_at?: Date | null;
 }
 
 // Job Applications
-export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+export type JobApplicationStatus =
+  | 'not_applied'
+  | 'referral_requested'
+  | 'applied'
+  | 'screening'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'withdrawn'
+  | 'closed';
 
 export interface JobApplication {
   id: string;
   user_id: string;
+  job_id?: string | null;
   company_name: string;
   job_title: string;
   job_url: string;
   platform: string;
-  status: JobApplicationStatus;
+  status: JobApplicationStatus | string;
   notes: string | null;
   applied_at: Date;
   created_at: Date;
   updated_at: Date;
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
+  email_count?: number;
+  referral_requested_at?: Date | null;
 }
 
 export type ApiResponse<T> = {
@@ -134,3 +168,4 @@ export type ApiError = {
   error: string;
   details?: unknown;
 };
+

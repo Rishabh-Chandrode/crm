@@ -343,6 +343,33 @@ export async function migrate(): Promise<void> {
   await pool.query(`
     ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS job_url TEXT;
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id          UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+      company_id  UUID         REFERENCES companies(id) ON DELETE SET NULL,
+      title       VARCHAR(255) NOT NULL,
+      job_url     TEXT         NOT NULL,
+      status      VARCHAR(50)  NOT NULL DEFAULT 'open',
+      notes       TEXT,
+      created_by  UUID         REFERENCES users(id) ON DELETE CASCADE,
+      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
+    CREATE INDEX IF NOT EXISTS idx_jobs_created_by ON jobs(created_by);
+  `);
+  await pool.query(`
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS idx_job_applications_job_id ON job_applications(job_id);
+  `);
+  await pool.query(`
+    ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS idx_email_sends_job_id ON email_sends(job_id);
+  `);
+  await pool.query(`
+    ALTER TABLE email_schedules ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS idx_email_schedules_job_id ON email_schedules(job_id);
+  `);
   console.log('Database migration completed successfully');
 }
 

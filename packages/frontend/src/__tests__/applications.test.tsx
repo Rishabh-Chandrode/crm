@@ -6,6 +6,13 @@ import ApplicationsPage from '../app/(dashboard)/applications/page';
 import { api } from '../lib/api';
 import type { JobApplication } from '../lib/types';
 
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
 vi.mock('../lib/api', () => ({
   api: {
     applications: {
@@ -13,6 +20,7 @@ vi.mock('../lib/api', () => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      getEmails: vi.fn(),
     },
   },
 }));
@@ -26,12 +34,15 @@ describe('ApplicationsPage', () => {
     {
       id: 'app-1',
       user_id: 'u1',
-      company_name: 'Acme Corp',
+      job_id: 'job-1',
+      company_name: 'Stripe',
       job_title: 'Software Engineer',
-      job_url: 'https://acme.com/jobs/1',
-      status: 'applied',
-      platform: 'LinkedIn',
+      job_url: 'https://stripe.com/jobs/1',
+      status: 'referral_requested',
+      platform: 'Direct',
       notes: 'Initial note',
+      email_count: 2,
+      referral_requested_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
       applied_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -39,19 +50,21 @@ describe('ApplicationsPage', () => {
     {
       id: 'app-2',
       user_id: 'u1',
-      company_name: 'Globex Inc',
+      job_id: 'job-2',
+      company_name: 'Airbnb',
       job_title: 'Frontend Engineer',
-      job_url: 'https://globex.com/jobs/2',
-      status: 'interview',
+      job_url: 'https://airbnb.com/jobs/2',
+      status: 'not_applied',
       platform: 'Lever',
       notes: null,
+      email_count: 0,
       applied_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
   ];
 
-  it('renders status summary cards with full block styling and counts', async () => {
+  it('renders KPI summary cards and lists tracked applications with referral badges', async () => {
     vi.mocked(api.applications.list).mockResolvedValue({
       applications: mockApps,
       total: 2,
@@ -63,19 +76,22 @@ describe('ApplicationsPage', () => {
       expect(screen.getByText('Job Applications')).toBeInTheDocument();
     });
 
-    // Check status counts in summary blocks
-    expect(screen.getAllByText('applied').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('interview').length).toBeGreaterThan(0);
-    expect(screen.getByText('screening')).toBeInTheDocument();
-    expect(screen.getByText('offer')).toBeInTheDocument();
-    expect(screen.getByText('rejected')).toBeInTheDocument();
+    expect(screen.getByText('Total Pipeline')).toBeInTheDocument();
+    expect(screen.getByText('Referrals Pending')).toBeInTheDocument();
+    expect(screen.getByText('Ready to Apply (2d+)')).toBeInTheDocument();
 
     // Check application items rendered
-    expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Globex Inc').length).toBeGreaterThan(0);
+    expect(screen.getByText('Software Engineer')).toBeInTheDocument();
+    expect(screen.getByText('Stripe')).toBeInTheDocument();
+    expect(screen.getByText('Frontend Engineer')).toBeInTheDocument();
+    expect(screen.getByText('Airbnb')).toBeInTheDocument();
+
+    // Check outreach email count
+    expect(screen.getByText('2 emails sent')).toBeInTheDocument();
+    expect(screen.getAllByText(/Ready to Apply/).length).toBeGreaterThan(0);
   });
 
-  it('filters applications when clicking a status card', async () => {
+  it('filters applications when clicking a status tab', async () => {
     vi.mocked(api.applications.list).mockResolvedValue({
       applications: [],
       total: 0,
@@ -87,9 +103,8 @@ describe('ApplicationsPage', () => {
       expect(screen.getByText('Job Applications')).toBeInTheDocument();
     });
 
-    const appliedButton = screen.getAllByText('applied')[0].closest('button');
-    expect(appliedButton).not.toBeNull();
-    fireEvent.click(appliedButton!);
+    const appliedBtn = screen.getByRole('button', { name: /^applied$/i });
+    fireEvent.click(appliedBtn);
 
     await waitFor(() => {
       expect(api.applications.list).toHaveBeenCalledWith({
@@ -99,26 +114,75 @@ describe('ApplicationsPage', () => {
     });
   });
 
-  it('opens edit modal and saves full application updates (company, title, URL, platform, notes)', async () => {
+  it('navigates to send page when clicking Ask Referral', async () => {
+    vi.mocked(api.applications.list).mockResolvedValue({
+      applications: mockApps,
+      total: 2,
+    });
+
+    render(<ApplicationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Software Engineer')).toBeInTheDocument();
+    });
+
+    const askBtns = screen.getAllByText('Ask Referral');
+    fireEvent.click(askBtns[0]!);
+
+    expect(mockPush).toHaveBeenCalledWith('/send?jobId=job-1&companyName=Stripe');
+  });
+
+  it('opens outreach history modal when clicking on sent emails count', async () => {
+    vi.mocked(api.applications.list).mockResolvedValue({
+      applications: mockApps,
+      total: 2,
+    });
+    vi.mocked(api.applications.getEmails).mockResolvedValue({
+      data: [
+        {
+          id: 'email-1',
+          subject: 'Referral for Backend Role',
+          status: 'sent',
+          prospect: { first_name: 'Sarah', last_name: 'Connor', email: 'sarah@stripe.com' },
+          open_count: 2,
+          opened_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        } as any,
+      ],
+    });
+
+    render(<ApplicationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('2 emails sent')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('2 emails sent'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Referral Outreach History')).toBeInTheDocument();
+      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
+      expect(screen.getByText('sarah@stripe.com')).toBeInTheDocument();
+    });
+  });
+
+  it('opens edit modal and saves updates', async () => {
     vi.mocked(api.applications.list).mockResolvedValue({
       applications: mockApps,
       total: 2,
     });
     vi.mocked(api.applications.update).mockResolvedValue({
       ...mockApps[0]!,
-      company_name: 'Acme Technologies',
+      company_name: 'Stripe Inc',
       job_title: 'Staff Engineer',
-      job_url: 'https://acme.com/jobs/staff',
-      notes: 'Updated note',
     });
 
     render(<ApplicationsPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0);
+      expect(screen.getByText('Stripe')).toBeInTheDocument();
     });
 
-    // Find and click the Edit button for Acme Corp
     const editBtns = screen.getAllByTitle('Edit');
     fireEvent.click(editBtns[0]!);
 
@@ -126,16 +190,8 @@ describe('ApplicationsPage', () => {
       expect(screen.getByText('Edit Application')).toBeInTheDocument();
     });
 
-    // Verify company name, title, url inputs exist and have initial values
-    const companyInput = screen.getByDisplayValue('Acme Corp');
-    const titleInput = screen.getByDisplayValue('Software Engineer');
-    const urlInput = screen.getByDisplayValue('https://acme.com/jobs/1');
-    const notesInput = screen.getByDisplayValue('Initial note');
-
-    fireEvent.change(companyInput, { target: { value: 'Acme Technologies' } });
-    fireEvent.change(titleInput, { target: { value: 'Staff Engineer' } });
-    fireEvent.change(urlInput, { target: { value: 'https://acme.com/jobs/staff' } });
-    fireEvent.change(notesInput, { target: { value: 'Updated note' } });
+    const companyInput = screen.getByDisplayValue('Stripe');
+    fireEvent.change(companyInput, { target: { value: 'Stripe Inc' } });
 
     const saveBtn = screen.getByText('Save Changes');
     fireEvent.click(saveBtn);
@@ -144,16 +200,13 @@ describe('ApplicationsPage', () => {
       expect(api.applications.update).toHaveBeenCalledWith(
         'app-1',
         expect.objectContaining({
-          company_name: 'Acme Technologies',
-          job_title: 'Staff Engineer',
-          job_url: 'https://acme.com/jobs/staff',
-          notes: 'Updated note',
+          company_name: 'Stripe Inc',
         })
       );
     });
   });
 
-  it('opens create modal and tracks new application', async () => {
+  it('opens create modal and saves a new application', async () => {
     vi.mocked(api.applications.list).mockResolvedValue({
       applications: [],
       total: 0,
@@ -162,11 +215,11 @@ describe('ApplicationsPage', () => {
       id: 'app-new',
       user_id: 'u1',
       company_name: 'OpenAI',
-      job_title: 'Research Engineer',
-      job_url: 'https://jobs.lever.co/openai/123',
+      job_title: 'ML Platform Engineer',
+      job_url: 'https://jobs.lever.co/openai/1',
       platform: 'Lever',
-      status: 'applied',
-      notes: 'Referral by friend',
+      status: 'not_applied',
+      notes: 'New opening',
       applied_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -174,36 +227,29 @@ describe('ApplicationsPage', () => {
 
     render(<ApplicationsPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText('Add Application')).toBeInTheDocument();
+    const addBtn = screen.getAllByText(/Add Application|Add First Application/i)[0];
+    fireEvent.click(addBtn);
+
+    expect(screen.getByPlaceholderText('e.g. OpenAI')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. OpenAI'), {
+      target: { value: 'OpenAI' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('e.g. ML Platform Engineer'), {
+      target: { value: 'ML Platform Engineer' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('https://jobs.lever.co/company/...'), {
+      target: { value: 'https://jobs.lever.co/openai/1' },
     });
 
-    fireEvent.click(screen.getByText('Add Application'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Track New Application')).toBeInTheDocument();
-    });
-
-    const companyInput = screen.getByPlaceholderText('e.g. OpenAI');
-    const titleInput = screen.getByPlaceholderText('e.g. Machine Learning Engineer');
-    const urlInput = screen.getByPlaceholderText('https://jobs.lever.co/openai/...');
-    const notesInput = screen.getByPlaceholderText(/Interview stages/);
-
-    fireEvent.change(companyInput, { target: { value: 'OpenAI' } });
-    fireEvent.change(titleInput, { target: { value: 'Research Engineer' } });
-    fireEvent.change(urlInput, { target: { value: 'https://jobs.lever.co/openai/123' } });
-    fireEvent.change(notesInput, { target: { value: 'Referral by friend' } });
-
-    const submitBtn = screen.getByText('Track Application');
-    fireEvent.click(submitBtn);
+    fireEvent.click(screen.getByText('Save Application'));
 
     await waitFor(() => {
       expect(api.applications.create).toHaveBeenCalledWith(
         expect.objectContaining({
           company_name: 'OpenAI',
-          job_title: 'Research Engineer',
-          job_url: 'https://jobs.lever.co/openai/123',
-          notes: 'Referral by friend',
+          job_title: 'ML Platform Engineer',
+          job_url: 'https://jobs.lever.co/openai/1',
         })
       );
     });

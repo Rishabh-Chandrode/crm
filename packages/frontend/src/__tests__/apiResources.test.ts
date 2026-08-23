@@ -107,6 +107,54 @@ describe('Frontend API Client Resource Domains', () => {
     });
   });
 
+  describe('Jobs Resource', () => {
+    it('api.jobs.list sends GET /jobs with params', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [{ id: 'job-1', title: 'Backend Engineer' }], total: 1 }),
+      });
+
+      const res = await api.jobs.list({ search: 'Backend', status: 'open' });
+      expect(res.data[0].title).toBe('Backend Engineer');
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/jobs?status=open&search=Backend'),
+        expect.anything()
+      );
+    });
+
+    it('api.jobs.create sends POST /jobs with payload', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { id: 'job-2', title: 'Frontend Lead' } }),
+      });
+
+      const res = await api.jobs.create({
+        title: 'Frontend Lead',
+        job_url: 'https://careers.google.com/jobs/1',
+        company_name: 'Google',
+      });
+      expect(res.data.title).toBe('Frontend Lead');
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/jobs'),
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it('api.jobs.getEmails sends GET /jobs/:id/emails', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [{ id: 'send-1', subject: 'Referral' }] }),
+      });
+
+      const res = await api.jobs.getEmails('job-1');
+      expect(res.data).toHaveLength(1);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/jobs/job-1/emails'),
+        expect.anything()
+      );
+    });
+  });
+
   describe('Stats Resource', () => {
     it('api.stats.get sends GET /stats', async () => {
       global.fetch = vi.fn().mockResolvedValue({

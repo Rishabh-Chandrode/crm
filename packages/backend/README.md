@@ -494,4 +494,5 @@ Test suites live in `src/__tests__/`:
 - `api.test.ts` — Express route tests (health check, route protection)
 - `auth.test.ts` — JWT token generation, authMiddleware, session validation, requireRole
 - `templateEngine.test.ts` — Variable resolution, HTML converters, tracking pixel injection
+- `types.test.ts` — Backend types, getGmailSearchUrl utility, and Trinity sync validation
 

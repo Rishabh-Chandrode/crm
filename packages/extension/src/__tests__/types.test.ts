@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import type {
-  ScrapeMessage,
-  AutofillResultMessage,
-  UserProfile,
-  ProspectData,
-  Job,
-  JobStatus,
+import {
+  getGmailSearchUrl,
+  type ScrapeMessage,
+  type AutofillResultMessage,
+  type UserProfile,
+  type ProspectData,
+  type Job,
+  type JobStatus,
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
@@ -132,5 +133,23 @@ describe('Extension Data Shapes & Message Contracts', () => {
 
     expect(sampleApp.company_name).toBe('Airtel');
     expect(sampleApp.company_id).toBe('comp-1');
+  });
+
+  it('validates getGmailSearchUrl utility', () => {
+    expect(
+      getGmailSearchUrl({
+        to: 'recruiter@stripe.com',
+        subject: 'Intro',
+        messageId: '<msg-1@mail.gmail.com>',
+      })
+    ).toBe('https://mail.google.com/mail/u/0/#search/rfc822msgid%3Amsg-1%40mail.gmail.com');
+
+    expect(getGmailSearchUrl({ to: 'recruiter@stripe.com', subject: 'Intro' })).toBe(
+      'https://mail.google.com/mail/u/0/#search/to%3Arecruiter%40stripe.com%20subject%3A(%22Intro%22)'
+    );
+
+    expect(getGmailSearchUrl({ subject: 'Intro' })).toBe(
+      'https://mail.google.com/mail/u/0/#search/subject%3A(%22Intro%22)'
+    );
   });
 });

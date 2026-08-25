@@ -116,6 +116,32 @@ export function prospectFullName(p: Pick<Prospect, 'first_name' | 'last_name'>):
   return [p.first_name, p.last_name].filter(Boolean).join(' ');
 }
 
+export function getGmailSearchUrl(query: {
+  to?: string | null;
+  subject?: string | null;
+  messageId?: string | null;
+}): string {
+  const messageId = query.messageId?.trim();
+  const to = query.to?.trim();
+  const subject = query.subject?.trim();
+
+  let q = '';
+  if (messageId && messageId.includes('@')) {
+    const cleanId = messageId.replace(/^<|>$/g, '');
+    q = `rfc822msgid:${cleanId}`;
+  } else if (to && subject) {
+    const cleanSubject = subject.replace(/"/g, '');
+    q = `to:${to} subject:("${cleanSubject}")`;
+  } else if (to) {
+    q = `to:${to}`;
+  } else if (subject) {
+    const cleanSubject = subject.replace(/"/g, '');
+    q = `subject:("${cleanSubject}")`;
+  }
+
+  return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(q)}`;
+}
+
 export type VariableSource = 'prospect' | 'company' | 'static' | 'custom' | 'sender';
 
 export interface TemplateVariable {

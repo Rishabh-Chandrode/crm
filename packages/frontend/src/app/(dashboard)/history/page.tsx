@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { prospectFullName } from '@/lib/types';
+import { prospectFullName, getGmailSearchUrl } from '@/lib/types';
 import type { EmailSend } from '@/lib/types';
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -131,6 +132,23 @@ function SendCard({
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <StatusBadge send={send} />
+            <a
+              href={getGmailSearchUrl({
+                to: send.prospect?.email,
+                subject: send.subject,
+                messageId: send.resend_id,
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 border border-zinc-200/80 dark:border-zinc-700/80 transition-colors shadow-2xs cursor-pointer"
+              title="Open in Gmail"
+            >
+              <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+              </svg>
+              <span>Open in Gmail</span>
+            </a>
             {send.status === 'failed' && (
               <button
                 onClick={(e) => { e.stopPropagation(); onRetry(send.id); }}
@@ -229,23 +247,52 @@ function SendCard({
               </pre>
             </div>
           )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-zinc-200/50 dark:border-zinc-800/50">
+            <a
+              href={getGmailSearchUrl({
+                to: send.prospect?.email,
+                subject: send.subject,
+                messageId: send.resend_id,
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 hover:underline font-medium"
+            >
+              <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+              </svg>
+              Open in Gmail
+            </a>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-export default function HistoryPage() {
+function HistoryPageInner() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get('search') || searchParams.get('q') || '';
   const [sends, setSends] = useState<EmailSend[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const [searchInput, setSearchInput] = useState(initialSearch);
   const [retrying, setRetrying] = useState<string | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const limit = 25;
+
+  useEffect(() => {
+    const q = searchParams.get('search') || searchParams.get('q') || '';
+    if (q !== search) {
+      setSearch(q);
+      setSearchInput(q);
+      setPage(0);
+    }
+  }, [searchParams]);
 
   async function load(p: number, status: string, q: string) {
     setLoading(true);
@@ -395,6 +442,14 @@ export default function HistoryPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense fallback={<div className="p-4 md:p-8 max-w-7xl mx-auto text-zinc-400 text-xs py-12 text-center">Loading history…</div>}>
+      <HistoryPageInner />
+    </Suspense>
   );
 }
 

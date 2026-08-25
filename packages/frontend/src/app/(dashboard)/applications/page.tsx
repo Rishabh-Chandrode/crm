@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { getGmailSearchUrl } from '@/lib/types';
 import type { JobApplication, EmailSend, Company } from '@/lib/types';
 import CompanyAutocomplete from '@/components/CompanyAutocomplete';
 
@@ -1048,6 +1049,40 @@ export default function ApplicationsPage() {
                       ) : (
                         <span>Not opened yet</span>
                       )}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-zinc-200/50 dark:border-zinc-800/50 flex-wrap">
+                      <button
+                        onClick={() => {
+                          const query = email.prospect?.email || email.subject || '';
+                          setActiveOutreachApp(null);
+                          router.push(`/history?search=${encodeURIComponent(query)}`);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:text-zinc-950 dark:hover:text-white bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700/80 rounded-lg border border-zinc-200/80 dark:border-zinc-700/80 transition-colors shadow-2xs cursor-pointer"
+                        title="Open this email in Send History"
+                      >
+                        <svg className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Open in Send History
+                      </button>
+
+                      <a
+                        href={getGmailSearchUrl({
+                          to: email.prospect?.email,
+                          subject: email.subject,
+                          messageId: email.resend_id,
+                        })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:text-zinc-950 dark:hover:text-white bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700/80 rounded-lg border border-zinc-200/80 dark:border-zinc-700/80 transition-colors shadow-2xs"
+                        title="Open this email in Gmail"
+                      >
+                        <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+                        </svg>
+                        Open in Gmail
+                      </a>
                     </div>
                   </div>
                 ))}

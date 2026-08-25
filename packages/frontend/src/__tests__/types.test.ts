@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   prospectFullName,
+  getGmailSearchUrl,
   toVariableLabel,
   buildVariableFromKey,
   type VariablePreset,
@@ -14,6 +15,48 @@ describe('Frontend Types & Utility Functions', () => {
 
     it('handles missing last name gracefully', () => {
       expect(prospectFullName({ first_name: 'John', last_name: null })).toBe('John');
+    });
+  });
+
+  describe('getGmailSearchUrl', () => {
+    it('targets exact thread with rfc822msgid when messageId contains @', () => {
+      expect(
+        getGmailSearchUrl({
+          to: 'recruiter@example.com',
+          subject: 'Referral Request',
+          messageId: '<abc123xyz@mail.gmail.com>',
+        })
+      ).toBe('https://mail.google.com/mail/u/0/#search/rfc822msgid%3Aabc123xyz%40mail.gmail.com');
+    });
+
+    it('targets exact thread by combining recipient and subject when both provided', () => {
+      expect(
+        getGmailSearchUrl({
+          to: 'recruiter@example.com',
+          subject: 'Referral for Frontend Engineer',
+        })
+      ).toBe(
+        'https://mail.google.com/mail/u/0/#search/to%3Arecruiter%40example.com%20subject%3A(%22Referral%20for%20Frontend%20Engineer%22)'
+      );
+    });
+
+    it('creates search URL with recipient email when only to is provided', () => {
+      expect(getGmailSearchUrl({ to: 'recruiter@example.com' })).toBe(
+        'https://mail.google.com/mail/u/0/#search/to%3Arecruiter%40example.com'
+      );
+    });
+
+    it('targets subject when recipient email is missing', () => {
+      expect(getGmailSearchUrl({ subject: 'Referral for Frontend Engineer' })).toBe(
+        'https://mail.google.com/mail/u/0/#search/subject%3A(%22Referral%20for%20Frontend%20Engineer%22)'
+      );
+    });
+
+    it('handles empty / null values cleanly', () => {
+      expect(getGmailSearchUrl({})).toBe('https://mail.google.com/mail/u/0/#search/');
+      expect(getGmailSearchUrl({ to: null, subject: null, messageId: null })).toBe(
+        'https://mail.google.com/mail/u/0/#search/'
+      );
     });
   });
 

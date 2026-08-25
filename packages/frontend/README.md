@@ -159,6 +159,7 @@ Key exports:
 | `COMPANY_FIELDS` | Field options for the variable mapper (company source) |
 | `SENDER_FIELDS` | Field options for the variable mapper (sender/profile source) |
 | `prospectFullName(p)` | Combines `first_name` + `last_name` |
+| `getGmailSearchUrl(query)` | Constructs a web Gmail search URL for a given recipient or subject |
 | `buildVariableFromKey(key, presets)` | Resolves a key against saved presets |
 
 ---
@@ -203,8 +204,8 @@ pnpm test:watch
 
 Test suites live in `src/__tests__/`:
 - `dashboard.test.tsx` — Dashboard UI rendering, stats cards, 14-day continuous activity timeline chart, responsive mid-size breakpoint (1024px) layout, loading skeletons, and empty states
-- `applications.test.tsx` — Applications tracker page, status summary cards, interactive status filters, full application editing modal, and manual application creation
-- `history.test.tsx` — Email history log viewer, status filter pills, search filtering, and delivery retry
+- `applications.test.tsx` — Applications tracker page, status summary cards, interactive status filters, full application editing modal, manual application creation, and referral outreach email history modal with Send History and Gmail navigation
+- `history.test.tsx` — Email history log viewer, status filter pills, search query parameter support, Open in Gmail integration, and delivery retry
 - `jobs.test.tsx` — Jobs & referral outreach tracker, KPI summary cards, status filters, create/edit modals, and email history drawer
 - `prospects.test.tsx` — Prospects page listing, Combobox company and role category filter dropdowns
 - `combobox.test.tsx` — Searchable dropdown opening, filtering, keyboard navigation, and option selection
@@ -215,5 +216,5 @@ Test suites live in `src/__tests__/`:
 - `api.test.ts` — Central API client (`src/lib/api.ts`), JWT cookie handling, header injection, 400 error field unwrapping
 - `apiResources.test.ts` — CRUD resources and error handlers
 - `middleware.test.ts` — Edge auth redirects
-- `types.test.ts` — Utility functions (`prospectFullName`, `toVariableLabel`, `buildVariableFromKey`)
+- `types.test.ts` — Utility functions (`prospectFullName`, `getGmailSearchUrl`, `toVariableLabel`, `buildVariableFromKey`)
 

@@ -172,6 +172,20 @@ describe('ApplicationsPage', () => {
       expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
       expect(screen.getByText('sarah@stripe.com')).toBeInTheDocument();
     });
+
+    const sendHistoryBtn = screen.getByRole('button', { name: /Open in Send History/i });
+    expect(sendHistoryBtn).toBeInTheDocument();
+
+    const gmailLink = screen.getByRole('link', { name: /Open in Gmail/i });
+    expect(gmailLink).toBeInTheDocument();
+    expect(gmailLink).toHaveAttribute(
+      'href',
+      'https://mail.google.com/mail/u/0/#search/to%3Asarah%40stripe.com%20subject%3A(%22Referral%20for%20Backend%20Role%22)'
+    );
+    expect(gmailLink).toHaveAttribute('target', '_blank');
+
+    fireEvent.click(sendHistoryBtn);
+    expect(mockPush).toHaveBeenCalledWith('/history?search=sarah%40stripe.com');
   });
 
   it('opens edit modal and saves updates', async () => {

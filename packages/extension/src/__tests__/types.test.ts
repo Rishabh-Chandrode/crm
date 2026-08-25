@@ -29,18 +29,36 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(msg.firstName).toBe('Alice');
   });
 
-  it('validates ScrapeMessage with optional email', () => {
+  it('validates ScrapeMessage with optional email and gender', () => {
     const msg: ScrapeMessage = {
       action: 'scraped',
       firstName: 'Alice',
       lastName: 'Smith',
       company: 'Google',
       jobTitle: 'Staff Engineer',
+      gender: 'female',
       linkedinUrl: 'https://www.linkedin.com/in/alicesmith',
       email: 'alice@google.com',
     };
 
     expect(msg.email).toBe('alice@google.com');
+    expect(msg.gender).toBe('female');
+  });
+
+  it('validates TemplateVariable with customizable salutation fields', () => {
+    const v: import('../types').TemplateVariable = {
+      key: 'salutation',
+      label: 'Salutation',
+      source: 'prospect',
+      field: 'salutation',
+      maleValue: 'Sir',
+      femaleValue: "Ma'am",
+      defaultValue: "Sir/Ma'am",
+    };
+
+    expect(v.maleValue).toBe('Sir');
+    expect(v.femaleValue).toBe("Ma'am");
+    expect(v.defaultValue).toBe("Sir/Ma'am");
   });
 
   it('validates AutofillResultMessage structure', () => {

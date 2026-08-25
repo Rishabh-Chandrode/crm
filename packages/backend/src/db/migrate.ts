@@ -1,6 +1,7 @@
 import { pool } from './index.js';
 import bcrypt from 'bcryptjs';
 import { CONFIG } from '../config.js';
+import { inferProspectGender } from '../services/genderInference.js';
 
 const SCHEMA = `
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS prospects (
   linkedin_url  VARCHAR(500),
   phone         VARCHAR(50),
   notes         TEXT,
+  gender        VARCHAR(50),
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -207,6 +209,8 @@ CREATE TABLE IF NOT EXISTS variable_presets (
   source        VARCHAR(50)  NOT NULL,
   field         VARCHAR(255),
   default_value TEXT         NOT NULL DEFAULT '',
+  male_value    VARCHAR(255),
+  female_value  VARCHAR(255),
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   CONSTRAINT variable_presets_key_unique UNIQUE (key)
@@ -370,6 +374,35 @@ export async function migrate(): Promise<void> {
     ALTER TABLE email_schedules ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS idx_email_schedules_job_id ON email_schedules(job_id);
   `);
+  await pool.query(`
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS gender VARCHAR(50);
+    ALTER TABLE variable_presets ADD COLUMN IF NOT EXISTS male_value VARCHAR(255);
+    ALTER TABLE variable_presets ADD COLUMN IF NOT EXISTS female_value VARCHAR(255);
+  `);
+  await pool.query(`
+    INSERT INTO variable_presets (key, label, source, field, default_value, male_value, female_value)
+    VALUES
+      ('salutation', 'Salutation (Sir/Ma''am)', 'prospect', 'salutation', 'Sir/Ma''am', 'Sir', 'Ma''am'),
+      ('honorific', 'Honorific (Mr./Ms.)', 'prospect', 'honorific', '', 'Mr.', 'Ms.'),
+      ('gender', 'Gender', 'prospect', 'gender', '', NULL, NULL)
+    ON CONFLICT (key) DO UPDATE SET
+      male_value = COALESCE(variable_presets.male_value, EXCLUDED.male_value),
+      female_value = COALESCE(variable_presets.female_value, EXCLUDED.female_value);
+  `);
+
+  // Backfill existing prospects where gender IS NULL
+  const unassigned = await pool.query<{ id: string; first_name: string }>(
+    'SELECT id, first_name FROM prospects WHERE gender IS NULL'
+  );
+  if (unassigned.rows.length > 0) {
+    for (const row of unassigned.rows) {
+      const inferred = inferProspectGender({ firstName: row.first_name });
+      if (inferred) {
+        await pool.query('UPDATE prospects SET gender = $1 WHERE id = $2', [inferred, row.id]);
+      }
+    }
+  }
+
   console.log('Database migration completed successfully');
 }
 

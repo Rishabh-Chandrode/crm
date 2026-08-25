@@ -1,4 +1,5 @@
 import type { TemplateVariable, Prospect, Company, SenderProfile } from '../types/index.js';
+import { inferProspectGender } from './genderInference.js';
 
 export function toVariableLabel(key: string): string {
   return key
@@ -15,6 +16,23 @@ interface ResolutionContext {
   sender?: SenderProfile | null;
 }
 
+export function resolveProspectSalutation(
+  gender?: string | null,
+  maleValue: string = 'Sir',
+  femaleValue: string = 'Ma\'am',
+  defaultValue: string = 'Sir/Ma\'am'
+): string {
+  if (!gender) return defaultValue;
+  const g = gender.trim().toLowerCase();
+  if (g === 'male' || g === 'm' || g === 'man' || g === 'he' || g === 'he/him') {
+    return maleValue;
+  }
+  if (g === 'female' || g === 'f' || g === 'woman' || g === 'she' || g === 'she/her') {
+    return femaleValue;
+  }
+  return defaultValue;
+}
+
 export function resolveTemplate(
   text: string,
   variables: TemplateVariable[],
@@ -26,9 +44,32 @@ export function resolveTemplate(
     const placeholder = `{{${variable.key}}}`;
     let value = variable.defaultValue ?? '';
 
-    if (variable.source === 'prospect' && variable.field) {
-      const raw = (context.prospect as unknown as Record<string, unknown>)[variable.field];
-      value = raw != null ? String(raw) : (variable.defaultValue ?? '');
+    if (variable.source === 'prospect') {
+      const fieldName = variable.field || variable.key;
+      const effectiveGender =
+        context.prospect.gender ||
+        inferProspectGender({ firstName: context.prospect.first_name });
+
+      if (fieldName === 'salutation') {
+        value = resolveProspectSalutation(
+          effectiveGender,
+          variable.maleValue ?? 'Sir',
+          variable.femaleValue ?? 'Ma\'am',
+          variable.defaultValue ?? 'Sir/Ma\'am'
+        );
+      } else if (fieldName === 'honorific') {
+        value = resolveProspectSalutation(
+          effectiveGender,
+          variable.maleValue ?? 'Mr.',
+          variable.femaleValue ?? 'Ms.',
+          variable.defaultValue ?? ''
+        );
+      } else if (fieldName === 'gender') {
+        value = effectiveGender ?? (variable.defaultValue ?? '');
+      } else if (variable.field) {
+        const raw = (context.prospect as unknown as Record<string, unknown>)[variable.field];
+        value = raw != null ? String(raw) : (variable.defaultValue ?? '');
+      }
     } else if (variable.source === 'company' && variable.field && context.company) {
       const raw = (context.company as unknown as Record<string, unknown>)[variable.field];
       value = raw != null ? String(raw) : (variable.defaultValue ?? '');

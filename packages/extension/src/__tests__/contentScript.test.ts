@@ -4,6 +4,7 @@ import {
   extractName,
   extractCompany,
   extractJobTitle,
+  extractGender,
   extractEmail,
   initContentScript,
   scrape,
@@ -97,6 +98,48 @@ describe('LinkedIn Content Script Scraper', () => {
         </div>
       `;
       expect(extractJobTitle()).toBe('Staff Software Engineer');
+    });
+  });
+
+  describe('extractGender', () => {
+    it('extracts male pronouns from top card or pronoun badges', () => {
+      document.body.innerHTML = `
+        <div class="pv-text-details__left-panel">
+          <h1 class="text-heading-xlarge">John Doe</h1>
+          <span>(He/Him)</span>
+        </div>
+      `;
+      expect(extractGender()).toBe('male');
+    });
+
+    it('extracts female pronouns from top card', () => {
+      document.body.innerHTML = `
+        <div class="pv-text-details__left-panel">
+          <h1 class="text-heading-xlarge">Jane Doe</h1>
+          <span>(She / Her)</span>
+        </div>
+      `;
+      expect(extractGender()).toBe('female');
+    });
+
+    it('extracts neutral pronouns', () => {
+      document.body.innerHTML = `
+        <div class="pv-text-details__left-panel">
+          <h1 class="text-heading-xlarge">Sam Doe</h1>
+          <span>(They/Them)</span>
+        </div>
+      `;
+      expect(extractGender()).toBe('other');
+    });
+
+    it('returns empty string when no pronouns are present', () => {
+      document.body.innerHTML = `
+        <div class="pv-text-details__left-panel">
+          <h1 class="text-heading-xlarge">Sam Doe</h1>
+          <div class="text-body-medium">VP Engineering at Apple</div>
+        </div>
+      `;
+      expect(extractGender()).toBe('');
     });
   });
 

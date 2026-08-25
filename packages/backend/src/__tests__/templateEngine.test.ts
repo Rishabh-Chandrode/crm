@@ -85,6 +85,109 @@ describe('templateEngine service', () => {
       expect(resolved).toBe('Hi Jane, I am Rishabh from Acme. Loved Acme Corp! Applying for Lead Architect.');
     });
 
+    it('resolves {{salutation}} dynamically based on prospect gender', () => {
+      const salutationVars: TemplateVariable[] = [
+        { key: 'salutation', label: 'Salutation', source: 'prospect', field: 'salutation', defaultValue: "Sir/Ma'am" },
+      ];
+      const template = 'Dear {{salutation}}, thank you for connecting.';
+
+      // Female
+      const resFemale = resolveTemplate(template, salutationVars, {
+        prospect: { ...mockProspect, gender: 'female' },
+        company: mockCompany,
+        custom: {},
+      });
+      expect(resFemale).toBe("Dear Ma'am, thank you for connecting.");
+
+      // Male
+      const resMale = resolveTemplate(template, salutationVars, {
+        prospect: { ...mockProspect, gender: 'male' },
+        company: mockCompany,
+        custom: {},
+      });
+      expect(resMale).toBe('Dear Sir, thank you for connecting.');
+
+      // Unspecified gender with recognizable male name
+      const resMaleInferred = resolveTemplate(template, salutationVars, {
+        prospect: { ...mockProspect, first_name: 'David', gender: null },
+        company: mockCompany,
+        custom: {},
+      });
+      expect(resMaleInferred).toBe('Dear Sir, thank you for connecting.');
+
+      // Unspecified gender with recognizable female name
+      const resFemaleInferred = resolveTemplate(template, salutationVars, {
+        prospect: { ...mockProspect, first_name: 'Jane', gender: null },
+        company: mockCompany,
+        custom: {},
+      });
+      expect(resFemaleInferred).toBe("Dear Ma'am, thank you for connecting.");
+
+      // Unspecified gender with ambiguous/unknown name falls back to default
+      const resUnspecified = resolveTemplate(template, salutationVars, {
+        prospect: { ...mockProspect, first_name: 'Morgan', gender: null },
+        company: mockCompany,
+        custom: {},
+      });
+      expect(resUnspecified).toBe("Dear Sir/Ma'am, thank you for connecting.");
+    });
+
+    it('supports custom per-template male, female, and fallback values', () => {
+      const customSalutationVars: TemplateVariable[] = [
+        {
+          key: 'salutation',
+          label: 'Casual Salutation',
+          source: 'prospect',
+          field: 'salutation',
+          maleValue: 'brother',
+          femaleValue: 'sister',
+          defaultValue: 'friend',
+        },
+      ];
+      const template = 'Hey {{salutation}}!';
+
+      expect(resolveTemplate(template, customSalutationVars, {
+        prospect: { ...mockProspect, gender: 'male' },
+        company: mockCompany,
+        custom: {},
+      })).toBe('Hey brother!');
+
+      expect(resolveTemplate(template, customSalutationVars, {
+        prospect: { ...mockProspect, gender: 'female' },
+        company: mockCompany,
+        custom: {},
+      })).toBe('Hey sister!');
+
+      expect(resolveTemplate(template, customSalutationVars, {
+        prospect: { ...mockProspect, first_name: 'Alex', gender: null },
+        company: mockCompany,
+        custom: {},
+      })).toBe('Hey friend!');
+    });
+
+    it('resolves honorific and raw gender fields accurately', () => {
+      const honorificVars: TemplateVariable[] = [
+        { key: 'honorific', label: 'Honorific', source: 'prospect', field: 'honorific', defaultValue: '' },
+        { key: 'gender', label: 'Gender', source: 'prospect', field: 'gender' },
+        { key: 'lastName', label: 'Last Name', source: 'prospect', field: 'last_name' },
+      ];
+      const template = 'Hello {{honorific}} {{lastName}} (Gender: {{gender}}).';
+
+      const resMale = resolveTemplate(template, honorificVars, {
+        prospect: { ...mockProspect, gender: 'male' },
+        company: mockCompany,
+        custom: {},
+      });
+      expect(resMale).toBe('Hello Mr. Doe (Gender: male).');
+
+      const resFemale = resolveTemplate(template, honorificVars, {
+        prospect: { ...mockProspect, gender: 'female' },
+        company: mockCompany,
+        custom: {},
+      });
+      expect(resFemale).toBe('Hello Ms. Doe (Gender: female).');
+    });
+
     it('uses default values when custom value is missing', () => {
       const template = 'Applying for {{fallbackVar}}.';
       const resolved = resolveTemplate(template, variables, {

@@ -123,9 +123,40 @@ describe('Frontend Types & Utility Functions', () => {
         defaultValue: '',
       });
     });
+
+    it('defaults salutation and honorific correctly when no explicit preset exists', () => {
+      const salutationVar = buildVariableFromKey('salutation', []);
+      expect(salutationVar).toEqual({
+        key: 'salutation',
+        label: "Salutation (Sir/Ma'am)",
+        source: 'prospect',
+        field: 'salutation',
+        defaultValue: "Sir/Ma'am",
+        maleValue: 'Sir',
+        femaleValue: "Ma'am",
+      });
+
+      const honorificVar = buildVariableFromKey('honorific', []);
+      expect(honorificVar).toEqual({
+        key: 'honorific',
+        label: 'Honorific (Mr./Ms.)',
+        source: 'prospect',
+        field: 'honorific',
+        defaultValue: '',
+        maleValue: 'Mr.',
+        femaleValue: 'Ms.',
+      });
+    });
   });
 
-  describe('JOB_FIELDS', () => {
+  describe('PROSPECT_FIELDS and JOB_FIELDS', () => {
+    it('contains expected prospect schema fields including salutation, gender, and honorific', async () => {
+      const { PROSPECT_FIELDS } = await import('../lib/types');
+      expect(PROSPECT_FIELDS).toContainEqual({ value: 'salutation', label: "Salutation (Sir / Ma'am)" });
+      expect(PROSPECT_FIELDS).toContainEqual({ value: 'gender', label: 'Gender' });
+      expect(PROSPECT_FIELDS).toContainEqual({ value: 'honorific', label: 'Honorific (Mr. / Ms.)' });
+    });
+
     it('contains expected job schema fields', async () => {
       const { JOB_FIELDS } = await import('../lib/types');
       expect(JOB_FIELDS).toContainEqual({ value: 'title', label: 'Job Title / Role' });

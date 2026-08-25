@@ -53,7 +53,8 @@ src/
 │   │   ├── resend.ts            # Resend implementation
 │   │   ├── gmail.ts             # Gmail OAuth2/Nodemailer implementation
 │   │   └── index.ts             # Factory — picks provider per user
-│   ├── templateEngine.ts        # {{variable}} resolution + plain-text → HTML
+│   ├── templateEngine.ts        # {{variable}} resolution + dynamic salutations (Sir/Ma'am) + plain-text → HTML
+│   ├── genderInference.ts       # Automated gender & pronoun inference from name and bio/profile
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
 │   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
 │   └── scheduler.ts             # node-cron job — processes pending email_schedules + Drive sync
@@ -191,16 +192,16 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/prospects` | **Query:** `company_id?`, `role_category?`, `search?` (searches first_name, last_name, email, job_title), `sort_by?` (`first_name` \| `last_name` \| `email` \| `job_title` \| `company_name` \| `created_at`), `sort_dir?` (`asc` \| `desc`), `limit?` (1–100, default 25), `offset?` | `{ data: Prospect[], total: number }` — each prospect includes `company_name` |
-| `POST` | `/api/prospects` | `{ first_name: string, email: string, company_id?, last_name?, job_title?, role_category?, linkedin_url?, phone?, notes? }` — auto-infers `role_category` from `job_title` if not provided | `{ data: Prospect }` — `201`. `409` if email duplicate |
-| `POST` | `/api/prospects/quick-add` | `{ first_name: string, email: string, last_name?, company_name?, job_title?, linkedin_url? }` — resolves or creates company by name (scoped to user). Returns existing if email already exists. | `{ data: Prospect, existed?: true }` — used by the Chrome extension |
+| `GET` | `/api/prospects` | **Query:** `company_id?`, `role_category?`, `search?` (searches first_name, last_name, email, job_title), `sort_by?` (`first_name` \| `last_name` \| `email` \| `job_title` \| `company_name` \| `created_at`), `sort_dir?` (`asc` \| `desc`), `limit?` (1–100, default 25), `offset?` | `{ data: Prospect[], total: number }` — each prospect includes `company_name` and `gender` |
+| `POST` | `/api/prospects` | `{ first_name: string, email: string, company_id?, last_name?, job_title?, role_category?, gender?, linkedin_url?, phone?, notes? }` — auto-infers `role_category` and auto-infers `gender` (from name / pronouns) if not provided | `{ data: Prospect }` — `201`. `409` if email duplicate |
+| `POST` | `/api/prospects/quick-add` | `{ first_name: string, email: string, last_name?, company_name?, job_title?, gender?, linkedin_url? }` — resolves or creates company by name (scoped to user). Auto-infers `gender` if omitted. Returns existing if email already exists. | `{ data: Prospect, existed?: true }` — used by the Chrome extension |
 | `GET` | `/api/prospects/lookup` | **Query:** `linkedin_url?`, `email?` — at least one required. Normalizes LinkedIn URL (strips query params, trailing slashes). | `{ data: Prospect \| null }` — returns first match for current user. Used by extension match card. |
 | `POST` | `/api/prospects/enrich` | `{ first_name?, last_name?, company_name?, linkedin_url? }` | Enrichment result from the active provider (Apollo/Prospeo) |
 | `GET` | `/api/prospects/enrich/credits` | — | `{ credits: number \| null, provider: string }` |
 | `POST` | `/api/prospects/discover` | `{ company_name?, company_domain?, role_category?, job_titles?, seniorities?, limit?, page? }` | Discovers decision makers & recruiters at a company via Prospeo/Apollo, cross-referencing against user CRM for duplicate tagging. |
-| `POST` | `/api/prospects/bulk-import` | `{ prospects: Array<{ first_name: string, last_name?, company_name?, job_title?, linkedin_url?, role_category?, auto_enrich_email? }>, default_company_id? }` | Bulk imports selected prospects, resolving/creating companies and optionally auto-enriching verified emails. |
+| `POST` | `/api/prospects/bulk-import` | `{ prospects: Array<{ first_name: string, last_name?, company_name?, job_title?, gender?, linkedin_url?, role_category?, auto_enrich_email? }>, default_company_id? }` | Bulk imports selected prospects, resolving/creating companies, auto-inferring gender, and optionally auto-enriching verified emails. |
 | `GET` | `/api/prospects/:id` | — | `{ data: Prospect }` — includes nested `company` object |
-| `PATCH` | `/api/prospects/:id` | `{ company_id?, first_name?, last_name?, email?, job_title?, role_category?, linkedin_url?, phone?, notes? }` — auto-updates `role_category` if `job_title` changed and no explicit `role_category` | `{ data: Prospect }` |
+| `PATCH` | `/api/prospects/:id` | `{ company_id?, first_name?, last_name?, email?, job_title?, role_category?, gender?, linkedin_url?, phone?, notes? }` — auto-updates `role_category` if `job_title` changed and no explicit `role_category` | `{ data: Prospect }` |
 | `DELETE` | `/api/prospects/:id` | — | `{ data: { id } }` |
 
 
@@ -251,8 +252,8 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `GET` | `/api/variable-presets` | — | `{ data: VariablePreset[] }` |
-| `POST` | `/api/variable-presets` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string }` | `{ data: VariablePreset }` — `201` |
-| `PUT` | `/api/variable-presets/:id` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string }` — full replace | `{ data: VariablePreset }` |
+| `POST` | `/api/variable-presets` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string, male_value?: string, female_value?: string }` | `{ data: VariablePreset }` — `201` |
+| `PUT` | `/api/variable-presets/:id` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string, male_value?: string, female_value?: string }` — full replace | `{ data: VariablePreset }` |
 | `DELETE` | `/api/variable-presets/:id` | — | `{ data: { id } }` |
 
 ---
@@ -368,7 +369,7 @@ job_applications (id UUID PK, user_id→users, job_id→jobs,
 
 companies      (id, name, website, industry, created_by→users, created_at, updated_at)
 prospects      (id, company_id→companies, first_name, last_name, email,
-                job_title, role_category, linkedin_url, phone, notes,
+                job_title, role_category, gender, linkedin_url, phone, notes,
                 created_by→users, created_at, updated_at)
 email_templates (id, name, description, subject, body, job_description,
                  variables JSONB, document_ids UUID[],
@@ -386,7 +387,7 @@ documents       (id, name, filename, path, size,
                  drive_synced_at,    -- timestamp of last successful sync
                  drive_sync_error,   -- last sync error message (NULL if OK)
                  created_by→users, created_at)
-variable_presets (id, key, label, source, field, default_value,
+variable_presets (id, key, label, source, field, default_value, male_value, female_value,
                   created_by→users, created_at, updated_at)
 ```
 
@@ -453,11 +454,13 @@ To add a new provider, implement `EmailProvider` and update the factory in `serv
 
 ```typescript
 {
-  key: string          // used as {{key}} in templates
+  key: string          // used as {{key}} in templates (e.g. salutation, firstName)
   label: string        // shown in the UI
   source: 'prospect' | 'company' | 'sender' | 'static' | 'custom'
-  field?: string       // which field to read (for prospect/company/sender)
+  field?: string       // which field to read (for prospect/company/sender, e.g. 'salutation', 'honorific', 'gender')
   defaultValue?: string
+  maleValue?: string   // customizable male substitution (e.g. 'Sir', 'Mr.', 'brother')
+  femaleValue?: string // customizable female substitution (e.g. 'Ma\'am', 'Ms.', 'sister')
 }
 ```
 
@@ -465,7 +468,7 @@ Resolution in `services/templateEngine.ts → resolveTemplate()`:
 
 | source | Resolved from |
 |---|---|
-| `prospect` | `prospect[field]` |
+| `prospect` | `prospect[field]` (with special gender-aware resolvers for `salutation`, `honorific`, `gender`) |
 | `company` | `company[field]` |
 | `sender` | sending user's profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`) |
 | `static` | `variable.defaultValue` |
@@ -496,6 +499,7 @@ pnpm test:watch
 Test suites live in `src/__tests__/`:
 - `api.test.ts` — Express route tests (health check, route protection)
 - `auth.test.ts` — JWT token generation, authMiddleware, session validation, requireRole
-- `templateEngine.test.ts` — Variable resolution, HTML converters, tracking pixel injection
+- `genderInference.test.ts` — Automated pronoun parsing and first-name dictionary inference
+- `templateEngine.test.ts` — Variable resolution, customizable salutations (Sir/Ma'am), HTML converters, tracking pixel injection
 - `types.test.ts` — Backend types, getGmailSearchUrl utility, and Trinity sync validation
 

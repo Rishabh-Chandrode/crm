@@ -54,6 +54,7 @@ export interface Prospect {
   linkedin_url: string | null;
   phone: string | null;
   notes: string | null;
+  gender?: string | null;
   created_at: Date;
   updated_at: Date;
   company?: Company;
@@ -71,6 +72,9 @@ export interface TemplateVariable {
   source: VariableSource;
   field?: string;
   defaultValue?: string;
+  maleValue?: string;
+  femaleValue?: string;
+  fallbackValue?: string;
 }
 
 export interface EmailTemplate {
@@ -238,6 +242,7 @@ export interface DiscoveredPerson {
   company_name?: string;
   linkedin_url?: string;
   email?: string;
+  gender?: string | null;
   already_in_crm?: boolean;
   existing_prospect_id?: string;
 }
@@ -259,6 +264,7 @@ export interface BulkImportProspectItem {
   email?: string;
   phone?: string;
   notes?: string;
+  gender?: string | null;
   auto_enrich_email?: boolean;
 }
 

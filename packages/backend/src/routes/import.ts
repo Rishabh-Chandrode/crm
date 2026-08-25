@@ -3,6 +3,7 @@ import multer from 'multer';
 import XLSX from 'xlsx';
 import { pool } from '../db/index.js';
 import { inferRoleCategory } from '../services/roleCategory.js';
+import { inferProspectGender } from '../services/genderInference.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -34,6 +35,7 @@ const FIELD_MATCHERS: [string, RegExp][] = [
   ['email',        /^(email|email.?address|e-?mail)$/i],
   ['company',      /^(company|company.?name|organization|org|employer)$/i],
   ['job_title',    /^(title|job.?title|position|role|designation)$/i],
+  ['gender',       /^(gender|sex|pronouns?)$/i],
   ['phone',        /^(phone|phone.?number|mobile|cell|telephone|tel)$/i],
   ['linkedin_url', /^(linkedin|linkedin.?url|linkedin.?profile|li)$/i],
   ['notes',        /^(notes?|comments?|remarks?|description)$/i],
@@ -112,6 +114,7 @@ interface ImportMapping {
   email?: string;
   company?: string;
   job_title?: string;
+  gender?: string;
   phone?: string;
   linkedin_url?: string;
   notes?: string;
@@ -225,10 +228,11 @@ router.post('/prospects', async (req, res, next) => {
 
         // ── Insert prospect ──────────────────────────────────────────────────
         const jobTitle = col(row, mapping.job_title) || null;
+        const rowGender = col(row, mapping.gender) || inferProspectGender({ firstName }) || null;
         await pool.query(
           `INSERT INTO prospects
-             (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+             (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, gender)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             companyId,
             firstName,
@@ -239,6 +243,7 @@ router.post('/prospects', async (req, res, next) => {
             col(row, mapping.linkedin_url) || null,
             col(row, mapping.phone) || null,
             col(row, mapping.notes) || null,
+            rowGender,
           ]
         );
         imported++;

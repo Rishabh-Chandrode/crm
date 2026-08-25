@@ -36,6 +36,7 @@ const lastNameEl     = $<HTMLInputElement>('lastName');
 const emailEl        = $<HTMLInputElement>('email');
 const companyEl      = $<HTMLInputElement>('company');
 const jobTitleEl     = $<HTMLInputElement>('jobTitle');
+const genderEl       = $<HTMLSelectElement>('gender');
 const linkedinUrlEl  = $<HTMLInputElement>('linkedinUrl');
 const statusEl              = $<HTMLDivElement>('status');
 const scrapeBtn             = $<HTMLButtonElement>('scrapeBtn');
@@ -121,7 +122,7 @@ const quickConfirmScheduleBtn = $<HTMLButtonElement>('quickConfirmScheduleBtn');
 // ── Shared state ─────────────────────────────────────────────────────────────
 
 const STORAGE_KEYS: (keyof ProspectData)[] = [
-  'firstName', 'lastName', 'email', 'company', 'jobTitle', 'linkedinUrl',
+  'firstName', 'lastName', 'email', 'company', 'jobTitle', 'gender', 'linkedinUrl',
 ];
 
 declare const BACKEND_URL: string;
@@ -139,6 +140,7 @@ function getFormData(): ProspectData {
     email:       emailEl.value.trim(),
     company:     companyEl.value.trim(),
     jobTitle:    jobTitleEl.value.trim(),
+    gender:      genderEl ? genderEl.value.trim() : '',
     linkedinUrl: linkedinUrlEl.value.trim(),
   };
 }
@@ -149,6 +151,7 @@ function setFormData(data: Partial<ProspectData>): void {
   if (data.email       !== undefined) emailEl.value       = data.email;
   if (data.company     !== undefined) companyEl.value     = data.company;
   if (data.jobTitle    !== undefined) jobTitleEl.value    = data.jobTitle;
+  if (data.gender      !== undefined && genderEl) genderEl.value = data.gender;
   if (data.linkedinUrl !== undefined) linkedinUrlEl.value = data.linkedinUrl;
 }
 
@@ -330,7 +333,7 @@ chrome.storage.sync.get([...STORAGE_KEYS, 'auth'], async (stored) => {
   showLoginGate();
 });
 
-[firstNameEl, lastNameEl, emailEl, companyEl, jobTitleEl, linkedinUrlEl].forEach((el) => {
+[firstNameEl, lastNameEl, emailEl, companyEl, jobTitleEl, genderEl, linkedinUrlEl].filter(Boolean).forEach((el) => {
   el.addEventListener('input', () => { initialLoadDone = true; persistForm(); });
   el.addEventListener('change', persistForm);
 });
@@ -477,6 +480,7 @@ function handleScrapeResult(data: any) {
   if (data.lastName)    lastNameEl.value    = data.lastName;
   if (data.company)     companyEl.value     = data.company;
   if (data.title)       jobTitleEl.value    = data.title;
+  if (data.gender && genderEl) genderEl.value = data.gender;
   if (data.linkedinUrl) linkedinUrlEl.value = data.linkedinUrl;
   if (data.email)       emailEl.value       = data.email;
   persistForm();
@@ -951,6 +955,7 @@ addBtn.addEventListener('click', async () => {
         email:        data.email,
         company_name: data.company     || null,
         job_title:    data.jobTitle    || null,
+        gender:       data.gender      || null,
         linkedin_url: data.linkedinUrl || null,
       }),
     });
@@ -965,7 +970,7 @@ addBtn.addEventListener('click', async () => {
     } else {
       showContactStatus('Prospect added ✓', 'success');
       chrome.storage.sync.remove(STORAGE_KEYS);
-      setFormData({ firstName: '', lastName: '', email: '', company: '', jobTitle: '', linkedinUrl: '' });
+      setFormData({ firstName: '', lastName: '', email: '', company: '', jobTitle: '', gender: '', linkedinUrl: '' });
     }
   } catch (err) {
     showContactStatus(`Network error: ${String(err)}`, 'error');
@@ -977,7 +982,7 @@ addBtn.addEventListener('click', async () => {
 
 clearBtn.addEventListener('click', () => {
   chrome.storage.sync.remove(STORAGE_KEYS);
-  setFormData({ firstName: '', lastName: '', email: '', company: '', jobTitle: '', linkedinUrl: '' });
+  setFormData({ firstName: '', lastName: '', email: '', company: '', jobTitle: '', gender: '', linkedinUrl: '' });
   statusEl.style.display = 'none';
   hideExistingProspect();
 });

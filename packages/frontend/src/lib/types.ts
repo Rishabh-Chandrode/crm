@@ -107,6 +107,7 @@ export interface Prospect {
   linkedin_url: string | null;
   phone: string | null;
   notes: string | null;
+  gender?: string | null;
   company_name?: string;
   created_at: string;
   updated_at: string;
@@ -159,6 +160,9 @@ export interface TemplateVariable {
   source: VariableSource;
   field?: string;
   defaultValue?: string;
+  maleValue?: string;
+  femaleValue?: string;
+  fallbackValue?: string;
 }
 
 export interface EmailTemplate {
@@ -243,6 +247,8 @@ export interface VariablePreset {
   source: VariableSource;
   field: string | null;
   default_value: string;
+  male_value?: string | null;
+  female_value?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -267,6 +273,30 @@ export function buildVariableFromKey(
       source: preset.source,
       field: preset.field ?? undefined,
       defaultValue: preset.default_value,
+      maleValue: preset.male_value ?? (key === 'salutation' ? 'Sir' : key === 'honorific' ? 'Mr.' : undefined),
+      femaleValue: preset.female_value ?? (key === 'salutation' ? 'Ma\'am' : key === 'honorific' ? 'Ms.' : undefined),
+    };
+  }
+  if (key.toLowerCase() === 'salutation') {
+    return {
+      key,
+      label: 'Salutation (Sir/Ma\'am)',
+      source: 'prospect',
+      field: 'salutation',
+      defaultValue: 'Sir/Ma\'am',
+      maleValue: 'Sir',
+      femaleValue: 'Ma\'am',
+    };
+  }
+  if (key.toLowerCase() === 'honorific') {
+    return {
+      key,
+      label: 'Honorific (Mr./Ms.)',
+      source: 'prospect',
+      field: 'honorific',
+      defaultValue: '',
+      maleValue: 'Mr.',
+      femaleValue: 'Ms.',
     };
   }
   return { key, label: toVariableLabel(key), source: 'custom', field: undefined, defaultValue: '' };
@@ -277,6 +307,9 @@ export const PROSPECT_FIELDS: { value: string; label: string }[] = [
   { value: 'last_name', label: 'Last Name' },
   { value: 'email', label: 'Email' },
   { value: 'job_title', label: 'Job Title' },
+  { value: 'salutation', label: 'Salutation (Sir / Ma\'am)' },
+  { value: 'gender', label: 'Gender' },
+  { value: 'honorific', label: 'Honorific (Mr. / Ms.)' },
   { value: 'phone', label: 'Phone' },
   { value: 'linkedin_url', label: 'LinkedIn URL' },
 ];
@@ -373,6 +406,7 @@ export interface DiscoveredPerson {
   company_name?: string;
   linkedin_url?: string;
   email?: string;
+  gender?: string | null;
   already_in_crm?: boolean;
   existing_prospect_id?: string;
 }
@@ -394,6 +428,7 @@ export interface BulkImportProspectItem {
   email?: string;
   phone?: string;
   notes?: string;
+  gender?: string | null;
   auto_enrich_email?: boolean;
 }
 

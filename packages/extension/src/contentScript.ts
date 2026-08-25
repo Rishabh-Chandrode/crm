@@ -231,6 +231,30 @@ export function extractEmail(): string {
   return '';
 }
 
+export function extractGender(): string {
+  // 1. Look for explicit pronoun elements on LinkedIn profile top card
+  const pronounCandidates = Array.from(document.querySelectorAll(
+    '.pv-text-details__left-panel span, .ph5 span, .pv-top-card--list-bullet li, [data-field="pronouns"]'
+  ));
+  for (const el of pronounCandidates) {
+    const text = getText(el);
+    if (/\b(he\s*\/\s*him|he\s*\/\s*his|he\/they)\b/i.test(text)) return 'male';
+    if (/\b(she\s*\/\s*her|she\s*\/\s*hers|she\/they)\b/i.test(text)) return 'female';
+    if (/\b(they\s*\/\s*them|they\s*\/\s*theirs)\b/i.test(text)) return 'other';
+  }
+
+  // 2. Scan top card text
+  const topCard = document.querySelector('.pv-top-card, .ph5, .pv-text-details__left-panel');
+  if (topCard) {
+    const text = getText(topCard);
+    if (/\b(he\s*\/\s*him|he\s*\/\s*his|he\/they)\b/i.test(text)) return 'male';
+    if (/\b(she\s*\/\s*her|she\s*\/\s*hers|she\/they)\b/i.test(text)) return 'female';
+    if (/\b(they\s*\/\s*them|they\s*\/\s*theirs)\b/i.test(text)) return 'other';
+  }
+
+  return '';
+}
+
 export async function scrape(): Promise<void> {
   await waitForExperienceSection();
   // Give LinkedIn a moment to render content inside the section
@@ -240,6 +264,7 @@ export async function scrape(): Promise<void> {
   const company = extractCompany();
   const jobTitle = extractJobTitle();
   const email = extractEmail();
+  const gender = extractGender();
   const linkedinUrl = window.location.href.includes('linkedin.com/in/')
     ? window.location.href.split('?')[0] ?? ''
     : '';
@@ -252,6 +277,7 @@ export async function scrape(): Promise<void> {
     jobTitle,
     linkedinUrl,
     email: email || undefined,
+    gender: gender || undefined,
   };
 
   if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {

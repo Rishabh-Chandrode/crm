@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
 import { inferRoleCategory } from '../services/roleCategory.js';
+import { inferProspectGender } from '../services/genderInference.js';
 import type { Prospect, DiscoverPeopleRequest, BulkImportProspectsRequest } from '../types/index.js';
 import { CONFIG } from '../config.js';
 import { getEnrichmentService } from '../services/enrichment/index.js';
@@ -92,7 +93,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes } =
+    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes, gender } =
       req.body as Partial<Prospect>;
     const role_category: string | null =
       (req.body as { role_category?: string | null }).role_category !== undefined
@@ -102,9 +103,11 @@ router.post('/', async (req, res, next) => {
     if (!first_name?.trim()) { res.status(400).json({ error: 'first_name is required' }); return; }
     if (!email?.trim()) { res.status(400).json({ error: 'email is required' }); return; }
 
+    const resolvedGender = gender?.trim() || inferProspectGender({ firstName: first_name });
+
     const result = await pool.query<Prospect>(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, gender, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         company_id ?? null,
         first_name.trim(),
@@ -115,6 +118,7 @@ router.post('/', async (req, res, next) => {
         linkedin_url ?? null,
         phone ?? null,
         notes ?? null,
+        resolvedGender ?? null,
         req.user!.id,
       ]
     );
@@ -131,13 +135,14 @@ router.post('/', async (req, res, next) => {
 // Used by the browser extension: accepts company_name and creates the company if needed.
 router.post('/quick-add', async (req, res, next) => {
   try {
-    const { first_name, last_name, email, company_name, job_title, linkedin_url } = req.body as {
+    const { first_name, last_name, email, company_name, job_title, linkedin_url, gender } = req.body as {
       first_name: string;
       last_name?: string | null;
       email: string;
       company_name?: string | null;
       job_title?: string | null;
       linkedin_url?: string | null;
+      gender?: string | null;
     };
 
     if (!first_name?.trim()) { res.status(400).json({ error: 'first_name is required' }); return; }
@@ -175,10 +180,12 @@ router.post('/quick-add', async (req, res, next) => {
       }
     }
 
+    const resolvedGender = gender?.trim() || inferProspectGender({ firstName: first_name });
+
     const result = await pool.query(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null, userId]
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, gender, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null, resolvedGender ?? null, userId]
     );
 
     res.status(201).json({ data: result.rows[0] });
@@ -394,10 +401,11 @@ router.post('/bulk-import', async (req, res, next) => {
       }
 
       const roleCategory = item.role_category || inferRoleCategory(item.job_title) || 'other';
+      const itemGender = item.gender?.trim() || inferProspectGender({ firstName: item.first_name });
 
       const insertRes = await pool.query<Prospect>(
-        `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, gender, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
         [
           companyId,
@@ -409,6 +417,7 @@ router.post('/bulk-import', async (req, res, next) => {
           item.linkedin_url?.trim() || null,
           item.phone?.trim() || null,
           item.notes?.trim() || null,
+          itemGender ?? null,
           userId,
         ]
       );
@@ -459,7 +468,7 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes } =
+    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes, gender } =
       req.body as Partial<Prospect>;
     const bodyRoleCategory = (req.body as { role_category?: string | null }).role_category;
 
@@ -479,6 +488,7 @@ router.patch('/:id', async (req, res, next) => {
     if (linkedin_url !== undefined) add('linkedin_url', linkedin_url);
     if (phone !== undefined)        add('phone',        phone);
     if (notes !== undefined)        add('notes',        notes);
+    if (gender !== undefined)       add('gender',       gender ? gender.trim() : null);
     if (bodyRoleCategory !== undefined) {
       add('role_category', bodyRoleCategory || null);
     } else if (job_title !== undefined) {

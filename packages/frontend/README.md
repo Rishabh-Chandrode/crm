@@ -19,9 +19,9 @@ src/
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
 │       ├── dashboard/page.tsx     # Revamped Mission Control: Priority Action Center, 4-KPI grid, direct shortcuts, and live email tracking
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
-│       ├── prospects/page.tsx     # Prospect list (table + filters + pagination)
-│       ├── prospects/[id]/page.tsx# Prospect detail view — full profile + email history
-│       ├── templates/page.tsx     # Template CRUD + variable manager
+│       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination)
+│       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
+│       ├── templates/page.tsx     # Template CRUD + variable manager with customizable gender-aware salutations (Sir/Ma'am)
 │       ├── send/page.tsx          # Multi-step send wizard & quick compose
 │       ├── history/page.tsx       # Paginated email send log with open tracking
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel

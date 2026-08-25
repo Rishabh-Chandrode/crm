@@ -206,3 +206,71 @@ export function getGmailSearchUrl(query: {
   return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(q)}`;
 }
 
+// Enrichment
+export interface EnrichmentResult {
+  email?: string;
+  job_title?: string;
+  company_name?: string;
+  linkedin_url?: string;
+}
+
+// Prospect Discovery & Bulk Import
+export type DiscoverRoleCategory = 'recruiter' | 'hiring_manager' | 'executive' | 'all' | 'custom';
+
+
+export interface DiscoverPeopleRequest {
+  company_name?: string;
+  company_domain?: string;
+  role_category?: DiscoverRoleCategory | string;
+  job_titles?: string[];
+  seniorities?: string[];
+  limit?: number;
+  page?: number;
+}
+
+export interface DiscoveredPerson {
+  id?: string;
+  first_name: string;
+  last_name?: string;
+  full_name?: string;
+  job_title?: string;
+  role_category?: string;
+  company_name?: string;
+  linkedin_url?: string;
+  email?: string;
+  already_in_crm?: boolean;
+  existing_prospect_id?: string;
+}
+
+export interface DiscoverPeopleResponse {
+  data: DiscoveredPerson[];
+  total: number;
+  free?: boolean;
+  provider: string;
+}
+
+export interface BulkImportProspectItem {
+  first_name: string;
+  last_name?: string;
+  company_name?: string;
+  job_title?: string;
+  linkedin_url?: string;
+  role_category?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+  auto_enrich_email?: boolean;
+}
+
+export interface BulkImportProspectsRequest {
+  prospects: BulkImportProspectItem[];
+  default_company_id?: string;
+}
+
+export interface BulkImportProspectsResponse {
+  data: Prospect[];
+  imported_count: number;
+  skipped_count: number;
+  total: number;
+}
+

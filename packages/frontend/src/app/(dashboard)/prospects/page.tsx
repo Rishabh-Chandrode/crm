@@ -6,7 +6,9 @@ import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Prospect, Company } from '@/lib/types';
 import ImportModal from '@/components/ImportModal';
+import DiscoverProspectsModal from '@/components/DiscoverProspectsModal';
 import Combobox from '@/components/Combobox';
+
 
 interface ProspectFormData {
   company_id: string;
@@ -89,6 +91,8 @@ function ProspectsContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showDiscover, setShowDiscover] = useState(false);
+
 
   // Filters & sort
   const [search, setSearch] = useState(initialSearch);
@@ -237,6 +241,13 @@ function ProspectsContent() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
+            onClick={() => setShowDiscover(true)}
+            className="btn-secondary text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <span>🔍</span>
+            Discover Decision Makers
+          </button>
+          <button
             onClick={() => setShowImport(true)}
             className="btn-secondary"
           >
@@ -255,6 +266,7 @@ function ProspectsContent() {
             Add Prospect
           </button>
         </div>
+
       </div>
 
       {/* Filters toolbar */}
@@ -568,7 +580,19 @@ function ProspectsContent() {
           onDone={() => void load()}
         />
       )}
+
+      {showDiscover && (
+        <DiscoverProspectsModal
+          companies={companies}
+          onClose={() => setShowDiscover(false)}
+          onImportDone={() => {
+            setShowDiscover(false);
+            void load();
+          }}
+        />
+      )}
     </div>
+
   );
 }
 

@@ -197,9 +197,12 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `GET` | `/api/prospects/lookup` | **Query:** `linkedin_url?`, `email?` — at least one required. Normalizes LinkedIn URL (strips query params, trailing slashes). | `{ data: Prospect \| null }` — returns first match for current user. Used by extension match card. |
 | `POST` | `/api/prospects/enrich` | `{ first_name?, last_name?, company_name?, linkedin_url? }` | Enrichment result from the active provider (Apollo/Prospeo) |
 | `GET` | `/api/prospects/enrich/credits` | — | `{ credits: number \| null, provider: string }` |
+| `POST` | `/api/prospects/discover` | `{ company_name?, company_domain?, role_category?, job_titles?, seniorities?, limit?, page? }` | Discovers decision makers & recruiters at a company via Prospeo/Apollo, cross-referencing against user CRM for duplicate tagging. |
+| `POST` | `/api/prospects/bulk-import` | `{ prospects: Array<{ first_name: string, last_name?, company_name?, job_title?, linkedin_url?, role_category?, auto_enrich_email? }>, default_company_id? }` | Bulk imports selected prospects, resolving/creating companies and optionally auto-enriching verified emails. |
 | `GET` | `/api/prospects/:id` | — | `{ data: Prospect }` — includes nested `company` object |
 | `PATCH` | `/api/prospects/:id` | `{ company_id?, first_name?, last_name?, email?, job_title?, role_category?, linkedin_url?, phone?, notes? }` — auto-updates `role_category` if `job_title` changed and no explicit `role_category` | `{ data: Prospect }` |
 | `DELETE` | `/api/prospects/:id` | — | `{ data: { id } }` |
+
 
 ---
 

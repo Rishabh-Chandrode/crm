@@ -36,10 +36,12 @@ src/
 │   ├── Combobox.tsx               # Searchable combobox dropdown with full dark mode support
 │   ├── CompanyAutocomplete.tsx   # Autocomplete combobox with existing/new company live indicators
 │   ├── DateTimePicker.tsx         # Interactive Antigravity calendar & precision time picker
-│   └── ImportModal.tsx            # CSV/Excel bulk prospect import modal
+│   ├── ImportModal.tsx            # CSV/Excel bulk prospect import modal
+│   └── DiscoverProspectsModal.tsx # Prospeo & Apollo decision maker discovery & bulk import modal
 └── lib/
     ├── types.ts                   # TypeScript interfaces mirroring backend types
     └── api.ts                     # Typed fetch wrapper — all backend calls go here
+
 ```
 
 ---

@@ -174,7 +174,25 @@ export const api = {
       }),
     delete: (id: string) =>
       request<{ data: { id: string } }>(`/prospects/${id}`, { method: 'DELETE' }),
+    discover: (body: import('./types').DiscoverPeopleRequest) =>
+      request<import('./types').DiscoverPeopleResponse>('/prospects/discover', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    bulkImport: (body: import('./types').BulkImportProspectsRequest) =>
+      request<import('./types').BulkImportProspectsResponse>('/prospects/bulk-import', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    enrich: (body: { first_name?: string; last_name?: string; company_name?: string; linkedin_url?: string }) =>
+      request<import('./types').EnrichmentResult>('/prospects/enrich', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    getCredits: () =>
+      request<{ credits: number | null; provider: string }>('/prospects/enrich/credits'),
   },
+
 
   templates: {
     list: () =>

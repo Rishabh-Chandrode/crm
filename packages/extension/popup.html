@@ -144,9 +144,23 @@
       </div>
 
       <div class="field">
-        <label class="label" for="company">Company</label>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <label class="label" for="company" style="margin-bottom:0;">Company</label>
+          <button id="findPeopleBtn" class="btn btn-ghost btn-xs" style="font-size:11px; padding:2px 6px; gap:3px; color:var(--text-muted); cursor:pointer;" type="button" title="Find recruiters and decision makers at this company">
+            <span>🔍</span> Find Team
+          </button>
+        </div>
         <input id="company" class="input" type="text" placeholder="Acme Corp" />
       </div>
+
+      <div id="discoverPanel" style="display:none; margin-bottom:12px; padding:10px; background:var(--bg-card, rgba(0,0,0,0.02)); border:1px solid var(--border); border-radius:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:11px; font-weight:600; color:var(--text);">Discovered Decision Makers</span>
+          <button id="closeDiscoverBtn" class="btn btn-ghost btn-xs" style="padding:0 4px; cursor:pointer;" type="button">✕</button>
+        </div>
+        <div id="discoverList" style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;"></div>
+      </div>
+
 
       <div class="field">
         <label class="label" for="jobTitle">Job Title</label>

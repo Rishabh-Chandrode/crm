@@ -1,3 +1,5 @@
+import type { DiscoverPeopleRequest, DiscoveredPerson } from '../../types/index.js';
+
 export interface EnrichmentRequest {
   first_name?: string;
   last_name?: string;
@@ -12,7 +14,15 @@ export interface EnrichmentResult {
   linkedin_url?: string;
 }
 
+export interface DiscoverPeopleResult {
+  people: DiscoveredPerson[];
+  total: number;
+  free?: boolean;
+}
+
 export interface EnrichmentProvider {
   enrich(request: EnrichmentRequest): Promise<EnrichmentResult>;
+  discoverPeople?(request: DiscoverPeopleRequest): Promise<DiscoverPeopleResult>;
   getCredits?(): Promise<number | null>;
 }
+

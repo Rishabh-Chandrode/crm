@@ -49,6 +49,11 @@ const enrichBtn      = $<HTMLButtonElement>('enrichBtn');
 const enrichCredits  = $<HTMLDivElement>('enrichCredits');
 const addBtn         = $<HTMLButtonElement>('addBtn');
 const clearBtn       = $<HTMLButtonElement>('clearBtn');
+const findPeopleBtn    = $<HTMLButtonElement>('findPeopleBtn');
+const discoverPanel    = $<HTMLDivElement>('discoverPanel');
+const closeDiscoverBtn = $<HTMLButtonElement>('closeDiscoverBtn');
+const discoverList     = $<HTMLDivElement>('discoverList');
+
 
 // Track Job panel
 const trackJobPanel      = $<HTMLDivElement>('trackJobPanel');
@@ -814,7 +819,107 @@ enrichBtn.addEventListener('click', async () => {
   }
 });
 
+closeDiscoverBtn.addEventListener('click', () => {
+  discoverPanel.style.display = 'none';
+});
+
+findPeopleBtn.addEventListener('click', async () => {
+  const company = companyEl.value.trim() || trackCompanyEl.value.trim();
+  if (!company) {
+    showContactStatus('Please enter a company name to find contacts', 'error');
+    return;
+  }
+
+  findPeopleBtn.disabled = true;
+  const originalHtml = findPeopleBtn.innerHTML;
+  findPeopleBtn.textContent = 'Searching…';
+  discoverPanel.style.display = 'block';
+  discoverList.textContent = '';
+  const loadingNote = document.createElement('div');
+  loadingNote.style.fontSize = '11px';
+  loadingNote.style.color = 'var(--text-muted)';
+  loadingNote.textContent = 'Finding recruiters & decision makers…';
+  discoverList.appendChild(loadingNote);
+
+  try {
+    const res = await fetch(`${currentBackendUrl}/api/prospects/discover`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`,
+      },
+      body: JSON.stringify({ company_name: company, role_category: 'all' }),
+    });
+
+
+    const json = (await res.json()) as { data?: Array<{ first_name: string; last_name?: string; job_title?: string; linkedin_url?: string; email?: string; already_in_crm?: boolean }> };
+    discoverList.textContent = '';
+
+    if (!res.ok || !json.data || json.data.length === 0) {
+      const emptyNote = document.createElement('div');
+      emptyNote.style.fontSize = '11px';
+      emptyNote.style.color = 'var(--text-muted)';
+      emptyNote.textContent = 'No decision makers found at this company.';
+      discoverList.appendChild(emptyNote);
+      return;
+    }
+
+    for (const person of json.data) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:4px 6px; background:var(--bg-surface, rgba(0,0,0,0.03)); border-radius:6px; font-size:11px;';
+
+      const info = document.createElement('div');
+      info.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;';
+      const nameStrong = document.createElement('strong');
+      nameStrong.style.display = 'block';
+      nameStrong.style.color = 'var(--text)';
+      nameStrong.textContent = [person.first_name, person.last_name].filter(Boolean).join(' ');
+      const titleSpan = document.createElement('span');
+      titleSpan.style.color = 'var(--text-muted)';
+      titleSpan.textContent = person.job_title || 'Decision Maker';
+      info.appendChild(nameStrong);
+      info.appendChild(titleSpan);
+
+      const fillBtn = document.createElement('button');
+      fillBtn.className = 'btn btn-outline btn-xs';
+      fillBtn.style.padding = '2px 6px';
+      fillBtn.style.fontSize = '10px';
+      fillBtn.textContent = person.already_in_crm ? 'In CRM' : 'Use';
+      if (person.already_in_crm) {
+        fillBtn.style.opacity = '0.6';
+      }
+
+      fillBtn.addEventListener('click', () => {
+        firstNameEl.value = person.first_name || '';
+        lastNameEl.value = person.last_name || '';
+        jobTitleEl.value = person.job_title || '';
+        companyEl.value = company;
+        if (person.linkedin_url) linkedinUrlEl.value = person.linkedin_url;
+        if (person.email) emailEl.value = person.email;
+        persistForm();
+        showContactStatus(`Selected ${person.first_name}!`, 'success');
+        discoverPanel.style.display = 'none';
+      });
+
+      row.appendChild(info);
+      row.appendChild(fillBtn);
+      discoverList.appendChild(row);
+    }
+  } catch {
+    discoverList.textContent = '';
+    const errNote = document.createElement('div');
+    errNote.style.fontSize = '11px';
+    errNote.style.color = 'var(--color-rose-500, #f43f5e)';
+    errNote.textContent = 'Failed to discover contacts. Please check backend connection.';
+    discoverList.appendChild(errNote);
+  } finally {
+    findPeopleBtn.disabled = false;
+    findPeopleBtn.innerHTML = originalHtml;
+  }
+});
+
 pasteBtn.addEventListener('click', async () => {
+
   try {
     const text  = await navigator.clipboard.readText();
     const match = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);

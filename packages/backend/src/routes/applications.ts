@@ -46,13 +46,15 @@ router.get('/', async (req: Request, res: Response) => {
     const [rows, countRow] = await Promise.all([
       pool.query(
         `SELECT ja.*,
+                COALESCE(j.company_id, c.id) AS company_id,
                 CASE WHEN j.id IS NOT NULL THEN
-                  json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url)
+                  json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url, 'company_id', COALESCE(j.company_id, c.id))
                 ELSE NULL END AS job,
                 COALESCE(em.email_count, 0)::int AS email_count,
                 em.latest_referral_requested_at AS referral_requested_at
          FROM job_applications ja
          LEFT JOIN jobs j ON j.id = ja.job_id
+         LEFT JOIN companies c ON (j.company_id = c.id OR (LOWER(c.name) = LOWER(ja.company_name) AND (c.created_by = ja.user_id OR c.created_by IS NULL)))
          LEFT JOIN (
            SELECT es.job_id,
                   COUNT(es.id) AS email_count,
@@ -151,16 +153,38 @@ router.post('/', async (req: Request, res: Response) => {
 
     let normalizedStatus = status ? (status === 'open' ? 'not_applied' : status) : 'not_applied';
 
+    // Auto-resolve or create company in companies table
+    let resolvedCompanyId: string | null = null;
+    const trimmedCompanyName = company_name.trim();
+    const existingComp = await pool.query<{ id: string }>(
+      `SELECT id FROM companies WHERE LOWER(name) = LOWER($1) AND (created_by = $2 OR created_by IS NULL) LIMIT 1`,
+      [trimmedCompanyName, userId]
+    );
+    if (existingComp.rows.length > 0) {
+      resolvedCompanyId = existingComp.rows[0]!.id;
+    } else {
+      const newComp = await pool.query<{ id: string }>(
+        `INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id`,
+        [trimmedCompanyName, userId]
+      );
+      resolvedCompanyId = newComp.rows[0]!.id;
+    }
+
     let targetJobId = job_id || jobId || null;
 
     if (!targetJobId) {
       const jobRes = await pool.query<{ id: string }>(
-        `INSERT INTO jobs (title, job_url, status, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO jobs (title, job_url, company_id, status, notes, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id`,
-        [job_title.trim(), job_url.trim(), normalizedStatus, notes?.trim() || null, userId]
+        [job_title.trim(), job_url.trim(), resolvedCompanyId, normalizedStatus, notes?.trim() || null, userId]
       );
       targetJobId = jobRes.rows[0]!.id;
+    } else if (resolvedCompanyId) {
+      await pool.query(
+        `UPDATE jobs SET company_id = COALESCE(company_id, $1), updated_at = NOW() WHERE id = $2 AND created_by = $3`,
+        [resolvedCompanyId, targetJobId, userId]
+      ).catch(() => undefined);
     }
 
     const result = await pool.query(
@@ -169,7 +193,7 @@ router.post('/', async (req: Request, res: Response) => {
        RETURNING *`,
       [
         userId,
-        company_name.trim(),
+        trimmedCompanyName,
         job_title.trim(),
         job_url.trim(),
         platform?.trim() || 'Generic',
@@ -187,7 +211,7 @@ router.post('/', async (req: Request, res: Response) => {
       ).catch(() => undefined);
     }
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({ ...result.rows[0], company_id: resolvedCompanyId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -219,14 +243,29 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const updates: string[] = ['updated_at = NOW()'];
     const params: unknown[] = [id, userId];
     let i = 3;
+    let resolvedCompanyId: string | null = null;
 
     if (company_name !== undefined) {
       if (!company_name.trim()) {
         res.status(400).json({ error: 'company_name cannot be empty' });
         return;
       }
+      const trimmedCompanyName = company_name.trim();
+      const existingComp = await pool.query<{ id: string }>(
+        `SELECT id FROM companies WHERE LOWER(name) = LOWER($1) AND (created_by = $2 OR created_by IS NULL) LIMIT 1`,
+        [trimmedCompanyName, userId]
+      );
+      if (existingComp.rows.length > 0) {
+        resolvedCompanyId = existingComp.rows[0]!.id;
+      } else {
+        const newComp = await pool.query<{ id: string }>(
+          `INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id`,
+          [trimmedCompanyName, userId]
+        );
+        resolvedCompanyId = newComp.rows[0]!.id;
+      }
       updates.push(`company_name = $${i++}`);
-      params.push(company_name.trim());
+      params.push(trimmedCompanyName);
     }
 
     if (job_title !== undefined) {
@@ -287,15 +326,36 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     const updatedApp = result.rows[0];
-    if (updatedApp.job_id && status !== undefined) {
-      const normalizedStatus = status === 'open' ? 'not_applied' : status;
-      pool.query(
-        `UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2 AND created_by = $3`,
-        [normalizedStatus, updatedApp.job_id, userId]
-      ).catch(() => undefined);
+    const targetJob = updatedApp.job_id;
+    if (targetJob) {
+      const jobUpdates: string[] = ['updated_at = NOW()'];
+      const jobParams: unknown[] = [targetJob, userId];
+      let ji = 3;
+      if (status !== undefined) {
+        jobUpdates.push(`status = $${ji++}`);
+        jobParams.push(status === 'open' ? 'not_applied' : status);
+      }
+      if (resolvedCompanyId) {
+        jobUpdates.push(`company_id = $${ji++}`);
+        jobParams.push(resolvedCompanyId);
+      }
+      if (job_title !== undefined) {
+        jobUpdates.push(`title = $${ji++}`);
+        jobParams.push(job_title.trim());
+      }
+      if (job_url !== undefined) {
+        jobUpdates.push(`job_url = $${ji++}`);
+        jobParams.push(job_url.trim());
+      }
+      if (jobUpdates.length > 1) {
+        pool.query(
+          `UPDATE jobs SET ${jobUpdates.join(', ')} WHERE id = $1 AND created_by = $2`,
+          jobParams
+        ).catch(() => undefined);
+      }
     }
 
-    res.json(updatedApp);
+    res.json({ ...updatedApp, company_id: resolvedCompanyId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

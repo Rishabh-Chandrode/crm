@@ -34,6 +34,7 @@ src/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, & quick theme switcher
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
 │   ├── Combobox.tsx               # Searchable combobox dropdown with full dark mode support
+│   ├── CompanyAutocomplete.tsx   # Autocomplete combobox with existing/new company live indicators
 │   ├── DateTimePicker.tsx         # Interactive Antigravity calendar & precision time picker
 │   └── ImportModal.tsx            # CSV/Excel bulk prospect import modal
 └── lib/

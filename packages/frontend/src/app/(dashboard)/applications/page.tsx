@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import type { JobApplication, EmailSend } from '@/lib/types';
+import type { JobApplication, EmailSend, Company } from '@/lib/types';
+import CompanyAutocomplete from '@/components/CompanyAutocomplete';
 
 const STATUS_OPTIONS = [
   'not_applied',
@@ -215,6 +216,7 @@ function StatusPill({
 export default function ApplicationsPage() {
   const router = useRouter();
   const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -249,6 +251,19 @@ export default function ApplicationsPage() {
   const [loadingEmails, setLoadingEmails] = useState(false);
 
   const [saving, setSaving] = useState(false);
+
+  const loadCompanies = useCallback(async () => {
+    try {
+      const res = await api.companies.list();
+      setCompanies(res.data);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCompanies();
+  }, [loadCompanies]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -315,6 +330,7 @@ export default function ApplicationsPage() {
         applied_at: editAppliedAt ? new Date(editAppliedAt).toISOString() : undefined,
       });
       setEditingId(null);
+      void loadCompanies();
       await load();
     } catch (err) {
       setEditError(err instanceof Error ? err.message : 'Failed to save changes');
@@ -342,6 +358,7 @@ export default function ApplicationsPage() {
       });
       setIsCreating(false);
       resetCreateForm();
+      void loadCompanies();
       await load();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create application');
@@ -386,7 +403,15 @@ export default function ApplicationsPage() {
   }
 
   function handleAskReferral(app: JobApplication) {
-    router.push(`/send?jobId=${app.job_id ?? app.id}&companyName=${encodeURIComponent(app.company_name)}`);
+    const params = new URLSearchParams();
+    params.set('jobId', app.job_id ?? app.id);
+    if (app.company_id) {
+      params.set('companyId', app.company_id);
+    }
+    if (app.company_name) {
+      params.set('companyName', app.company_name);
+    }
+    router.push(`/send?${params.toString()}`);
   }
 
   function fmt(dateStr: string) {
@@ -728,12 +753,11 @@ export default function ApplicationsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="form-label text-xs">Company Name *</label>
-                  <input
-                    type="text"
+                  <CompanyAutocomplete
                     value={editCompany}
-                    onChange={e => setEditCompany(e.target.value)}
-                    placeholder="e.g. Stripe"
-                    className="form-input text-xs"
+                    onChange={(val) => setEditCompany(val)}
+                    companies={companies}
+                    placeholder="e.g. Airtel, Stripe"
                   />
                 </div>
                 <div>
@@ -847,12 +871,11 @@ export default function ApplicationsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="form-label text-xs">Company Name *</label>
-                  <input
-                    type="text"
+                  <CompanyAutocomplete
                     value={newCompany}
-                    onChange={e => setNewCompany(e.target.value)}
-                    placeholder="e.g. OpenAI"
-                    className="form-input text-xs"
+                    onChange={(val) => setNewCompany(val)}
+                    companies={companies}
+                    placeholder="e.g. Airtel, Stripe"
                   />
                 </div>
                 <div>

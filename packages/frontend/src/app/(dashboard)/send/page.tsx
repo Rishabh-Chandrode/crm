@@ -71,6 +71,7 @@ function SendPageInner() {
   const searchParams = useSearchParams();
   const paramJobId = searchParams.get('jobId') || '';
   const paramCompanyId = searchParams.get('companyId') || '';
+  const paramCompanyName = searchParams.get('companyName') || searchParams.get('company') || '';
 
   const [sendMode, setSendMode] = useState<SendMode>('template');
   const [step, setStep] = useState<Step>('select');
@@ -148,24 +149,50 @@ function SendPageInner() {
         api.companies.list(),
         api.jobs.list({ limit: 100 }),
       ]);
-      setTemplates(tRes.data as EmailTemplate[]);
-      setCompanies(cRes.data as Company[]);
-      const sortedJobs = [...jRes.data].sort(
+      const loadedTemplates = tRes.data as EmailTemplate[];
+      const loadedCompanies = cRes.data as Company[];
+      const sortedJobs = [...(jRes.data as Job[])].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
+
+      setTemplates(loadedTemplates);
+      setCompanies(loadedCompanies);
       setJobs(sortedJobs);
+
+      // Auto-select company on initial load from params
+      if (paramCompanyId) {
+        setSelectedCompany(paramCompanyId);
+      } else if (paramJobId) {
+        const target = sortedJobs.find((j) => j.id === paramJobId);
+        if (target?.company_id) {
+          setSelectedCompany(target.company_id);
+        } else if (target?.company?.name || paramCompanyName) {
+          const compName = target?.company?.name || paramCompanyName;
+          const match = loadedCompanies.find((c) => c.name.toLowerCase() === compName.toLowerCase());
+          if (match) setSelectedCompany(match.id);
+        }
+      } else if (paramCompanyName) {
+        const match = loadedCompanies.find((c) => c.name.toLowerCase() === paramCompanyName.toLowerCase());
+        if (match) setSelectedCompany(match.id);
+      }
     }
     void load();
-  }, []);
+  }, [paramJobId, paramCompanyId, paramCompanyName]);
 
-  // When job changes or initialized from param, auto-link company & prefill job variables
+  // When job changes or initialized, auto-link company & prefill job variables
   useEffect(() => {
     if (!selectedJobId || jobs.length === 0) return;
     const targetJob = jobs.find((j) => j.id === selectedJobId);
     if (!targetJob) return;
 
-    if (targetJob.company_id && !selectedCompany) {
+    if (targetJob.company_id) {
       setSelectedCompany(targetJob.company_id);
+    } else if (targetJob.company?.name || paramCompanyName) {
+      const compName = targetJob.company?.name || paramCompanyName;
+      const match = companies.find((c) => c.name.toLowerCase() === compName.toLowerCase());
+      if (match) {
+        setSelectedCompany(match.id);
+      }
     }
 
     setCustomValues((prev) => ({
@@ -174,10 +201,10 @@ function SendPageInner() {
       jobTitle: targetJob.title,
       job_url: targetJob.job_url,
       jobUrl: targetJob.job_url,
-      company: targetJob.company?.name ?? prev['company'] ?? '',
-      company_name: targetJob.company?.name ?? prev['company_name'] ?? '',
+      company: targetJob.company?.name ?? paramCompanyName ?? prev['company'] ?? '',
+      company_name: targetJob.company?.name ?? paramCompanyName ?? prev['company_name'] ?? '',
     }));
-  }, [selectedJobId, jobs, selectedCompany]);
+  }, [selectedJobId, jobs, companies, paramCompanyName]);
 
   useEffect(() => {
     if (hasLoadedDocs.current) return;
@@ -1022,8 +1049,8 @@ function SendPageInner() {
               </div>
             </div>
 
-            <div className="flex items-center px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 relative">
-              <span className="text-zinc-400 text-xs font-semibold uppercase tracking-wider w-14">To:</span>
+            <div className="flex items-center px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
+              <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider w-16 flex-shrink-0">To:</span>
               <input
                 type="email"
                 value={quickTo}
@@ -1037,7 +1064,7 @@ function SendPageInner() {
                 placeholder="recipient@example.com"
               />
               {showQuickEmailSuggestions && quickEmailSuggestions.length > 0 && (
-                <div className="absolute top-full left-14 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-20 overflow-hidden">
+                <div className="absolute top-full left-16 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-20 overflow-hidden">
                   {quickEmailSuggestions.map(p => (
                     <div
                       key={p.id}
@@ -1055,8 +1082,8 @@ function SendPageInner() {
                 </div>
               )}
             </div>
-            <div className="flex items-center px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
-              <span className="text-zinc-400 text-xs font-semibold uppercase tracking-wider w-14">Subject:</span>
+            <div className="flex items-center px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
+              <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider w-16 flex-shrink-0">Subject:</span>
               <input
                 type="text"
                 value={quickSubject}
@@ -1065,7 +1092,7 @@ function SendPageInner() {
                 placeholder="Email subject line…"
               />
             </div>
-            <div className="p-4 flex-1">
+            <div className="p-4 flex-1 transition-colors focus-within:bg-zinc-50/20 dark:focus-within:bg-zinc-850/20">
               <textarea
                 value={quickBody}
                 onChange={e => setQuickBody(e.target.value)}

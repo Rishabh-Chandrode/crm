@@ -283,9 +283,9 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/applications` | **Query:** `status?` (`open` \| `referral_requested` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn` \| `closed`), `search?` (company_name or job_title), `job_id?`, `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `email_count`, and `referral_requested_at` |
-| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'` | `JobApplication` — `201` |
-| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values | `JobApplication` |
+| `GET` | `/api/applications` | **Query:** `status?` (`open` \| `referral_requested` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn` \| `closed`), `search?` (company_name or job_title), `job_id?`, `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `company_id`, `email_count`, and `referral_requested_at` |
+| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'`. Auto-resolves/creates company in Companies table and links `company_id` to the associated `jobs` entry. | `JobApplication` (includes `company_id`) — `201` |
+| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values, synchronizes company and title/URL updates with the linked `jobs` record | `JobApplication` |
 | `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
 | `GET` | `/api/applications/:id/emails` | — | `{ data: EmailSend[] }` — all outreach emails sent for this application / role |
 

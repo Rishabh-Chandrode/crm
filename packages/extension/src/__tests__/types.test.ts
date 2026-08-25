@@ -112,4 +112,25 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(sampleJob.status).toBe('open');
     expect(sampleJob.title).toBe('Senior Software Engineer');
   });
+
+  it('validates JobApplication contract including optional company_id', () => {
+    const sampleApp: import('../types').JobApplication = {
+      id: 'app-1',
+      user_id: 'u-1',
+      job_id: 'job-1',
+      company_id: 'comp-1',
+      company_name: 'Airtel',
+      job_title: 'Staff Engineer',
+      job_url: 'https://airtel.in/jobs/1',
+      platform: 'Direct',
+      status: 'not_applied',
+      notes: null,
+      applied_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    expect(sampleApp.company_name).toBe('Airtel');
+    expect(sampleApp.company_id).toBe('comp-1');
+  });
 });

@@ -1738,11 +1738,11 @@ sendModeRadios.forEach((radio) => {
   radio.addEventListener('change', (e) => {
     const mode = (e.target as HTMLInputElement).value;
     if (mode === 'template') {
-      templateModeContent.style.display = 'block';
+      templateModeContent.style.display = 'flex';
       quickEmailModeContent.style.display = 'none';
     } else {
       templateModeContent.style.display = 'none';
-      quickEmailModeContent.style.display = 'block';
+      quickEmailModeContent.style.display = 'flex';
     }
   });
 });

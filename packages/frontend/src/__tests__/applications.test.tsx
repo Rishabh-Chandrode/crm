@@ -22,6 +22,14 @@ vi.mock('../lib/api', () => ({
       delete: vi.fn(),
       getEmails: vi.fn(),
     },
+    companies: {
+      list: vi.fn().mockResolvedValue({
+        data: [
+          { id: 'comp-1', name: 'Airtel' },
+          { id: 'comp-2', name: 'Stripe' },
+        ],
+      }),
+    },
   },
 }));
 
@@ -230,9 +238,9 @@ describe('ApplicationsPage', () => {
     const addBtn = screen.getAllByText(/Add Application|Add First Application/i)[0];
     fireEvent.click(addBtn);
 
-    expect(screen.getByPlaceholderText('e.g. OpenAI')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. Airtel, Stripe')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. OpenAI'), {
+    fireEvent.change(screen.getByPlaceholderText('e.g. Airtel, Stripe'), {
       target: { value: 'OpenAI' },
     });
     fireEvent.change(screen.getByPlaceholderText('e.g. ML Platform Engineer'), {

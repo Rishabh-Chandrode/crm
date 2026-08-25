@@ -541,6 +541,14 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   display: none;
 }
 
+#quickEmailModeContent,
+#templateModeContent,
+#sendContent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 /* ── Form Elements ── */
 .field {
   display: flex;

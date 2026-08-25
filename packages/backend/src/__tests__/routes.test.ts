@@ -105,19 +105,55 @@ describe('Backend API Feature Routes', () => {
       expect(res.body).toHaveProperty('error');
     });
 
+    it('creates an application, resolves company, and links company_id to job', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 'comp-1' }] } as any) // existing company lookup
+        .mockResolvedValueOnce({ rows: [{ id: 'job-new-1' }] } as any) // insert job
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'app-new-1',
+            company_name: 'Airtel',
+            job_title: 'Backend Engineer',
+            job_url: 'https://airtel.in/jobs/1',
+            platform: 'Direct',
+            status: 'not_applied',
+            job_id: 'job-new-1',
+          }],
+        } as any) // insert job_applications
+        .mockResolvedValueOnce({ rowCount: 1 } as any); // update jobs
+
+      const res = await request(app)
+        .post('/api/applications')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          company_name: 'Airtel',
+          job_title: 'Backend Engineer',
+          job_url: 'https://airtel.in/jobs/1',
+          platform: 'Direct',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.company_name).toBe('Airtel');
+      expect(res.body.company_id).toBe('comp-1');
+      expect(res.body.job_id).toBe('job-new-1');
+    });
+
     it('updates application fields via PATCH /api/applications/:id', async () => {
-      vi.spyOn(pool, 'query').mockResolvedValueOnce({
-        rowCount: 1,
-        rows: [{
-          id: 'app-1',
-          company_name: 'Stripe',
-          job_title: 'Staff Engineer',
-          job_url: 'https://stripe.com/jobs/1',
-          platform: 'Greenhouse',
-          status: 'interview',
-          notes: 'Round 2 scheduled',
-        }],
-      } as any);
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 'comp-1' }] } as any) // company lookup
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{
+            id: 'app-1',
+            company_name: 'Stripe',
+            job_title: 'Staff Engineer',
+            job_url: 'https://stripe.com/jobs/1',
+            platform: 'Greenhouse',
+            status: 'interview',
+            notes: 'Round 2 scheduled',
+            job_id: null,
+          }],
+        } as any);
 
       const res = await request(app)
         .patch('/api/applications/app-1')

@@ -247,24 +247,6 @@ function SendCard({
               </pre>
             </div>
           )}
-
-          <div className="flex items-center justify-between pt-2 border-t border-zinc-200/50 dark:border-zinc-800/50">
-            <a
-              href={getGmailSearchUrl({
-                to: send.prospect?.email,
-                subject: send.subject,
-                messageId: send.resend_id,
-              })}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 hover:underline font-medium"
-            >
-              <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
-              </svg>
-              Open in Gmail
-            </a>
-          </div>
         </div>
       )}
     </div>

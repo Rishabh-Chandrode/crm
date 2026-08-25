@@ -19,6 +19,16 @@ describe('Frontend Types & Utility Functions', () => {
   });
 
   describe('getGmailSearchUrl', () => {
+    it('opens direct thread URL (#all/<id>) when messageId is a native Gmail hex ID', () => {
+      expect(
+        getGmailSearchUrl({
+          to: 'recruiter@example.com',
+          subject: 'Referral Request',
+          messageId: '1953258c7075c328',
+        })
+      ).toBe('https://mail.google.com/mail/u/0/#all/1953258c7075c328');
+    });
+
     it('targets exact thread with rfc822msgid when messageId contains @', () => {
       expect(
         getGmailSearchUrl({

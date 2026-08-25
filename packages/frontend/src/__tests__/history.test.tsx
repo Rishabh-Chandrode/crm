@@ -61,7 +61,7 @@ describe('HistoryPage Component', () => {
 
     // Check Open in Gmail link
     const gmailLinks = screen.getAllByRole('link', { name: /Open in Gmail/i });
-    expect(gmailLinks.length).toBeGreaterThan(0);
+    expect(gmailLinks).toHaveLength(1);
     expect(gmailLinks[0]).toHaveAttribute(
       'href',
       'https://mail.google.com/mail/u/0/#search/to%3Arecruiter%40tech.com%20subject%3A(%22Intro%20-%20Full%20Dev%22)'

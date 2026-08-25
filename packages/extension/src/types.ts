@@ -169,11 +169,20 @@ export function getGmailSearchUrl(query: {
   const to = query.to?.trim();
   const subject = query.subject?.trim();
 
-  let q = '';
+  // 1. If it's a native Gmail hex ID (16+ hex characters from Gmail REST API), open the exact thread directly
+  if (messageId && /^[0-9a-fA-F]{16,}$/.test(messageId)) {
+    return `https://mail.google.com/mail/u/0/#all/${messageId}`;
+  }
+
+  // 2. If it's an RFC 822 Message-ID (e.g. <abc@domain.com>), search specifically for that Message-ID
   if (messageId && messageId.includes('@')) {
     const cleanId = messageId.replace(/^<|>$/g, '');
-    q = `rfc822msgid:${cleanId}`;
-  } else if (to && subject) {
+    return `https://mail.google.com/mail/u/0/#search/rfc822msgid%3A${encodeURIComponent(cleanId)}`;
+  }
+
+  // 3. Fallback: Search by recipient + exact subject
+  let q = '';
+  if (to && subject) {
     const cleanSubject = subject.replace(/"/g, '');
     q = `to:${to} subject:("${cleanSubject}")`;
   } else if (to) {

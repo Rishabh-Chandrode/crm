@@ -206,8 +206,8 @@ export class GmailRestApiProvider implements EmailProvider {
       throw new Error(`Gmail API sending failed: ${errText}`);
     }
 
-    const sendData = await sendRes.json() as { id: string };
-    return { id: sendData.id };
+    const sendData = await sendRes.json() as { id: string; threadId?: string };
+    return { id: sendData.threadId || sendData.id };
   }
 }
 

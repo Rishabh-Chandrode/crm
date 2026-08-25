@@ -159,7 +159,7 @@ Key exports:
 | `COMPANY_FIELDS` | Field options for the variable mapper (company source) |
 | `SENDER_FIELDS` | Field options for the variable mapper (sender/profile source) |
 | `prospectFullName(p)` | Combines `first_name` + `last_name` |
-| `getGmailSearchUrl(query)` | Constructs a web Gmail search URL for a given recipient or subject |
+| `getGmailSearchUrl(query)` | Constructs direct `#all/<threadId>` or targeted search URL for Gmail |
 | `buildVariableFromKey(key, presets)` | Resolves a key against saved presets |
 
 ---

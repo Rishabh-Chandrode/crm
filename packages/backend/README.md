@@ -414,7 +414,7 @@ interface EmailProvider {
 
 `services/email/index.ts → getEmailProviderForUser()` returns a provider for the given user credentials:
 
-- **Gmail** (default) — uses the user's stored `gmail_refresh_token` to send via the Gmail API. Each user connects their own account from Settings.
+- **Gmail** (default) — uses the user's stored `gmail_refresh_token` to send via the Gmail REST API (returning `threadId` for direct thread linking in the web client). Each user connects their own account from Settings.
 - **Resend** (fallback) — used only if `RESEND_API_KEY` is set and no Gmail credentials are provided.
 
 **Display name fallback chain** (applied in both immediate and scheduled sends):

@@ -140,6 +140,14 @@ describe('Extension Data Shapes & Message Contracts', () => {
       getGmailSearchUrl({
         to: 'recruiter@stripe.com',
         subject: 'Intro',
+        messageId: '1953258c7075c328',
+      })
+    ).toBe('https://mail.google.com/mail/u/0/#all/1953258c7075c328');
+
+    expect(
+      getGmailSearchUrl({
+        to: 'recruiter@stripe.com',
+        subject: 'Intro',
         messageId: '<msg-1@mail.gmail.com>',
       })
     ).toBe('https://mail.google.com/mail/u/0/#search/rfc822msgid%3Amsg-1%40mail.gmail.com');

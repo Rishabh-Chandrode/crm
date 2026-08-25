@@ -17,7 +17,7 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Stats overview + Ready to Apply jobs hub + activity charts + recent sends
+│       ├── dashboard/page.tsx     # Revamped Mission Control: Priority Action Center, 4-KPI grid, direct shortcuts, and live email tracking
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile + email history

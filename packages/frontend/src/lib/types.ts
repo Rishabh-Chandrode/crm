@@ -182,6 +182,7 @@ export interface EmailSend {
   prospect_id: string | null;
   company_id: string | null;
   job_id?: string | null;
+  recipient_email?: string | null;
   subject: string | null;
   body: string | null;
   status: EmailSendStatus;

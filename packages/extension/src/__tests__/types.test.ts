@@ -7,9 +7,14 @@ import {
   type ProspectData,
   type Job,
   type JobStatus,
+  type VariableSource,
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
+  it('validates VariableSource contract including sender', () => {
+    const src: VariableSource = 'sender';
+    expect(src).toBe('sender');
+  });
   it('validates ScrapeMessage structure', () => {
     const msg: ScrapeMessage = {
       action: 'scraped',

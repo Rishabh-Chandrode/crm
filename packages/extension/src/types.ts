@@ -1,4 +1,4 @@
-export type VariableSource = 'prospect' | 'company' | 'static' | 'custom';
+export type VariableSource = 'prospect' | 'company' | 'static' | 'custom' | 'sender';
 
 export interface TemplateVariable {
   key: string;

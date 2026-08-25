@@ -207,6 +207,35 @@ describe('Backend API Feature Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('status must be one of');
     });
+
+    it('allows admin to update application created by another user via PATCH /api/applications/:id', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{ id: 'app-99', company_name: 'Stripe', status: 'closed', job_id: null }],
+      } as any);
+
+      const res = await request(app)
+        .patch('/api/applications/app-99')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'closed' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('closed');
+    });
+
+    it('allows admin to delete application via DELETE /api/applications/:id', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [],
+      } as any);
+
+      const res = await request(app)
+        .delete('/api/applications/app-99')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
   });
 
   describe('Email Tracking Pixel (/api/track/open/:sendId.gif)', () => {
@@ -263,7 +292,28 @@ describe('Backend API Feature Routes', () => {
               email_count: 0,
             },
           ],
-        } as any); // notApplied
+        } as any) // notApplied
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'app-interview-1',
+              company_name: 'Google',
+              job_title: 'Software Engineer III',
+              status: 'interview',
+              email_count: 1,
+            },
+          ],
+        } as any) // activeInterviews
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'send-failed-1',
+              recipient_email: 'fail@test.com',
+              status: 'failed',
+              error_message: 'Invalid recipient',
+            },
+          ],
+        } as any); // failedSends
 
       const res = await request(app)
         .get('/api/stats')
@@ -277,6 +327,10 @@ describe('Backend API Feature Routes', () => {
       expect(res.body).toHaveProperty('notAppliedCount', 1);
       expect(res.body.notAppliedApplications).toHaveLength(1);
       expect(res.body.notAppliedApplications[0].job_title).toBe('Design Technologist');
+      expect(res.body).toHaveProperty('activeInterviewCount', 1);
+      expect(res.body.activeInterviewApplications).toHaveLength(1);
+      expect(res.body.activeInterviewApplications[0].job_title).toBe('Software Engineer III');
+      expect(res.body.failedSends).toHaveLength(1);
     });
   });
 

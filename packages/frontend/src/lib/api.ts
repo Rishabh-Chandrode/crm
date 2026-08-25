@@ -360,7 +360,17 @@ export const api = {
         companies: number;
         prospects: number;
         templates: number;
+        applications: number;
         emails: { total: number; sent: number; failed: number; pending: number; opened: number; openRate: number };
+        applicationsByStatus?: { status: string; count: number }[];
+        recentApplications?: import('./types').JobApplication[];
+        readyToApplyApplications?: import('./types').JobApplication[];
+        readyToApplyCount?: number;
+        notAppliedApplications?: import('./types').JobApplication[];
+        notAppliedCount?: number;
+        activeInterviewApplications?: import('./types').JobApplication[];
+        activeInterviewCount?: number;
+        failedSends?: import('./types').EmailSend[];
         prospectsByCategory: { category: string; count: number }[];
         topCompanies: { name: string; count: number }[];
         recentSends: import('./types').EmailSend[];

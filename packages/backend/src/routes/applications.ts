@@ -21,12 +21,13 @@ const VALID_STATUSES = [
 // GET /api/applications
 router.get('/', async (req: Request, res: Response) => {
   try {
+    const isAdmin = req.user!.role === 'admin';
     const userId = req.user!.id;
     const { status, search, limit = '100', offset = '0', job_id } = req.query as Record<string, string>;
 
-    const conditions: string[] = ['ja.user_id = $1'];
-    const params: unknown[] = [userId];
-    let i = 2;
+    const conditions: string[] = isAdmin ? ['1=1'] : ['ja.user_id = $1'];
+    const params: unknown[] = isAdmin ? [] : [userId];
+    let i = isAdmin ? 1 : 2;
 
     if (status) {
       conditions.push(`ja.status = $${i++}`);
@@ -81,12 +82,13 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/applications/:id/emails
 router.get('/:id/emails', async (req: Request, res: Response) => {
   try {
+    const isAdmin = req.user!.role === 'admin';
     const userId = req.user!.id;
     const { id } = req.params;
 
     const appRes = await pool.query<{ job_id: string | null }>(
-      `SELECT job_id FROM job_applications WHERE id = $1 AND user_id = $2`,
-      [id, userId]
+      `SELECT job_id FROM job_applications WHERE id = $1 ${isAdmin ? '' : 'AND user_id = $2'}`,
+      isAdmin ? [id] : [id, userId]
     );
     if (appRes.rows.length === 0) {
       res.status(404).json({ error: 'Application not found' });
@@ -113,9 +115,9 @@ router.get('/:id/emails', async (req: Request, res: Response) => {
        LEFT JOIN prospects p ON es.prospect_id = p.id
        LEFT JOIN companies c ON es.company_id = c.id
        LEFT JOIN email_templates t ON es.template_id = t.id
-       WHERE es.job_id = $1 AND (es.created_by = $2 OR es.created_by IS NULL)
+       WHERE es.job_id = $1 ${isAdmin ? '' : 'AND (es.created_by = $2 OR es.created_by IS NULL)'}
        ORDER BY es.created_at DESC`,
-      [jobId, userId]
+      isAdmin ? [jobId] : [jobId, userId]
     );
 
     res.json({ data: emails.rows });
@@ -221,6 +223,7 @@ router.post('/', async (req: Request, res: Response) => {
 // PATCH /api/applications/:id
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
+    const isAdmin = req.user!.role === 'admin';
     const userId = req.user!.id;
     const { id } = req.params;
     const { company_name, job_title, job_url, platform, status, notes, applied_at, job_id, jobId } = req.body as {
@@ -241,8 +244,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     const updates: string[] = ['updated_at = NOW()'];
-    const params: unknown[] = [id, userId];
-    let i = 3;
+    const params: unknown[] = isAdmin ? [id] : [id, userId];
+    let i = params.length + 1;
     let resolvedCompanyId: string | null = null;
 
     if (company_name !== undefined) {
@@ -315,7 +318,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const result = await pool.query(
       `UPDATE job_applications
        SET ${updates.join(', ')}
-       WHERE id = $1 AND user_id = $2
+       WHERE id = $1 ${isAdmin ? '' : 'AND user_id = $2'}
        RETURNING *`,
       params,
     );
@@ -329,8 +332,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const targetJob = updatedApp.job_id;
     if (targetJob) {
       const jobUpdates: string[] = ['updated_at = NOW()'];
-      const jobParams: unknown[] = [targetJob, userId];
-      let ji = 3;
+      const jobParams: unknown[] = isAdmin ? [targetJob] : [targetJob, userId];
+      let ji = jobParams.length + 1;
       if (status !== undefined) {
         jobUpdates.push(`status = $${ji++}`);
         jobParams.push(status === 'open' ? 'not_applied' : status);
@@ -349,7 +352,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
       if (jobUpdates.length > 1) {
         pool.query(
-          `UPDATE jobs SET ${jobUpdates.join(', ')} WHERE id = $1 AND created_by = $2`,
+          `UPDATE jobs SET ${jobUpdates.join(', ')} WHERE id = $1 ${isAdmin ? '' : 'AND created_by = $2'}`,
           jobParams
         ).catch(() => undefined);
       }
@@ -365,12 +368,13 @@ router.patch('/:id', async (req: Request, res: Response) => {
 // DELETE /api/applications/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
+    const isAdmin = req.user!.role === 'admin';
     const userId = req.user!.id;
     const { id } = req.params;
 
     const result = await pool.query(
-      'DELETE FROM job_applications WHERE id = $1 AND user_id = $2',
-      [id, userId],
+      `DELETE FROM job_applications WHERE id = $1 ${isAdmin ? '' : 'AND user_id = $2'}`,
+      isAdmin ? [id] : [id, userId],
     );
 
     if (!result.rowCount) {

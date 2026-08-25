@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Prospect, Company } from '@/lib/types';
@@ -73,7 +74,11 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   );
 }
 
-export default function ProspectsPage() {
+function ProspectsContent() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams?.get('search') || '';
+  const initialCompany = searchParams?.get('companyId') || '';
+
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [total, setTotal] = useState(0);
@@ -86,15 +91,15 @@ export default function ProspectsPage() {
   const [showImport, setShowImport] = useState(false);
 
   // Filters & sort
-  const [search, setSearch] = useState('');
-  const [filterCompany, setFilterCompany] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const [filterCompany, setFilterCompany] = useState(initialCompany);
   const [filterCategory, setFilterCategory] = useState('');
   const [sortBy, setSortBy] = useState<SortCol>('first_name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -564,6 +569,14 @@ export default function ProspectsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ProspectsPage() {
+  return (
+    <Suspense fallback={<div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto"><div className="animate-pulse h-8 bg-zinc-200 dark:bg-zinc-800 rounded w-48" /></div>}>
+      <ProspectsContent />
+    </Suspense>
   );
 }
 

@@ -304,7 +304,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, notAppliedApplications, notAppliedCount, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
 
 ---
 

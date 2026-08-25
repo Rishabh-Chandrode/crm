@@ -16,6 +16,10 @@ chrome.runtime.onMessage.addListener((message: { action: string }, _sender, _sen
       chrome.scripting.executeScript({
         target: { tabId: linkedinTab.id },
         files: ['dist/contentScript.js'],
+      }).then(() => {
+        if (linkedinTab.id) {
+          chrome.tabs.sendMessage(linkedinTab.id, { type: 'SCRAPE_PAGE' }).catch(() => {});
+        }
       }).catch((err: unknown) => {
         chrome.runtime.sendMessage({ action: 'scrapeError', error: `Could not inject script: ${String(err)}` }).catch(() => {});
       });

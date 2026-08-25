@@ -1,6 +1,11 @@
 import type { ScrapeMessage } from './types';
 
-function extractName(): { firstName: string; lastName: string } {
+function getText(el: Element | null): string {
+  if (!el) return '';
+  return ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
+}
+
+export function extractName(): { firstName: string; lastName: string } {
   const currentUrl = window.location.href;
 
   let nameEl: Element | null = document.querySelector(`a[href='${currentUrl}'] h2`);
@@ -18,14 +23,14 @@ function extractName(): { firstName: string; lastName: string } {
     nameEl = document.querySelector('[componentkey*="profile.card"] h2');
   }
 
-  const full = (nameEl as HTMLElement | null)?.innerText.trim() ?? '';
-  const parts = full.split(/\s+/);
+  const full = getText(nameEl);
+  const parts = full.split(/\s+/).filter(Boolean);
   const firstName = parts[0] ?? '';
   const lastName = parts.length > 1 ? (parts[parts.length - 1] ?? '') : '';
   return { firstName, lastName };
 }
 
-function cleanCompanyName(name: string): string {
+export function cleanCompanyName(name: string): string {
   return name
     .replace(
       /\b(private\s+limited|pvt\.?\s*ltd\.?|ltd\.?|limited|incorporated|inc\.?|corporation|corp\.?|llc|llp|gmbh|s\.?a\.?)\b\.?/gi,
@@ -35,7 +40,7 @@ function cleanCompanyName(name: string): string {
     .trim();
 }
 
-function extractCompany(): string {
+export function extractCompany(): string {
   const experienceSection = getExperienceSection();
 
   if (experienceSection) {
@@ -56,23 +61,23 @@ function extractCompany(): string {
     }
 
     // New LinkedIn SDUI: "Company · Employment Type" in a <p> element
-    const pElements = Array.from(firstEntry?.querySelectorAll('p') ?? []) as HTMLElement[];
-    const companyP = pElements.find(p => p.innerText?.includes('·'));
+    const pElements = Array.from(firstEntry?.querySelectorAll('p') ?? []);
+    const companyP = pElements.find(p => getText(p).includes('·'));
     if (companyP) {
-      const namePart = companyP.innerText.split('·')[0] ?? '';
+      const namePart = getText(companyP).split('·')[0] ?? '';
       const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     }
 
     const hiddenSpans = Array.from(
       firstEntry?.querySelectorAll('span[aria-hidden="true"]') ?? []
-    ) as HTMLElement[];
+    );
     if (hiddenSpans.length >= 2) {
-      const namePart = hiddenSpans[1]?.innerText?.split('·')[0] ?? '';
+      const namePart = getText(hiddenSpans[1] ?? null).split('·')[0] ?? '';
       const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     } else if (hiddenSpans.length === 1) {
-      const namePart = hiddenSpans[0]?.innerText?.split('·')[0] ?? '';
+      const namePart = getText(hiddenSpans[0] ?? null).split('·')[0] ?? '';
       const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     }
@@ -81,12 +86,12 @@ function extractCompany(): string {
   const headline = document.querySelector(
     '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words'
   );
-  const headlineText = (headline as HTMLElement | null)?.innerText ?? '';
+  const headlineText = getText(headline);
   const atMatch = headlineText.match(/\bat\s+(.+)$/i);
   return cleanCompanyName(atMatch?.[1]?.trim() ?? '');
 }
 
-function extractJobTitle(): string {
+export function extractJobTitle(): string {
   const experienceSection = getExperienceSection();
 
   if (experienceSection) {
@@ -101,20 +106,20 @@ function extractJobTitle(): string {
     const titleRoot = firstRoleLi ?? firstEntry;
 
     // New LinkedIn SDUI: job title is in the first <p> that has no "·" and isn't a date
-    const pElements = Array.from(titleRoot?.querySelectorAll('p') ?? []) as HTMLElement[];
+    const pElements = Array.from(titleRoot?.querySelectorAll('p') ?? []);
     const titleP = pElements.find(p => {
-      const text = p.innerText?.trim() ?? '';
+      const text = getText(p);
       return text && !text.includes('·') && !/^\d/.test(text);
     });
-    if (titleP) return titleP.innerText.trim();
+    if (titleP) return getText(titleP);
 
     const hiddenSpans = Array.from(
       titleRoot?.querySelectorAll('span[aria-hidden="true"]') ?? []
-    ) as HTMLElement[];
+    );
 
     // spans[0] is the job title for a single-role entry; skip if it looks like
     // a company name (contains '·') or a date/duration (starts with a digit)
-    const candidate = hiddenSpans[0]?.innerText?.trim() ?? '';
+    const candidate = getText(hiddenSpans[0] ?? null);
     if (candidate && !candidate.includes('·') && !/^\d/.test(candidate)) {
       return candidate;
     }
@@ -124,14 +129,14 @@ function extractJobTitle(): string {
   const headline = document.querySelector(
     '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words'
   );
-  const text = (headline as HTMLElement | null)?.innerText.trim() ?? '';
+  const text = getText(headline);
   return text.replace(/\s+at\s+.+$/i, '').trim();
 }
 
-const EXPERIENCE_SELECTOR =
+export const EXPERIENCE_SELECTOR =
   '#experience, section[componentkey$="ExperienceTopLevelSection"], section[data-view-name="profile-card-experience"]';
 
-function getExperienceSection(): Element | null {
+export function getExperienceSection(): Element | null {
   const byId = document.querySelector('#experience');
   if (byId) {
     const section = byId.closest('section');
@@ -140,7 +145,7 @@ function getExperienceSection(): Element | null {
   return document.querySelector(EXPERIENCE_SELECTOR);
 }
 
-function getScrollContainer(): Element {
+export function getScrollContainer(): Element {
   return (
     document.querySelector('div.scaffold-layout__main') ??
     document.querySelector('main') ??
@@ -148,7 +153,7 @@ function getScrollContainer(): Element {
   );
 }
 
-async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | null> {
+export async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | null> {
   let existing = document.querySelector(EXPERIENCE_SELECTOR);
   if (existing) return existing;
 
@@ -188,7 +193,7 @@ async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | nul
   return document.querySelector(EXPERIENCE_SELECTOR);
 }
 
-function extractEmail(): string {
+export function extractEmail(): string {
   // 1. Look for mailto links on the page
   const mailto = document.querySelector<HTMLAnchorElement>('a[href^="mailto:"]');
   if (mailto) {
@@ -202,7 +207,7 @@ function extractEmail(): string {
   // 2. Look in contact info section or overlay if present
   const contactSection = document.querySelector('.pv-contact-info, section.ci-email, #contact-info');
   if (contactSection) {
-    const text = (contactSection as HTMLElement).innerText ?? '';
+    const text = getText(contactSection);
     const match = text.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
     if (match?.[0]) return match[0];
   }
@@ -210,7 +215,7 @@ function extractEmail(): string {
   // 3. Look in the About / Summary section
   const aboutSection = document.querySelector('#about, section[componentkey$="AboutTopLevelSection"]');
   if (aboutSection) {
-    const text = (aboutSection as HTMLElement).innerText ?? '';
+    const text = getText(aboutSection);
     const match = text.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
     if (match?.[0]) return match[0];
   }
@@ -218,7 +223,7 @@ function extractEmail(): string {
   // 4. Look across the top card header / headline
   const topCard = document.querySelector('.pv-top-card, .ph5, .pv-text-details__left-panel');
   if (topCard) {
-    const text = (topCard as HTMLElement).innerText ?? '';
+    const text = getText(topCard);
     const match = text.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
     if (match?.[0]) return match[0];
   }
@@ -226,7 +231,7 @@ function extractEmail(): string {
   return '';
 }
 
-async function scrape(): Promise<void> {
+export async function scrape(): Promise<void> {
   await waitForExperienceSection();
   // Give LinkedIn a moment to render content inside the section
   await new Promise((r) => setTimeout(r, 500));
@@ -249,13 +254,19 @@ async function scrape(): Promise<void> {
     email: email || undefined,
   };
 
-  chrome.runtime.sendMessage(message);
+  if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+    chrome.runtime.sendMessage(message);
+  }
 }
 
-void scrape();
-
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'SCRAPE_PAGE') {
-    void scrape();
+export function initContentScript(): void {
+  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message: { type?: string }) => {
+      if (message?.type === 'SCRAPE_PAGE') {
+        void scrape();
+      }
+    });
   }
-});
+}
+
+initContentScript();

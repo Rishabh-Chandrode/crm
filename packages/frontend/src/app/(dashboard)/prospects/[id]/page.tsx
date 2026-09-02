@@ -14,6 +14,7 @@ interface ProspectFormData {
   email: string;
   job_title: string;
   role_category: string;
+  gender: string;
   phone: string;
   linkedin_url: string;
   notes: string;
@@ -101,6 +102,7 @@ export default function ProspectDetailPage() {
       email: prospect.email,
       job_title: prospect.job_title ?? '',
       role_category: prospect.role_category ?? '',
+      gender: prospect.gender ?? '',
       phone: prospect.phone ?? '',
       linkedin_url: prospect.linkedin_url ?? '',
       notes: prospect.notes ?? '',
@@ -121,6 +123,7 @@ export default function ProspectDetailPage() {
         email: form.email.trim(),
         job_title: form.job_title.trim() || null,
         role_category: form.role_category || null,
+        gender: form.gender.trim() || null,
         phone: form.phone.trim() || null,
         linkedin_url: form.linkedin_url.trim() || null,
         notes: form.notes.trim() || null,
@@ -227,6 +230,7 @@ export default function ProspectDetailPage() {
         {[
           { label: 'Email', value: prospect.email, href: `mailto:${prospect.email}` },
           { label: 'Phone', value: prospect.phone },
+          { label: 'Gender', value: prospect.gender ? prospect.gender.charAt(0).toUpperCase() + prospect.gender.slice(1) : undefined },
           { label: 'LinkedIn', value: prospect.linkedin_url, href: prospect.linkedin_url ?? undefined },
           { label: 'Company', value: companyName },
         ].map(({ label, value, href }) =>
@@ -318,14 +322,25 @@ export default function ProspectDetailPage() {
                   <input className="form-input text-xs" value={form.job_title} onChange={(e) => f('job_title', e.target.value)} />
                 </div>
               </div>
-              <div>
-                <label className="form-label text-xs">Role Category</label>
-                <select className="form-select text-xs" value={form.role_category} onChange={(e) => f('role_category', e.target.value)}>
-                  <option value="">— not set —</option>
-                  <option value="engineer">Engineer</option>
-                  <option value="hr">HR / Recruiter</option>
-                  <option value="other">Other</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label text-xs">Role Category</label>
+                  <select className="form-select text-xs" value={form.role_category} onChange={(e) => f('role_category', e.target.value)}>
+                    <option value="">— not set —</option>
+                    <option value="engineer">Engineer</option>
+                    <option value="hr">HR / Recruiter</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Gender</label>
+                  <select className="form-select text-xs" value={form.gender} onChange={(e) => f('gender', e.target.value)}>
+                    <option value="">— unspecified —</option>
+                    <option value="male">Male (Sir / Mr.)</option>
+                    <option value="female">Female (Ma'am / Ms.)</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

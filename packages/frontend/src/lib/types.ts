@@ -107,6 +107,7 @@ export interface Prospect {
   linkedin_url: string | null;
   phone: string | null;
   notes: string | null;
+  gender?: string | null;
   company_name?: string;
   created_at: string;
   updated_at: string;
@@ -114,6 +115,41 @@ export interface Prospect {
 
 export function prospectFullName(p: Pick<Prospect, 'first_name' | 'last_name'>): string {
   return [p.first_name, p.last_name].filter(Boolean).join(' ');
+}
+
+export function getGmailSearchUrl(query: {
+  to?: string | null;
+  subject?: string | null;
+  messageId?: string | null;
+}): string {
+  const messageId = query.messageId?.trim();
+  const to = query.to?.trim();
+  const subject = query.subject?.trim();
+
+  // 1. If it's a native Gmail hex ID (16+ hex characters from Gmail REST API), open the exact thread directly
+  if (messageId && /^[0-9a-fA-F]{16,}$/.test(messageId)) {
+    return `https://mail.google.com/mail/u/0/#all/${messageId}`;
+  }
+
+  // 2. If it's an RFC 822 Message-ID (e.g. <abc@domain.com>), search specifically for that Message-ID
+  if (messageId && messageId.includes('@')) {
+    const cleanId = messageId.replace(/^<|>$/g, '');
+    return `https://mail.google.com/mail/u/0/#search/rfc822msgid%3A${encodeURIComponent(cleanId)}`;
+  }
+
+  // 3. Fallback: Search by recipient + exact subject
+  let q = '';
+  if (to && subject) {
+    const cleanSubject = subject.replace(/"/g, '');
+    q = `to:${to} subject:("${cleanSubject}")`;
+  } else if (to) {
+    q = `to:${to}`;
+  } else if (subject) {
+    const cleanSubject = subject.replace(/"/g, '');
+    q = `subject:("${cleanSubject}")`;
+  }
+
+  return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(q)}`;
 }
 
 export type VariableSource = 'prospect' | 'company' | 'static' | 'custom' | 'sender';
@@ -124,6 +160,9 @@ export interface TemplateVariable {
   source: VariableSource;
   field?: string;
   defaultValue?: string;
+  maleValue?: string;
+  femaleValue?: string;
+  fallbackValue?: string;
 }
 
 export interface EmailTemplate {
@@ -146,6 +185,8 @@ export interface EmailSend {
   template_id: string | null;
   prospect_id: string | null;
   company_id: string | null;
+  job_id?: string | null;
+  recipient_email?: string | null;
   subject: string | null;
   body: string | null;
   status: EmailSendStatus;
@@ -159,6 +200,7 @@ export interface EmailSend {
   prospect?: { first_name: string; last_name: string | null; email: string; job_title?: string | null };
   company?: { name: string };
   template?: { name: string };
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
 }
 
 export type EmailScheduleStatus = 'pending' | 'sending' | 'sent' | 'cancelled' | 'failed';
@@ -167,6 +209,7 @@ export interface EmailSchedule {
   id: string;
   template_id: string | null;
   company_id: string | null;
+  job_id?: string | null;
   prospect_ids: string[];
   custom_values: Record<string, string>;
   scheduled_for: string;
@@ -179,6 +222,7 @@ export interface EmailSchedule {
   sent_at: string | null;
   company?: { name: string };
   template?: { name: string; subject?: string };
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
 }
 
 export interface EmailScheduleDetail extends EmailSchedule {
@@ -205,6 +249,8 @@ export interface VariablePreset {
   source: VariableSource;
   field: string | null;
   default_value: string;
+  male_value?: string | null;
+  female_value?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -229,6 +275,30 @@ export function buildVariableFromKey(
       source: preset.source,
       field: preset.field ?? undefined,
       defaultValue: preset.default_value,
+      maleValue: preset.male_value ?? (key === 'salutation' ? 'Sir' : key === 'honorific' ? 'Mr.' : undefined),
+      femaleValue: preset.female_value ?? (key === 'salutation' ? 'Ma\'am' : key === 'honorific' ? 'Ms.' : undefined),
+    };
+  }
+  if (key.toLowerCase() === 'salutation') {
+    return {
+      key,
+      label: 'Salutation (Sir/Ma\'am)',
+      source: 'prospect',
+      field: 'salutation',
+      defaultValue: 'Sir/Ma\'am',
+      maleValue: 'Sir',
+      femaleValue: 'Ma\'am',
+    };
+  }
+  if (key.toLowerCase() === 'honorific') {
+    return {
+      key,
+      label: 'Honorific (Mr./Ms.)',
+      source: 'prospect',
+      field: 'honorific',
+      defaultValue: '',
+      maleValue: 'Mr.',
+      femaleValue: 'Ms.',
     };
   }
   return { key, label: toVariableLabel(key), source: 'custom', field: undefined, defaultValue: '' };
@@ -239,6 +309,9 @@ export const PROSPECT_FIELDS: { value: string; label: string }[] = [
   { value: 'last_name', label: 'Last Name' },
   { value: 'email', label: 'Email' },
   { value: 'job_title', label: 'Job Title' },
+  { value: 'salutation', label: 'Salutation (Sir / Ma\'am)' },
+  { value: 'gender', label: 'Gender' },
+  { value: 'honorific', label: 'Honorific (Mr. / Ms.)' },
   { value: 'phone', label: 'Phone' },
   { value: 'linkedin_url', label: 'LinkedIn URL' },
 ];
@@ -249,18 +322,126 @@ export const COMPANY_FIELDS: { value: string; label: string }[] = [
   { value: 'industry', label: 'Industry' },
 ];
 
-export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+export const JOB_FIELDS: { value: string; label: string }[] = [
+  { value: 'title', label: 'Job Title / Role' },
+  { value: 'job_url', label: 'Job URL' },
+];
+
+// Jobs & Job Opportunities
+export type JobStatus = 'open' | 'referral_requested' | 'applied' | 'interviewing' | 'closed';
+
+export interface Job {
+  id: string;
+  company_id: string | null;
+  title: string;
+  job_url: string;
+  status: JobStatus | string;
+  notes: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  company?: Pick<Company, 'id' | 'name' | 'website' | 'industry'>;
+  application?: JobApplication;
+  email_count?: number;
+  referral_requested_at?: string | null;
+}
+
+export type JobApplicationStatus =
+  | 'not_applied'
+  | 'referral_requested'
+  | 'applied'
+  | 'screening'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'withdrawn'
+  | 'closed';
 
 export interface JobApplication {
   id: string;
   user_id: string;
+  job_id?: string | null;
+  company_id?: string | null;
   company_name: string;
   job_title: string;
   job_url: string;
   platform: string;
-  status: JobApplicationStatus;
+  status: JobApplicationStatus | string;
   notes: string | null;
   applied_at: string;
   created_at: string;
   updated_at: string;
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
+  email_count?: number;
+  referral_requested_at?: string | null;
+}
+
+// Enrichment
+export interface EnrichmentResult {
+  email?: string;
+  job_title?: string;
+  company_name?: string;
+  linkedin_url?: string;
+}
+
+// Prospect Discovery & Bulk Import
+export type DiscoverRoleCategory = 'recruiter' | 'hiring_manager' | 'executive' | 'all' | 'custom';
+
+
+export interface DiscoverPeopleRequest {
+  company_name?: string;
+  company_domain?: string;
+  role_category?: DiscoverRoleCategory | string;
+  job_titles?: string[];
+  seniorities?: string[];
+  limit?: number;
+  page?: number;
+}
+
+export interface DiscoveredPerson {
+  id?: string;
+  first_name: string;
+  last_name?: string;
+  full_name?: string;
+  job_title?: string;
+  role_category?: string;
+  company_name?: string;
+  linkedin_url?: string;
+  email?: string;
+  gender?: string | null;
+  already_in_crm?: boolean;
+  existing_prospect_id?: string;
+}
+
+export interface DiscoverPeopleResponse {
+  data: DiscoveredPerson[];
+  total: number;
+  free?: boolean;
+  provider: string;
+}
+
+export interface BulkImportProspectItem {
+  first_name: string;
+  last_name?: string;
+  company_name?: string;
+  job_title?: string;
+  linkedin_url?: string;
+  role_category?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+  gender?: string | null;
+  auto_enrich_email?: boolean;
+}
+
+export interface BulkImportProspectsRequest {
+  prospects: BulkImportProspectItem[];
+  default_company_id?: string;
+}
+
+export interface BulkImportProspectsResponse {
+  data: Prospect[];
+  imported_count: number;
+  skipped_count: number;
+  total: number;
 }

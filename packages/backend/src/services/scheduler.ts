@@ -15,6 +15,7 @@ interface ScheduleRow {
   id: string;
   template_id: string | null;
   company_id: string | null;
+  job_id: string | null;
   prospect_ids: string[];
   custom_values: Record<string, string>;
   scheduled_for: Date;
@@ -161,9 +162,9 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
       } else {
         const jobUrl = schedule.custom_values['jobUrl'] ?? schedule.custom_values['job_url'] ?? null;
         const sendRecord = await pool.query<{ id: string }>(
-          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, schedule_id, job_url)
-           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8) RETURNING id`,
-          [template?.id ?? null, prospect.id, company?.id ?? null, subject, body, schedule.created_by, schedule.id, jobUrl]
+          `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, schedule_id, job_url, job_id)
+           VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9) RETURNING id`,
+          [template?.id ?? null, prospect.id, company?.id ?? null, subject, body, schedule.created_by, schedule.id, jobUrl, schedule.job_id]
         );
         sendId = sendRecord.rows[0]!.id;
       }

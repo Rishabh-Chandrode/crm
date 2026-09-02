@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { Company } from '@/lib/types';
 import Combobox from '@/components/Combobox';
+import DiscoverProspectsModal from '@/components/DiscoverProspectsModal';
+
 
 interface CompanyFormData {
   name: string;
@@ -28,6 +30,11 @@ export default function CompaniesPage() {
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [merging, setMerging] = useState(false);
   const [mergeError, setMergeError] = useState('');
+
+  // Discover state
+  const [discoverCompany, setDiscoverCompany] = useState<Company | null>(null);
+  const [showDiscoverModal, setShowDiscoverModal] = useState(false);
+
 
   async function load() {
     const res = await api.companies.list();
@@ -131,6 +138,16 @@ export default function CompaniesPage() {
             />
           </div>
           <button
+            onClick={() => {
+              setDiscoverCompany(null);
+              setShowDiscoverModal(true);
+            }}
+            className="btn-secondary"
+          >
+            <span>🔍</span>
+            Discover People
+          </button>
+          <button
             onClick={openCreate}
             className="btn-primary"
           >
@@ -139,6 +156,7 @@ export default function CompaniesPage() {
             </svg>
             Add Company
           </button>
+
         </div>
       </div>
 
@@ -203,11 +221,22 @@ export default function CompaniesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5 justify-end font-medium">
+                        <button
+                          onClick={() => {
+                            setDiscoverCompany(c);
+                            setShowDiscoverModal(true);
+                          }}
+                          className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+                          title="Find recruiters and decision makers at this company"
+                        >
+                          Find People
+                        </button>
                         <button onClick={() => openEdit(c)} className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors">Edit</button>
                         <button onClick={() => openMerge(c)} className="text-zinc-600 hover:text-amber-600 dark:text-zinc-400 dark:hover:text-amber-400 transition-colors">Merge</button>
                         <button onClick={() => void handleDelete(c.id)} className="text-zinc-400 hover:text-rose-600 dark:text-zinc-500 dark:hover:text-rose-400 transition-colors">Delete</button>
                       </div>
                     </td>
+
                   </tr>
                 ))}
               </tbody>
@@ -298,7 +327,25 @@ export default function CompaniesPage() {
           </div>
         </div>
       )}
+
+      {showDiscoverModal && (
+        <DiscoverProspectsModal
+          companies={companies}
+          initialCompany={discoverCompany?.name || ''}
+          initialDomain={discoverCompany?.website || ''}
+          onClose={() => {
+            setShowDiscoverModal(false);
+            setDiscoverCompany(null);
+          }}
+          onImportDone={() => {
+            setShowDiscoverModal(false);
+            setDiscoverCompany(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }
+
 

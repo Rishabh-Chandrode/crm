@@ -22,6 +22,10 @@ router.get('/', async (req, res, next) => {
       dailyActivityRes,
       appStatsRes,
       recentAppsRes,
+      readyToApplyRes,
+      notAppliedAppsRes,
+      activeInterviewsRes,
+      failedSendsRes,
     ] = await Promise.all([
       pool.query<{ companies: string; prospects: string; templates: string; applications: string }>(
         isAdmin
@@ -103,6 +107,75 @@ router.get('/', async (req, res, next) => {
          ORDER BY applied_at DESC LIMIT 5`,
         p
       ),
+      pool.query(
+        `SELECT ja.*,
+                COALESCE(em.email_count, 0)::int AS email_count,
+                COALESCE(em.latest_referral_requested_at, ja.created_at) AS referral_requested_at
+         FROM job_applications ja
+         LEFT JOIN (
+           SELECT es.job_id,
+                  COUNT(es.id) AS email_count,
+                  MIN(es.created_at) AS latest_referral_requested_at
+           FROM email_sends es
+           WHERE es.job_id IS NOT NULL
+           GROUP BY es.job_id
+         ) em ON em.job_id = ja.job_id
+         WHERE ja.status = 'referral_requested'
+           AND COALESCE(em.latest_referral_requested_at, ja.created_at) <= NOW() - INTERVAL '2 days'
+           ${isAdmin ? '' : 'AND ja.user_id = $1'}
+         ORDER BY referral_requested_at ASC
+         LIMIT 6`,
+        p
+      ),
+      pool.query(
+        `SELECT ja.*,
+                COALESCE(em.email_count, 0)::int AS email_count
+         FROM job_applications ja
+         LEFT JOIN (
+           SELECT es.job_id,
+                  COUNT(es.id) AS email_count
+           FROM email_sends es
+           WHERE es.job_id IS NOT NULL
+           GROUP BY es.job_id
+         ) em ON em.job_id = ja.job_id
+         WHERE ja.status IN ('not_applied', 'open')
+           ${isAdmin ? '' : 'AND ja.user_id = $1'}
+         ORDER BY ja.created_at DESC
+         LIMIT 6`,
+        p
+      ),
+      pool.query(
+        `SELECT ja.*,
+                COALESCE(em.email_count, 0)::int AS email_count
+         FROM job_applications ja
+         LEFT JOIN (
+           SELECT es.job_id,
+                  COUNT(es.id) AS email_count
+           FROM email_sends es
+           WHERE es.job_id IS NOT NULL
+           GROUP BY es.job_id
+         ) em ON em.job_id = ja.job_id
+         WHERE ja.status IN ('screening', 'interview', 'offer')
+           ${isAdmin ? '' : 'AND ja.user_id = $1'}
+         ORDER BY ja.updated_at DESC
+         LIMIT 6`,
+        p
+      ),
+      pool.query(
+        `SELECT es.*,
+                json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email, 'job_title', p.job_title) AS prospect,
+                json_build_object('name', c.name) AS company,
+                json_build_object('name', t.name) AS template
+         FROM email_sends es
+         LEFT JOIN prospects p ON p.id = es.prospect_id
+         LEFT JOIN companies c ON c.id = es.company_id
+         LEFT JOIN email_templates t ON t.id = es.template_id
+         WHERE es.status = 'failed'
+         ${isAdmin ? '' : 'AND es.created_by = $1'}
+         ORDER BY es.created_at DESC
+         LIMIT 3`,
+        p
+      ),
     ]);
 
     const counts = countsRes.rows[0] ?? { companies: '0', prospects: '0', templates: '0', applications: '0' };
@@ -130,6 +203,13 @@ router.get('/', async (req, res, next) => {
         count: parseInt(r.count, 10),
       })),
       recentApplications: recentAppsRes.rows,
+      readyToApplyApplications: readyToApplyRes.rows,
+      readyToApplyCount: readyToApplyRes.rows.length,
+      notAppliedApplications: notAppliedAppsRes.rows,
+      notAppliedCount: notAppliedAppsRes.rows.length,
+      activeInterviewApplications: activeInterviewsRes.rows,
+      activeInterviewCount: activeInterviewsRes.rows.length,
+      failedSends: failedSendsRes.rows,
       prospectsByCategory: categoryRes.rows.map((r) => ({
         category: r.category ?? 'unknown',
         count: parseInt(r.count, 10),

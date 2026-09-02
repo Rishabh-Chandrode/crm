@@ -297,14 +297,32 @@ export default function TemplatesPage() {
               </div>
 
               <div>
-                <label className="form-label text-xs">Email Body *</label>
-                <p className="text-[11px] text-zinc-400 mb-1.5">Use {'{{variable_name}}'} for dynamic substitutions.</p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="form-label text-xs mb-0">Email Body *</label>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[11px] text-zinc-400 mr-1">Insert:</span>
+                    {['salutation', 'firstName', 'lastName', 'job_title', 'company_name'].map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          const tag = `{{${key}}}`;
+                          setForm((prev) => ({ ...prev, body: prev.body + (prev.body.endsWith(' ') || prev.body.length === 0 ? '' : ' ') + tag }));
+                        }}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 border border-zinc-200 dark:border-zinc-700 transition-colors"
+                      >
+                        +{key}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-1.5">Use {'{{variable_name}}'} for dynamic substitutions (e.g. {'{{salutation}}'} for Sir/Ma'am).</p>
                 <textarea
                   className="form-textarea font-mono text-xs leading-relaxed"
                   rows={8}
                   value={form.body}
                   onChange={(e) => setForm({ ...form, body: e.target.value })}
-                  placeholder={`Hi {{firstName}},\n\nI came across the {{job_title}} opening at {{company_name}} and wanted to connect…\n\nBest,\n{{sender_name}}`}
+                  placeholder={`Dear {{salutation}},\n\nI came across the {{job_title}} opening at {{company_name}} and wanted to connect…\n\nBest,\n{{sender_name}}`}
                 />
               </div>
 
@@ -313,7 +331,7 @@ export default function TemplatesPage() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <label className="form-label mb-0 text-xs">Template Variables</label>
-                    <p className="text-[11px] text-zinc-400">Map each placeholder to a data source</p>
+                    <p className="text-[11px] text-zinc-400">Map each placeholder to a data source and customize values</p>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -334,83 +352,124 @@ export default function TemplatesPage() {
 
                 {form.variables.length === 0 ? (
                   <p className="text-zinc-400 text-xs text-center py-5 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
-                    No variables yet. Type placeholders like <code className="font-mono text-zinc-800 dark:text-zinc-200">{'{{firstName}}'}</code> then click Auto-detect.
+                    No variables yet. Type placeholders like <code className="font-mono text-zinc-800 dark:text-zinc-200">{'{{salutation}}'}</code> or <code className="font-mono text-zinc-800 dark:text-zinc-200">{'{{firstName}}'}</code> then click Auto-detect.
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {form.variables.map((v, i) => (
-                      <div key={i} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 bg-zinc-50/50 dark:bg-zinc-950/40">
-                        <div className="flex items-start gap-2.5">
-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                            <div>
-                              <label className="form-label text-[11px]">Placeholder</label>
-                              <input
-                                className="form-input text-xs font-mono"
-                                value={v.key}
-                                onChange={(e) => updateVariable(i, { key: e.target.value })}
-                                placeholder="firstName"
-                              />
+                    {form.variables.map((v, i) => {
+                      const isSalutationOrHonorific =
+                        v.field === 'salutation' ||
+                        v.field === 'honorific' ||
+                        v.key.toLowerCase() === 'salutation' ||
+                        v.key.toLowerCase() === 'honorific';
+
+                      return (
+                        <div key={i} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 bg-zinc-50/50 dark:bg-zinc-950/40">
+                          <div className="flex items-start gap-2.5">
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                              <div>
+                                <label className="form-label text-[11px]">Placeholder</label>
+                                <input
+                                  className="form-input text-xs font-mono"
+                                  value={v.key}
+                                  onChange={(e) => updateVariable(i, { key: e.target.value })}
+                                  placeholder="salutation"
+                                />
+                              </div>
+                              <div>
+                                <label className="form-label text-[11px]">Label</label>
+                                <input
+                                  className="form-input text-xs"
+                                  value={v.label}
+                                  onChange={(e) => updateVariable(i, { label: e.target.value })}
+                                  placeholder="Salutation"
+                                />
+                              </div>
+                              <div>
+                                <label className="form-label text-[11px]">Source</label>
+                                <select
+                                  className="form-select text-xs"
+                                  value={v.source}
+                                  onChange={(e) => updateVariable(i, { source: e.target.value as VariableSource, field: undefined })}
+                                >
+                                  {(Object.keys(SOURCE_LABELS) as VariableSource[]).map((s) => (
+                                    <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                {(v.source === 'prospect' || v.source === 'company' || v.source === 'sender') ? (
+                                  <>
+                                    <label className="form-label text-[11px]">Database field</label>
+                                    <select
+                                      className="form-select text-xs"
+                                      value={v.field ?? ''}
+                                      onChange={(e) => updateVariable(i, { field: e.target.value })}
+                                    >
+                                      <option value="">Select field…</option>
+                                      {getFieldOptions(v.source).map((f) => (
+                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                      ))}
+                                    </select>
+                                  </>
+                                ) : (
+                                  <>
+                                    <label className="form-label text-[11px]">
+                                      {v.source === 'static' ? 'Static value' : 'Default fallback'}
+                                    </label>
+                                    <input
+                                      className="form-input text-xs"
+                                      value={v.defaultValue ?? ''}
+                                      onChange={(e) => updateVariable(i, { defaultValue: e.target.value })}
+                                      placeholder="Fallback value"
+                                    />
+                                  </>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <label className="form-label text-[11px]">Label</label>
-                              <input
-                                className="form-input text-xs"
-                                value={v.label}
-                                onChange={(e) => updateVariable(i, { label: e.target.value })}
-                                placeholder="First Name"
-                              />
-                            </div>
-                            <div>
-                              <label className="form-label text-[11px]">Source</label>
-                              <select
-                                className="form-select text-xs"
-                                value={v.source}
-                                onChange={(e) => updateVariable(i, { source: e.target.value as VariableSource, field: undefined })}
-                              >
-                                {(Object.keys(SOURCE_LABELS) as VariableSource[]).map((s) => (
-                                  <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              {(v.source === 'prospect' || v.source === 'company' || v.source === 'sender') ? (
-                                <>
-                                  <label className="form-label text-[11px]">Database field</label>
-                                  <select
-                                    className="form-select text-xs"
-                                    value={v.field ?? ''}
-                                    onChange={(e) => updateVariable(i, { field: e.target.value })}
-                                  >
-                                    <option value="">Select field…</option>
-                                    {getFieldOptions(v.source).map((f) => (
-                                      <option key={f.value} value={f.value}>{f.label}</option>
-                                    ))}
-                                  </select>
-                                </>
-                              ) : (
-                                <>
-                                  <label className="form-label text-[11px]">
-                                    {v.source === 'static' ? 'Static value' : 'Default fallback'}
-                                  </label>
-                                  <input
-                                    className="form-input text-xs"
-                                    value={v.defaultValue ?? ''}
-                                    onChange={(e) => updateVariable(i, { defaultValue: e.target.value })}
-                                    placeholder="Fallback value"
-                                  />
-                                </>
-                              )}
-                            </div>
+                            <button
+                              onClick={() => removeVariable(i)}
+                              className="text-zinc-400 hover:text-rose-500 transition-colors mt-5 flex-shrink-0 p-1"
+                            >
+                              ✕
+                            </button>
                           </div>
-                          <button
-                            onClick={() => removeVariable(i)}
-                            className="text-zinc-400 hover:text-rose-500 transition-colors mt-5 flex-shrink-0 p-1"
-                          >
-                            ✕
-                          </button>
+
+                          {/* Customizable Salutation / Honorific Mapping */}
+                          {isSalutationOrHonorific && (
+                            <div className="mt-2.5 pt-2 border-t border-zinc-200/70 dark:border-zinc-800/70 grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-blue-500/5 dark:bg-blue-500/10 p-2.5 rounded-lg">
+                              <div>
+                                <label className="form-label text-[10px] text-blue-700 dark:text-blue-300 font-medium">Male Value (He/Him)</label>
+                                <input
+                                  className="form-input text-xs py-1"
+                                  value={v.maleValue ?? ''}
+                                  onChange={(e) => updateVariable(i, { maleValue: e.target.value })}
+                                  placeholder={v.field === 'honorific' || v.key.toLowerCase() === 'honorific' ? 'Mr.' : 'Sir'}
+                                />
+                              </div>
+                              <div>
+                                <label className="form-label text-[10px] text-blue-700 dark:text-blue-300 font-medium">Female Value (She/Her)</label>
+                                <input
+                                  className="form-input text-xs py-1"
+                                  value={v.femaleValue ?? ''}
+                                  onChange={(e) => updateVariable(i, { femaleValue: e.target.value })}
+                                  placeholder={v.field === 'honorific' || v.key.toLowerCase() === 'honorific' ? 'Ms.' : "Ma'am"}
+                                />
+                              </div>
+                              <div>
+                                <label className="form-label text-[10px] text-blue-700 dark:text-blue-300 font-medium">Default / Fallback</label>
+                                <input
+                                  className="form-input text-xs py-1"
+                                  value={v.defaultValue ?? ''}
+                                  onChange={(e) => updateVariable(i, { defaultValue: e.target.value })}
+                                  placeholder={v.field === 'honorific' || v.key.toLowerCase() === 'honorific' ? '' : "Sir/Ma'am"}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

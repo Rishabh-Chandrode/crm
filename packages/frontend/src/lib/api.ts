@@ -174,7 +174,25 @@ export const api = {
       }),
     delete: (id: string) =>
       request<{ data: { id: string } }>(`/prospects/${id}`, { method: 'DELETE' }),
+    discover: (body: import('./types').DiscoverPeopleRequest) =>
+      request<import('./types').DiscoverPeopleResponse>('/prospects/discover', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    bulkImport: (body: import('./types').BulkImportProspectsRequest) =>
+      request<import('./types').BulkImportProspectsResponse>('/prospects/bulk-import', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    enrich: (body: { first_name?: string; last_name?: string; company_name?: string; linkedin_url?: string }) =>
+      request<import('./types').EnrichmentResult>('/prospects/enrich', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    getCredits: () =>
+      request<{ credits: number | null; provider: string }>('/prospects/enrich/credits'),
   },
+
 
   templates: {
     list: () =>
@@ -206,27 +224,28 @@ export const api = {
   },
 
   email: {
-    quickSend: (email: string, subject: string, body: string, documentIds?: string[]) =>
+    quickSend: (email: string, subject: string, body: string, documentIds?: string[], jobId?: string) =>
       request<{ data: { id: string; status: string } }>('/email/quick-send', {
         method: 'POST',
-        body: JSON.stringify({ email, subject, body, documentIds }),
+        body: JSON.stringify({ email, subject, body, documentIds, jobId }),
       }),
     preview: (templateId: string, prospectId: string, customValues?: Record<string, string>) =>
       request<{ data: { subject: string; body: string; html: string } }>('/email/preview', {
         method: 'POST',
         body: JSON.stringify({ templateId, prospectId, customValues }),
       }),
-    send: (templateId: string, prospectId: string, customValues?: Record<string, string>, documentIds?: string[]) =>
+    send: (templateId: string, prospectId: string, customValues?: Record<string, string>, documentIds?: string[], jobId?: string) =>
       request<{ data: { id: string; status: string } }>('/email/send', {
         method: 'POST',
-        body: JSON.stringify({ templateId, prospectId, customValues, documentIds }),
+        body: JSON.stringify({ templateId, prospectId, customValues, documentIds, jobId }),
       }),
     sendCompany: (
       templateId: string,
       companyId: string,
       prospectIds?: string[],
       customValues?: Record<string, string>,
-      documentIds?: string[]
+      documentIds?: string[],
+      jobId?: string
     ) =>
       request<{
         data: {
@@ -237,13 +256,14 @@ export const api = {
         };
       }>('/email/send-company', {
         method: 'POST',
-        body: JSON.stringify({ templateId, companyId, prospectIds, customValues, documentIds }),
+        body: JSON.stringify({ templateId, companyId, prospectIds, customValues, documentIds, jobId }),
       }),
     sendBatch: (
       templateId: string,
       prospectIds: string[],
       customValues?: Record<string, string>,
-      documentIds?: string[]
+      documentIds?: string[],
+      jobId?: string
     ) =>
       request<{
         data: {
@@ -254,15 +274,16 @@ export const api = {
         };
       }>('/email/send-batch', {
         method: 'POST',
-        body: JSON.stringify({ templateId, prospectIds, customValues, documentIds }),
+        body: JSON.stringify({ templateId, prospectIds, customValues, documentIds, jobId }),
       }),
-    history: (limit = 50, offset = 0, filters?: { status?: string; search?: string; company_id?: string; template_id?: string; prospect_id?: string }) => {
+    history: (limit = 50, offset = 0, filters?: { status?: string; search?: string; company_id?: string; template_id?: string; prospect_id?: string; job_id?: string }) => {
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
       if (filters?.status && filters.status !== 'all') params.set('status', filters.status);
       if (filters?.search) params.set('search', filters.search);
       if (filters?.company_id) params.set('company_id', filters.company_id);
       if (filters?.template_id) params.set('template_id', filters.template_id);
       if (filters?.prospect_id) params.set('prospect_id', filters.prospect_id);
+      if (filters?.job_id) params.set('job_id', filters.job_id);
       return request<{ data: import('./types').EmailSend[]; total: number }>(`/email/history?${params.toString()}`);
     },
     retry: (id: string) =>
@@ -270,10 +291,10 @@ export const api = {
   },
 
   schedules: {
-    quick: (email: string, subject: string, body: string, scheduledFor: string, documentIds?: string[]) =>
+    quick: (email: string, subject: string, body: string, scheduledFor: string, documentIds?: string[], jobId?: string) =>
       request<{ data: import('./types').EmailSchedule }>('/schedules/quick', {
         method: 'POST',
-        body: JSON.stringify({ email, subject, body, scheduledFor, documentIds }),
+        body: JSON.stringify({ email, subject, body, scheduledFor, documentIds, jobId }),
       }),
     list: () =>
       request<{ data: import('./types').EmailSchedule[] }>('/schedules'),
@@ -284,6 +305,7 @@ export const api = {
       customValues?: Record<string, string>;
       scheduledFor: string;
       documentIds?: string[];
+      jobId?: string;
     }) =>
       request<{ data: import('./types').EmailSchedule }>('/schedules', {
         method: 'POST',
@@ -360,7 +382,17 @@ export const api = {
         companies: number;
         prospects: number;
         templates: number;
+        applications: number;
         emails: { total: number; sent: number; failed: number; pending: number; opened: number; openRate: number };
+        applicationsByStatus?: { status: string; count: number }[];
+        recentApplications?: import('./types').JobApplication[];
+        readyToApplyApplications?: import('./types').JobApplication[];
+        readyToApplyCount?: number;
+        notAppliedApplications?: import('./types').JobApplication[];
+        notAppliedCount?: number;
+        activeInterviewApplications?: import('./types').JobApplication[];
+        activeInterviewCount?: number;
+        failedSends?: import('./types').EmailSend[];
         prospectsByCategory: { category: string; count: number }[];
         topCompanies: { name: string; count: number }[];
         recentSends: import('./types').EmailSend[];
@@ -417,12 +449,13 @@ export const api = {
   },
 
   applications: {
-    list: (params?: { status?: string; search?: string; limit?: number; offset?: number }) => {
+    list: (params?: { status?: string; search?: string; limit?: number; offset?: number; job_id?: string }) => {
       const q = new URLSearchParams();
       if (params?.status)  q.set('status',  params.status);
       if (params?.search)  q.set('search',  params.search);
       if (params?.limit)   q.set('limit',   String(params.limit));
       if (params?.offset)  q.set('offset',  String(params.offset));
+      if (params?.job_id)  q.set('job_id',  params.job_id);
       const qs = q.toString();
       return request<{ applications: import('./types').JobApplication[]; total: number }>(
         `/applications${qs ? `?${qs}` : ''}`,
@@ -436,6 +469,7 @@ export const api = {
       status?: string;
       notes?: string;
       applied_at?: string;
+      job_id?: string | null;
     }) =>
       request<import('./types').JobApplication>('/applications', { method: 'POST', body: JSON.stringify(body) }),
     update: (
@@ -448,10 +482,62 @@ export const api = {
         status?: string;
         notes?: string | null;
         applied_at?: string;
+        job_id?: string | null;
       }
     ) =>
       request<import('./types').JobApplication>(`/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/applications/${id}`, { method: 'DELETE' }),
+    getEmails: (id: string) =>
+      request<{ data: import('./types').EmailSend[] }>(`/applications/${id}/emails`),
+  },
+
+  jobs: {
+    list: (params?: { companyId?: string; status?: string; search?: string; limit?: number; offset?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.companyId) q.set('companyId', params.companyId);
+      if (params?.status)    q.set('status',    params.status);
+      if (params?.search)    q.set('search',    params.search);
+      if (params?.limit)     q.set('limit',     String(params.limit));
+      if (params?.offset)    q.set('offset',    String(params.offset));
+      const qs = q.toString();
+      return request<{ data: import('./types').Job[]; total: number }>(
+        `/jobs${qs ? `?${qs}` : ''}`
+      );
+    },
+    get: (id: string) =>
+      request<{ data: import('./types').Job & { emails?: import('./types').EmailSend[] } }>(
+        `/jobs/${id}`
+      ),
+    create: (body: {
+      title: string;
+      job_url: string;
+      company_id?: string | null;
+      company_name?: string | null;
+      status?: string;
+      notes?: string | null;
+    }) =>
+      request<{ data: import('./types').Job }>('/jobs', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (
+      id: string,
+      body: Partial<{
+        title: string;
+        job_url: string;
+        company_id: string | null;
+        status: string;
+        notes: string | null;
+      }>
+    ) =>
+      request<{ data: import('./types').Job }>(`/jobs/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<{ data: { id: string; deleted: boolean } }>(`/jobs/${id}`, { method: 'DELETE' }),
+    getEmails: (id: string) =>
+      request<{ data: import('./types').EmailSend[] }>(`/jobs/${id}/emails`),
   },
 };

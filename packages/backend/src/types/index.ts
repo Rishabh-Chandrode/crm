@@ -54,6 +54,7 @@ export interface Prospect {
   linkedin_url: string | null;
   phone: string | null;
   notes: string | null;
+  gender?: string | null;
   created_at: Date;
   updated_at: Date;
   company?: Company;
@@ -71,6 +72,9 @@ export interface TemplateVariable {
   source: VariableSource;
   field?: string;
   defaultValue?: string;
+  maleValue?: string;
+  femaleValue?: string;
+  fallbackValue?: string;
 }
 
 export interface EmailTemplate {
@@ -107,6 +111,8 @@ export interface EmailSend {
   template_id: string | null;
   prospect_id: string | null;
   company_id: string | null;
+  job_id?: string | null;
+  recipient_email?: string | null;
   subject: string | null;
   body: string | null;
   status: EmailSendStatus;
@@ -120,23 +126,57 @@ export interface EmailSend {
   prospect?: Pick<Prospect, 'first_name' | 'last_name' | 'email'>;
   company?: Pick<Company, 'name'>;
   template?: Pick<EmailTemplate, 'name'>;
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
+}
+
+// Jobs & Job Opportunities
+export type JobStatus = 'open' | 'referral_requested' | 'applied' | 'interviewing' | 'closed';
+
+export interface Job {
+  id: string;
+  company_id: string | null;
+  title: string;
+  job_url: string;
+  status: JobStatus | string;
+  notes: string | null;
+  created_by?: string | null;
+  created_at: Date;
+  updated_at: Date;
+  company?: Company;
+  application?: JobApplication;
+  email_count?: number;
+  referral_requested_at?: Date | null;
 }
 
 // Job Applications
-export type JobApplicationStatus = 'not_applied' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+export type JobApplicationStatus =
+  | 'not_applied'
+  | 'referral_requested'
+  | 'applied'
+  | 'screening'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'withdrawn'
+  | 'closed';
 
 export interface JobApplication {
   id: string;
   user_id: string;
+  job_id?: string | null;
+  company_id?: string | null;
   company_name: string;
   job_title: string;
   job_url: string;
   platform: string;
-  status: JobApplicationStatus;
+  status: JobApplicationStatus | string;
   notes: string | null;
   applied_at: Date;
   created_at: Date;
   updated_at: Date;
+  job?: Pick<Job, 'id' | 'title' | 'job_url'>;
+  email_count?: number;
+  referral_requested_at?: Date | null;
 }
 
 export type ApiResponse<T> = {
@@ -148,3 +188,109 @@ export type ApiError = {
   error: string;
   details?: unknown;
 };
+
+export function getGmailSearchUrl(query: {
+  to?: string | null;
+  subject?: string | null;
+  messageId?: string | null;
+}): string {
+  const messageId = query.messageId?.trim();
+  const to = query.to?.trim();
+  const subject = query.subject?.trim();
+
+  // 1. If it's a native Gmail hex ID (16+ hex characters from Gmail REST API), open the exact thread directly
+  if (messageId && /^[0-9a-fA-F]{16,}$/.test(messageId)) {
+    return `https://mail.google.com/mail/u/0/#all/${messageId}`;
+  }
+
+  // 2. If it's an RFC 822 Message-ID (e.g. <abc@domain.com>), search specifically for that Message-ID
+  if (messageId && messageId.includes('@')) {
+    const cleanId = messageId.replace(/^<|>$/g, '');
+    return `https://mail.google.com/mail/u/0/#search/rfc822msgid%3A${encodeURIComponent(cleanId)}`;
+  }
+
+  // 3. Fallback: Search by recipient + exact subject
+  let q = '';
+  if (to && subject) {
+    const cleanSubject = subject.replace(/"/g, '');
+    q = `to:${to} subject:("${cleanSubject}")`;
+  } else if (to) {
+    q = `to:${to}`;
+  } else if (subject) {
+    const cleanSubject = subject.replace(/"/g, '');
+    q = `subject:("${cleanSubject}")`;
+  }
+
+  return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(q)}`;
+}
+
+// Enrichment
+export interface EnrichmentResult {
+  email?: string;
+  job_title?: string;
+  company_name?: string;
+  linkedin_url?: string;
+}
+
+// Prospect Discovery & Bulk Import
+export type DiscoverRoleCategory = 'recruiter' | 'hiring_manager' | 'executive' | 'all' | 'custom';
+
+
+export interface DiscoverPeopleRequest {
+  company_name?: string;
+  company_domain?: string;
+  role_category?: DiscoverRoleCategory | string;
+  job_titles?: string[];
+  seniorities?: string[];
+  limit?: number;
+  page?: number;
+}
+
+export interface DiscoveredPerson {
+  id?: string;
+  first_name: string;
+  last_name?: string;
+  full_name?: string;
+  job_title?: string;
+  role_category?: string;
+  company_name?: string;
+  linkedin_url?: string;
+  email?: string;
+  gender?: string | null;
+  already_in_crm?: boolean;
+  existing_prospect_id?: string;
+}
+
+export interface DiscoverPeopleResponse {
+  data: DiscoveredPerson[];
+  total: number;
+  free?: boolean;
+  provider: string;
+}
+
+export interface BulkImportProspectItem {
+  first_name: string;
+  last_name?: string;
+  company_name?: string;
+  job_title?: string;
+  linkedin_url?: string;
+  role_category?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+  gender?: string | null;
+  auto_enrich_email?: boolean;
+}
+
+export interface BulkImportProspectsRequest {
+  prospects: BulkImportProspectItem[];
+  default_company_id?: string;
+}
+
+export interface BulkImportProspectsResponse {
+  data: Prospect[];
+  imported_count: number;
+  skipped_count: number;
+  total: number;
+}
+

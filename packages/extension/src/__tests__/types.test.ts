@@ -1,13 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import type {
-  ScrapeMessage,
-  AutofillResultMessage,
-  UserProfile,
-  ProspectData,
-  Document,
+import {
+  getGmailSearchUrl,
+  type ScrapeMessage,
+  type AutofillResultMessage,
+  type UserProfile,
+  type ProspectData,
+  type Job,
+  type JobStatus,
+  type VariableSource,
+  type Document,
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
+  it('validates VariableSource contract including sender', () => {
+    const src: VariableSource = 'sender';
+    expect(src).toBe('sender');
+  });
   it('validates ScrapeMessage structure', () => {
     const msg: ScrapeMessage = {
       action: 'scraped',
@@ -22,18 +30,36 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(msg.firstName).toBe('Alice');
   });
 
-  it('validates ScrapeMessage with optional email', () => {
+  it('validates ScrapeMessage with optional email and gender', () => {
     const msg: ScrapeMessage = {
       action: 'scraped',
       firstName: 'Alice',
       lastName: 'Smith',
       company: 'Google',
       jobTitle: 'Staff Engineer',
+      gender: 'female',
       linkedinUrl: 'https://www.linkedin.com/in/alicesmith',
       email: 'alice@google.com',
     };
 
     expect(msg.email).toBe('alice@google.com');
+    expect(msg.gender).toBe('female');
+  });
+
+  it('validates TemplateVariable with customizable salutation fields', () => {
+    const v: import('../types').TemplateVariable = {
+      key: 'salutation',
+      label: 'Salutation',
+      source: 'prospect',
+      field: 'salutation',
+      maleValue: 'Sir',
+      femaleValue: "Ma'am",
+      defaultValue: "Sir/Ma'am",
+    };
+
+    expect(v.maleValue).toBe('Sir');
+    expect(v.femaleValue).toBe("Ma'am");
+    expect(v.defaultValue).toBe("Sir/Ma'am");
   });
 
   it('validates AutofillResultMessage structure', () => {
@@ -110,5 +136,70 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(doc.drive_url).toBe('https://docs.google.com/document/d/123/edit');
     expect(doc.size).toBe(1024);
   });
+
+  it('validates Job and JobStatus contracts', () => {
+    const status: JobStatus = 'open';
+    const sampleJob: Job = {
+      id: 'job-1',
+      title: 'Senior Software Engineer',
+      job_url: 'https://careers.google.com/jobs/123',
+      company_id: 'comp-1',
+      status,
+      notes: 'Referral requested',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    expect(sampleJob.status).toBe('open');
+    expect(sampleJob.title).toBe('Senior Software Engineer');
+  });
+
+  it('validates JobApplication contract including optional company_id', () => {
+    const sampleApp: import('../types').JobApplication = {
+      id: 'app-1',
+      user_id: 'u-1',
+      job_id: 'job-1',
+      company_id: 'comp-1',
+      company_name: 'Airtel',
+      job_title: 'Staff Engineer',
+      job_url: 'https://airtel.in/jobs/1',
+      platform: 'Direct',
+      status: 'not_applied',
+      notes: null,
+      applied_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    expect(sampleApp.company_name).toBe('Airtel');
+    expect(sampleApp.company_id).toBe('comp-1');
+  });
+
+  it('validates getGmailSearchUrl utility', () => {
+    expect(
+      getGmailSearchUrl({
+        to: 'recruiter@stripe.com',
+        subject: 'Intro',
+        messageId: '1953258c7075c328',
+      })
+    ).toBe('https://mail.google.com/mail/u/0/#all/1953258c7075c328');
+
+    expect(
+      getGmailSearchUrl({
+        to: 'recruiter@stripe.com',
+        subject: 'Intro',
+        messageId: '<msg-1@mail.gmail.com>',
+      })
+    ).toBe('https://mail.google.com/mail/u/0/#search/rfc822msgid%3Amsg-1%40mail.gmail.com');
+
+    expect(getGmailSearchUrl({ to: 'recruiter@stripe.com', subject: 'Intro' })).toBe(
+      'https://mail.google.com/mail/u/0/#search/to%3Arecruiter%40stripe.com%20subject%3A(%22Intro%22)'
+    );
+
+    expect(getGmailSearchUrl({ subject: 'Intro' })).toBe(
+      'https://mail.google.com/mail/u/0/#search/subject%3A(%22Intro%22)'
+    );
+  });
 });
+
 

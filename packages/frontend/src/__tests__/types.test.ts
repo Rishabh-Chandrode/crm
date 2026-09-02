@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   prospectFullName,
+  getGmailSearchUrl,
   toVariableLabel,
   buildVariableFromKey,
   type VariablePreset,
@@ -14,6 +15,58 @@ describe('Frontend Types & Utility Functions', () => {
 
     it('handles missing last name gracefully', () => {
       expect(prospectFullName({ first_name: 'John', last_name: null })).toBe('John');
+    });
+  });
+
+  describe('getGmailSearchUrl', () => {
+    it('opens direct thread URL (#all/<id>) when messageId is a native Gmail hex ID', () => {
+      expect(
+        getGmailSearchUrl({
+          to: 'recruiter@example.com',
+          subject: 'Referral Request',
+          messageId: '1953258c7075c328',
+        })
+      ).toBe('https://mail.google.com/mail/u/0/#all/1953258c7075c328');
+    });
+
+    it('targets exact thread with rfc822msgid when messageId contains @', () => {
+      expect(
+        getGmailSearchUrl({
+          to: 'recruiter@example.com',
+          subject: 'Referral Request',
+          messageId: '<abc123xyz@mail.gmail.com>',
+        })
+      ).toBe('https://mail.google.com/mail/u/0/#search/rfc822msgid%3Aabc123xyz%40mail.gmail.com');
+    });
+
+    it('targets exact thread by combining recipient and subject when both provided', () => {
+      expect(
+        getGmailSearchUrl({
+          to: 'recruiter@example.com',
+          subject: 'Referral for Frontend Engineer',
+        })
+      ).toBe(
+        'https://mail.google.com/mail/u/0/#search/to%3Arecruiter%40example.com%20subject%3A(%22Referral%20for%20Frontend%20Engineer%22)'
+      );
+    });
+
+    it('creates search URL with recipient email when only to is provided', () => {
+      expect(getGmailSearchUrl({ to: 'recruiter@example.com' })).toBe(
+        'https://mail.google.com/mail/u/0/#search/to%3Arecruiter%40example.com'
+      );
+    });
+
+    it('targets subject when recipient email is missing', () => {
+      expect(getGmailSearchUrl({ subject: 'Referral for Frontend Engineer' })).toBe(
+        'https://mail.google.com/mail/u/0/#search/subject%3A(%22Referral%20for%20Frontend%20Engineer%22)'
+      );
+    });
+
+    it('handles empty / null values cleanly', () => {
+      expect(getGmailSearchUrl({})).toBe('https://mail.google.com/mail/u/0/#search/');
+      expect(getGmailSearchUrl({ to: null, subject: null, messageId: null })).toBe(
+        'https://mail.google.com/mail/u/0/#search/'
+      );
     });
   });
 
@@ -69,6 +122,45 @@ describe('Frontend Types & Utility Functions', () => {
         field: undefined,
         defaultValue: '',
       });
+    });
+
+    it('defaults salutation and honorific correctly when no explicit preset exists', () => {
+      const salutationVar = buildVariableFromKey('salutation', []);
+      expect(salutationVar).toEqual({
+        key: 'salutation',
+        label: "Salutation (Sir/Ma'am)",
+        source: 'prospect',
+        field: 'salutation',
+        defaultValue: "Sir/Ma'am",
+        maleValue: 'Sir',
+        femaleValue: "Ma'am",
+      });
+
+      const honorificVar = buildVariableFromKey('honorific', []);
+      expect(honorificVar).toEqual({
+        key: 'honorific',
+        label: 'Honorific (Mr./Ms.)',
+        source: 'prospect',
+        field: 'honorific',
+        defaultValue: '',
+        maleValue: 'Mr.',
+        femaleValue: 'Ms.',
+      });
+    });
+  });
+
+  describe('PROSPECT_FIELDS and JOB_FIELDS', () => {
+    it('contains expected prospect schema fields including salutation, gender, and honorific', async () => {
+      const { PROSPECT_FIELDS } = await import('../lib/types');
+      expect(PROSPECT_FIELDS).toContainEqual({ value: 'salutation', label: "Salutation (Sir / Ma'am)" });
+      expect(PROSPECT_FIELDS).toContainEqual({ value: 'gender', label: 'Gender' });
+      expect(PROSPECT_FIELDS).toContainEqual({ value: 'honorific', label: 'Honorific (Mr. / Ms.)' });
+    });
+
+    it('contains expected job schema fields', async () => {
+      const { JOB_FIELDS } = await import('../lib/types');
+      expect(JOB_FIELDS).toContainEqual({ value: 'title', label: 'Job Title / Role' });
+      expect(JOB_FIELDS).toContainEqual({ value: 'job_url', label: 'Job URL' });
     });
   });
 

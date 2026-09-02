@@ -30,6 +30,7 @@ const MAPPABLE_FIELDS: { key: string; label: string; required?: boolean }[] = [
   { key: 'email',        label: 'Email',        required: true },
   { key: 'company',      label: 'Company Name' },
   { key: 'job_title',    label: 'Job Title' },
+  { key: 'gender',       label: 'Gender / Salutation (Sir/Ma\'am)' },
   { key: 'phone',        label: 'Phone' },
   { key: 'linkedin_url', label: 'LinkedIn URL' },
   { key: 'notes',        label: 'Notes' },

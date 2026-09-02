@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
-import type { Document, EmailTemplate, Company, Prospect, TemplateVariable } from '@/lib/types';
+import type { Document, EmailTemplate, Company, Prospect, TemplateVariable, Job } from '@/lib/types';
 import Combobox from '@/components/Combobox';
 import DateTimePicker from '@/components/DateTimePicker';
 
@@ -66,10 +67,19 @@ function getQuickScheduleOptions(): QuickOption[] {
   return options;
 }
 
-export default function SendPage() {
+function SendPageInner() {
+  const searchParams = useSearchParams();
+  const paramJobId = searchParams.get('jobId') || '';
+  const paramCompanyId = searchParams.get('companyId') || '';
+  const paramCompanyName = searchParams.get('companyName') || searchParams.get('company') || '';
+
   const [sendMode, setSendMode] = useState<SendMode>('template');
   const [step, setStep] = useState<Step>('select');
   const [targetMode, setTargetMode] = useState<TargetMode>('company');
+
+  // Job selection state for Referral Outreach
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState(paramJobId);
 
   // Quick email state
   const [quickTo, setQuickTo] = useState('');
@@ -105,7 +115,7 @@ export default function SendPage() {
 
   // Company mode
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState(paramCompanyId);
   const [companyProspects, setCompanyProspects] = useState<Prospect[]>([]);
 
   // Search mode
@@ -134,12 +144,67 @@ export default function SendPage() {
 
   useEffect(() => {
     async function load() {
-      const [tRes, cRes] = await Promise.all([api.templates.list(), api.companies.list()]);
-      setTemplates(tRes.data as EmailTemplate[]);
-      setCompanies(cRes.data as Company[]);
+      const [tRes, cRes, jRes] = await Promise.all([
+        api.templates.list(),
+        api.companies.list(),
+        api.jobs.list({ limit: 100 }),
+      ]);
+      const loadedTemplates = tRes.data as EmailTemplate[];
+      const loadedCompanies = cRes.data as Company[];
+      const sortedJobs = [...(jRes.data as Job[])].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setTemplates(loadedTemplates);
+      setCompanies(loadedCompanies);
+      setJobs(sortedJobs);
+
+      // Auto-select company on initial load from params
+      if (paramCompanyId) {
+        setSelectedCompany(paramCompanyId);
+      } else if (paramJobId) {
+        const target = sortedJobs.find((j) => j.id === paramJobId);
+        if (target?.company_id) {
+          setSelectedCompany(target.company_id);
+        } else if (target?.company?.name || paramCompanyName) {
+          const compName = target?.company?.name || paramCompanyName;
+          const match = loadedCompanies.find((c) => c.name.toLowerCase() === compName.toLowerCase());
+          if (match) setSelectedCompany(match.id);
+        }
+      } else if (paramCompanyName) {
+        const match = loadedCompanies.find((c) => c.name.toLowerCase() === paramCompanyName.toLowerCase());
+        if (match) setSelectedCompany(match.id);
+      }
     }
     void load();
-  }, []);
+  }, [paramJobId, paramCompanyId, paramCompanyName]);
+
+  // When job changes or initialized, auto-link company & prefill job variables
+  useEffect(() => {
+    if (!selectedJobId || jobs.length === 0) return;
+    const targetJob = jobs.find((j) => j.id === selectedJobId);
+    if (!targetJob) return;
+
+    if (targetJob.company_id) {
+      setSelectedCompany(targetJob.company_id);
+    } else if (targetJob.company?.name || paramCompanyName) {
+      const compName = targetJob.company?.name || paramCompanyName;
+      const match = companies.find((c) => c.name.toLowerCase() === compName.toLowerCase());
+      if (match) {
+        setSelectedCompany(match.id);
+      }
+    }
+
+    setCustomValues((prev) => ({
+      ...prev,
+      job_title: targetJob.title,
+      jobTitle: targetJob.title,
+      job_url: targetJob.job_url,
+      jobUrl: targetJob.job_url,
+      company: targetJob.company?.name ?? paramCompanyName ?? prev['company'] ?? '',
+      company_name: targetJob.company?.name ?? paramCompanyName ?? prev['company_name'] ?? '',
+    }));
+  }, [selectedJobId, jobs, companies, paramCompanyName]);
 
   useEffect(() => {
     if (hasLoadedDocs.current) return;
@@ -205,11 +270,11 @@ export default function SendPage() {
     try {
       if (targetMode === 'company') {
         const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
-        const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, selectedDocumentIds);
+        const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, selectedDocumentIds, selectedJobId || undefined);
         setResult(res.data);
       } else {
         const ids = selectedProspects.length > 0 ? selectedProspects : searchResults.map((p) => p.id);
-        const res = await api.email.sendBatch(selectedTemplate, ids, customValues, selectedDocumentIds);
+        const res = await api.email.sendBatch(selectedTemplate, ids, customValues, selectedDocumentIds, selectedJobId || undefined);
         setResult(res.data);
       }
       setStep('result');
@@ -228,10 +293,10 @@ export default function SendPage() {
       const scheduledFor = isoOverride ?? new Date(scheduleDateTime).toISOString();
       if (targetMode === 'company') {
         const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
-        await api.schedules.create({ templateId: selectedTemplate, companyId: selectedCompany, prospectIds: ids, customValues, scheduledFor, documentIds: selectedDocumentIds });
+        await api.schedules.create({ templateId: selectedTemplate, companyId: selectedCompany, prospectIds: ids, customValues, scheduledFor, documentIds: selectedDocumentIds, jobId: selectedJobId || undefined });
       } else {
         const ids = selectedProspects.length > 0 ? selectedProspects : searchResults.map((p) => p.id);
-        await api.schedules.create({ templateId: selectedTemplate, prospectIds: ids, customValues, scheduledFor, documentIds: selectedDocumentIds });
+        await api.schedules.create({ templateId: selectedTemplate, prospectIds: ids, customValues, scheduledFor, documentIds: selectedDocumentIds, jobId: selectedJobId || undefined });
       }
       setShowSchedulePicker(false);
       setShowCustomPicker(false);
@@ -262,7 +327,7 @@ export default function SendPage() {
         }
         setQuickStatus({ msg: 'Sending email...', type: 'info' });
       }
-      await api.email.quickSend(quickTo, quickSubject, quickBody, documentIds);
+      await api.email.quickSend(quickTo, quickSubject, quickBody, documentIds, selectedJobId || undefined);
       setQuickStatus({ msg: 'Quick Email sent successfully', type: 'success' });
       setQuickTo(''); setQuickSubject(''); setQuickBody(''); setQuickAttachments([]); setQuickSelectedDocumentIds([]);
     } catch (err) {
@@ -290,11 +355,18 @@ export default function SendPage() {
         }
         setQuickStatus({ msg: 'Scheduling email...', type: 'info' });
       }
-      await api.schedules.quick(quickTo, quickSubject, quickBody, scheduledFor, documentIds);
-      setQuickStatus({ msg: 'Quick Email scheduled successfully', type: 'success' });
-      setQuickTo(''); setQuickSubject(''); setQuickBody(''); setQuickAttachments([]); setQuickSelectedDocumentIds([]);
+      await api.schedules.quick(
+        quickTo,
+        quickSubject,
+        quickBody,
+        scheduledFor,
+        documentIds,
+        selectedJobId || undefined
+      );
       setShowSchedulePicker(false);
       setShowCustomPicker(false);
+      setQuickStatus({ msg: `Email scheduled for ${new Date(scheduledFor).toLocaleString()}`, type: 'success' });
+      setQuickTo(''); setQuickSubject(''); setQuickBody(''); setQuickAttachments([]); setQuickSelectedDocumentIds([]);
     } catch (err) {
       setQuickStatus({ msg: err instanceof Error ? err.message : 'Scheduling failed', type: 'error' });
     } finally {
@@ -344,6 +416,7 @@ export default function SendPage() {
   }
 
   const sendCount = targetProspects.length;
+  const currentJob = jobs.find((j) => j.id === selectedJobId);
 
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-5">
@@ -398,6 +471,40 @@ export default function SendPage() {
           {/* Step 1: Select */}
           {step === 'select' && (
             <div className="card p-5 space-y-4">
+              {/* Linked Job Opportunity */}
+              <div className="p-3.5 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Linked Job Opportunity (Referral Outreach)
+                  </label>
+                  {selectedJobId && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-200 font-semibold px-2 py-0.5 rounded">
+                      Linked
+                    </span>
+                  )}
+                </div>
+                <Combobox
+                  options={jobs.map((j) => ({
+                    value: j.id,
+                    label: j.company?.name ? `${j.title} at ${j.company.name}` : j.title,
+                    sublabel: j.status ? `Status: ${j.status.replace('_', ' ')}` : undefined,
+                  }))}
+                  value={selectedJobId}
+                  onChange={(jId) => setSelectedJobId(jId)}
+                  placeholder="Select a tracked job opportunity to auto-fill details & link outreach…"
+                  clearLabel="— no job opportunity linked —"
+                />
+                {currentJob && (
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    Emails sent will be recorded for <strong className="text-zinc-800 dark:text-zinc-200">{currentJob.title}</strong> at{' '}
+                    <strong className="text-zinc-800 dark:text-zinc-200">{currentJob.company?.name || 'Company'}</strong>.
+                  </p>
+                )}
+              </div>
+
               {/* Template */}
               <div>
                 <label className="form-label">Email Template *</label>
@@ -923,8 +1030,27 @@ export default function SendPage() {
             </div>
           )}
           <div className="flex flex-col flex-1">
-            <div className="flex items-center px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 relative">
-              <span className="text-zinc-400 text-xs font-semibold uppercase tracking-wider w-14">To:</span>
+            <div className="flex items-center px-4 py-2 bg-amber-500/5 dark:bg-amber-500/10 border-b border-amber-500/20">
+              <span className="text-amber-800 dark:text-amber-300 text-xs font-semibold uppercase tracking-wider w-20 flex-shrink-0">
+                Job Link:
+              </span>
+              <div className="flex-1">
+                <Combobox
+                  options={jobs.map((j) => ({
+                    value: j.id,
+                    label: j.company?.name ? `${j.title} at ${j.company.name}` : j.title,
+                    sublabel: j.status ? `Status: ${j.status.replace('_', ' ')}` : undefined,
+                  }))}
+                  value={selectedJobId}
+                  onChange={(jId) => setSelectedJobId(jId)}
+                  placeholder="Optional: Link this email to a job opportunity…"
+                  clearLabel="— no job linked —"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
+              <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider w-16 flex-shrink-0">To:</span>
               <input
                 type="email"
                 value={quickTo}
@@ -938,7 +1064,7 @@ export default function SendPage() {
                 placeholder="recipient@example.com"
               />
               {showQuickEmailSuggestions && quickEmailSuggestions.length > 0 && (
-                <div className="absolute top-full left-14 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-20 overflow-hidden">
+                <div className="absolute top-full left-16 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-20 overflow-hidden">
                   {quickEmailSuggestions.map(p => (
                     <div
                       key={p.id}
@@ -956,8 +1082,8 @@ export default function SendPage() {
                 </div>
               )}
             </div>
-            <div className="flex items-center px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
-              <span className="text-zinc-400 text-xs font-semibold uppercase tracking-wider w-14">Subject:</span>
+            <div className="flex items-center px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
+              <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider w-16 flex-shrink-0">Subject:</span>
               <input
                 type="text"
                 value={quickSubject}
@@ -966,7 +1092,7 @@ export default function SendPage() {
                 placeholder="Email subject line…"
               />
             </div>
-            <div className="p-4 flex-1">
+            <div className="p-4 flex-1 transition-colors focus-within:bg-zinc-50/20 dark:focus-within:bg-zinc-850/20">
               <textarea
                 value={quickBody}
                 onChange={e => setQuickBody(e.target.value)}
@@ -1085,6 +1211,14 @@ export default function SendPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SendPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-xs text-zinc-400">Loading send dashboard…</div>}>
+      <SendPageInner />
+    </Suspense>
   );
 }
 

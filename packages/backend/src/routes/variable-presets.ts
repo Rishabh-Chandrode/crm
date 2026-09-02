@@ -9,6 +9,8 @@ export interface VariablePreset {
   source: string;
   field: string | null;
   default_value: string;
+  male_value?: string | null;
+  female_value?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,16 +34,16 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { key, label, source, field, default_value = '' } = req.body as Partial<VariablePreset>;
+    const { key, label, source, field, default_value = '', male_value, female_value } = req.body as Partial<VariablePreset>;
     if (!key || !label || !source) {
       res.status(400).json({ error: 'key, label, and source are required' });
       return;
     }
     const result = await pool.query<VariablePreset>(
-      `INSERT INTO variable_presets (key, label, source, field, default_value, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO variable_presets (key, label, source, field, default_value, male_value, female_value, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [key.trim(), label.trim(), source, field ?? null, default_value, req.user!.id]
+      [key.trim(), label.trim(), source, field ?? null, default_value, male_value ?? null, female_value ?? null, req.user!.id]
     );
     res.status(201).json({ data: result.rows[0] });
   } catch (err) {
@@ -52,20 +54,29 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { key, label, source, field, default_value } = req.body as Partial<VariablePreset>;
+    const { key, label, source, field, default_value, male_value, female_value } = req.body as Partial<VariablePreset>;
     if (!key || !label || !source) {
       res.status(400).json({ error: 'key, label, and source are required' });
       return;
     }
-    const { sql, value } = ownerFilter(req.user!, 'variable_presets', 7);
+    const { sql, value } = ownerFilter(req.user!, 'variable_presets', 9);
     const ownerWhere = sql ? `AND ${sql}` : '';
-    const params: unknown[] = [key.trim(), label.trim(), source, field ?? null, default_value ?? '', id];
+    const params: unknown[] = [
+      key.trim(),
+      label.trim(),
+      source,
+      field ?? null,
+      default_value ?? '',
+      male_value ?? null,
+      female_value ?? null,
+      id,
+    ];
     if (value) params.push(value);
 
     const result = await pool.query<VariablePreset>(
       `UPDATE variable_presets
-       SET key = $1, label = $2, source = $3, field = $4, default_value = $5, updated_at = NOW()
-       WHERE id = $6 ${ownerWhere}
+       SET key = $1, label = $2, source = $3, field = $4, default_value = $5, male_value = $6, female_value = $7, updated_at = NOW()
+       WHERE id = $8 ${ownerWhere}
        RETURNING *`,
       params
     );

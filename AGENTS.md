@@ -4,6 +4,9 @@ These rules are framework-agnostic guidelines for AI agents pair-programming on 
 
 ---
 
+## 0. MANDATORY CODE-WRITING RESTRICTION (HARD RULE)
+- **Do Not Write Code Unless Explicitly Instructed:** When the user asks a question, requests an explanation, explores ideas, or asks about system behavior, **DO NOT edit, create, or modify any code files, tests, migrations, or configurations**. Answer the question directly and concisely. Only write or modify code when the user explicitly instructs you to implement, fix, update, create, or refactor code.
+
 ## 1. General Principles
 - **Think Before Acting:** Do not make assumptions. Always gather context by reading existing code, configurations, and documentation before proposing changes or writing code.
 - **Minimalist Interventions:** Only modify what is strictly necessary to achieve the objective. Avoid unnecessary refactoring or "cleanups" outside the scope of the immediate task.

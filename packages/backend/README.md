@@ -53,7 +53,8 @@ src/
 │   │   ├── resend.ts            # Resend implementation
 │   │   ├── gmail.ts             # Gmail OAuth2/Nodemailer implementation
 │   │   └── index.ts             # Factory — picks provider per user
-│   ├── templateEngine.ts        # {{variable}} resolution + plain-text → HTML
+│   ├── templateEngine.ts        # {{variable}} resolution + dynamic salutations (Sir/Ma'am) + plain-text → HTML
+│   ├── genderInference.ts       # Automated gender & pronoun inference from name and bio/profile
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
 │   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
 │   └── scheduler.ts             # node-cron job — processes pending email_schedules + Drive sync
@@ -191,15 +192,18 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/prospects` | **Query:** `company_id?`, `role_category?`, `search?` (searches first_name, last_name, email, job_title), `sort_by?` (`first_name` \| `last_name` \| `email` \| `job_title` \| `company_name` \| `created_at`), `sort_dir?` (`asc` \| `desc`), `limit?` (1–100, default 25), `offset?` | `{ data: Prospect[], total: number }` — each prospect includes `company_name` |
-| `POST` | `/api/prospects` | `{ first_name: string, email: string, company_id?, last_name?, job_title?, role_category?, linkedin_url?, phone?, notes? }` — auto-infers `role_category` from `job_title` if not provided | `{ data: Prospect }` — `201`. `409` if email duplicate |
-| `POST` | `/api/prospects/quick-add` | `{ first_name: string, email: string, last_name?, company_name?, job_title?, linkedin_url? }` — resolves or creates company by name (scoped to user). Returns existing if email already exists. | `{ data: Prospect, existed?: true }` — used by the Chrome extension |
+| `GET` | `/api/prospects` | **Query:** `company_id?`, `role_category?`, `search?` (searches first_name, last_name, email, job_title), `sort_by?` (`first_name` \| `last_name` \| `email` \| `job_title` \| `company_name` \| `created_at`), `sort_dir?` (`asc` \| `desc`), `limit?` (1–100, default 25), `offset?` | `{ data: Prospect[], total: number }` — each prospect includes `company_name` and `gender` |
+| `POST` | `/api/prospects` | `{ first_name: string, email: string, company_id?, last_name?, job_title?, role_category?, gender?, linkedin_url?, phone?, notes? }` — auto-infers `role_category` and auto-infers `gender` (from name / pronouns) if not provided | `{ data: Prospect }` — `201`. `409` if email duplicate |
+| `POST` | `/api/prospects/quick-add` | `{ first_name: string, email: string, last_name?, company_name?, job_title?, gender?, linkedin_url? }` — resolves or creates company by name (scoped to user). Auto-infers `gender` if omitted. Returns existing if email already exists. | `{ data: Prospect, existed?: true }` — used by the Chrome extension |
 | `GET` | `/api/prospects/lookup` | **Query:** `linkedin_url?`, `email?` — at least one required. Normalizes LinkedIn URL (strips query params, trailing slashes). | `{ data: Prospect \| null }` — returns first match for current user. Used by extension match card. |
 | `POST` | `/api/prospects/enrich` | `{ first_name?, last_name?, company_name?, linkedin_url? }` | Enrichment result from the active provider (Apollo/Prospeo) |
 | `GET` | `/api/prospects/enrich/credits` | — | `{ credits: number \| null, provider: string }` |
+| `POST` | `/api/prospects/discover` | `{ company_name?, company_domain?, role_category?, job_titles?, seniorities?, limit?, page? }` | Discovers decision makers & recruiters at a company via Prospeo/Apollo, cross-referencing against user CRM for duplicate tagging. |
+| `POST` | `/api/prospects/bulk-import` | `{ prospects: Array<{ first_name: string, last_name?, company_name?, job_title?, gender?, linkedin_url?, role_category?, auto_enrich_email? }>, default_company_id? }` | Bulk imports selected prospects, resolving/creating companies, auto-inferring gender, and optionally auto-enriching verified emails. |
 | `GET` | `/api/prospects/:id` | — | `{ data: Prospect }` — includes nested `company` object |
-| `PATCH` | `/api/prospects/:id` | `{ company_id?, first_name?, last_name?, email?, job_title?, role_category?, linkedin_url?, phone?, notes? }` — auto-updates `role_category` if `job_title` changed and no explicit `role_category` | `{ data: Prospect }` |
+| `PATCH` | `/api/prospects/:id` | `{ company_id?, first_name?, last_name?, email?, job_title?, role_category?, gender?, linkedin_url?, phone?, notes? }` — auto-updates `role_category` if `job_title` changed and no explicit `role_category` | `{ data: Prospect }` |
 | `DELETE` | `/api/prospects/:id` | — | `{ data: { id } }` |
+
 
 ---
 
@@ -248,8 +252,8 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `GET` | `/api/variable-presets` | — | `{ data: VariablePreset[] }` |
-| `POST` | `/api/variable-presets` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string }` | `{ data: VariablePreset }` — `201` |
-| `PUT` | `/api/variable-presets/:id` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string }` — full replace | `{ data: VariablePreset }` |
+| `POST` | `/api/variable-presets` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string, male_value?: string, female_value?: string }` | `{ data: VariablePreset }` — `201` |
+| `PUT` | `/api/variable-presets/:id` | `{ key: string, label: string, source: VariableSource, field?: string, default_value?: string, male_value?: string, female_value?: string }` — full replace | `{ data: VariablePreset }` |
 | `DELETE` | `/api/variable-presets/:id` | — | `{ data: { id } }` |
 
 ---
@@ -267,14 +271,28 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 ---
 
+### Jobs & Referral Outreach
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/jobs` | **Query:** `companyId?`, `status?` (`open` \| `referral_requested` \| `applied` \| `interviewing` \| `closed`), `search?` (job title or company name), `limit?` (default 50), `offset?` | `{ data: Job[], total: number }` — each includes nested `company`, `application`, `email_count`, and `referral_requested_at` |
+| `POST` | `/api/jobs` | `{ title: string, job_url: string, company_id?: string, company_name?: string, status?: string, notes?: string }` — auto-creates/links company if `company_name` given | `{ data: Job }` — `201` |
+| `GET` | `/api/jobs/:id` | — | `{ data: Job & { emails: EmailSend[] } }` |
+| `PATCH` | `/api/jobs/:id` | Any subset of: `title`, `job_url`, `company_id`, `status`, `notes` | `{ data: Job }` |
+| `DELETE` | `/api/jobs/:id` | — | `{ data: { id, deleted: true } }` |
+| `GET` | `/api/jobs/:id/emails` | — | `{ data: EmailSend[] }` — all outreach emails sent for this job |
+
+---
+
 ### Job Applications
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/applications` | **Query:** `status?` (`not_applied` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn`), `search?` (company_name or job_title), `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` |
-| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string }` — platform defaults to `'Generic'`, status defaults to `'applied'` | `JobApplication` — `201` |
-| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string }` — validates status against allowed values | `JobApplication` |
+| `GET` | `/api/applications` | **Query:** `status?` (`open` \| `referral_requested` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn` \| `closed`), `search?` (company_name or job_title), `job_id?`, `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `company_id`, `email_count`, and `referral_requested_at` |
+| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'`. Auto-resolves/creates company in Companies table and links `company_id` to the associated `jobs` entry. | `JobApplication` (includes `company_id`) — `201` |
+| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values, synchronizes company and title/URL updates with the linked `jobs` record | `JobApplication` |
 | `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
+| `GET` | `/api/applications/:id/emails` | — | `{ data: EmailSend[] }` — all outreach emails sent for this application / role |
 
 ---
 
@@ -291,7 +309,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, emails: { total, sent, failed, pending, opened, openRate }, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
 
 ---
 
@@ -341,32 +359,36 @@ users (id UUID PK, username, email, password_hash, role, is_active,
        from_name, reply_to_email,          -- email display name / reply-to overrides
        created_at, updated_at)
 
-job_applications (id UUID PK, user_id→users,
+jobs             (id UUID PK, company_id→companies, title, job_url,
+                  status,       -- open|referral_requested|applied|interviewing|closed
+                  notes, created_by→users, created_at, updated_at)
+
+job_applications (id UUID PK, user_id→users, job_id→jobs,
                   company_name, job_title, job_url, platform,
                   status,       -- applied|screening|interview|offer|rejected|withdrawn
                   notes, applied_at, created_at, updated_at)
 
 companies      (id, name, website, industry, created_by→users, created_at, updated_at)
 prospects      (id, company_id→companies, first_name, last_name, email,
-                job_title, role_category, linkedin_url, phone, notes,
+                job_title, role_category, gender, linkedin_url, phone, notes,
                 created_by→users, created_at, updated_at)
 email_templates (id, name, description, subject, body, job_description,
                  variables JSONB, document_ids UUID[],
                  created_by→users, created_at, updated_at)
 email_sends     (id, template_id, prospect_id, company_id, subject, body,
                  status, resend_id, sent_at, error_message, opened_at, open_count,
-                 created_by→users, created_at)
+                 job_url, job_id→jobs, created_by→users, created_at)
 email_schedules (id, template_id, company_id, prospect_ids UUID[],
                  custom_values JSONB, scheduled_for, status,
                  total_prospects, sent_count, failed_count, document_ids UUID[],
-                 created_by→users, created_at, sent_at)
+                 job_id→jobs, created_by→users, created_at, sent_at)
 documents       (id, name, filename, path, size,
                  drive_url,          -- original Drive share URL (NULL for uploads)
                  drive_file_id,      -- extracted Drive file ID
                  drive_synced_at,    -- timestamp of last successful sync
                  drive_sync_error,   -- last sync error message (NULL if OK)
                  created_by→users, created_at)
-variable_presets (id, key, label, source, field, default_value,
+variable_presets (id, key, label, source, field, default_value, male_value, female_value,
                   created_by→users, created_at, updated_at)
 ```
 
@@ -397,7 +419,7 @@ interface EmailProvider {
 
 `services/email/index.ts → getEmailProviderForUser()` returns a provider for the given user credentials:
 
-- **Gmail** (default) — uses the user's stored `gmail_refresh_token` to send via the Gmail API. Each user connects their own account from Settings.
+- **Gmail** (default) — uses the user's stored `gmail_refresh_token` to send via the Gmail REST API (returning `threadId` for direct thread linking in the web client). Each user connects their own account from Settings.
 - **Resend** (fallback) — used only if `RESEND_API_KEY` is set and no Gmail credentials are provided.
 
 **Display name fallback chain** (applied in both immediate and scheduled sends):
@@ -435,11 +457,13 @@ Drive files are synced on-demand via `POST /api/documents/:id/sync` rather than 
 
 ```typescript
 {
-  key: string          // used as {{key}} in templates
+  key: string          // used as {{key}} in templates (e.g. salutation, firstName)
   label: string        // shown in the UI
   source: 'prospect' | 'company' | 'sender' | 'static' | 'custom'
-  field?: string       // which field to read (for prospect/company/sender)
+  field?: string       // which field to read (for prospect/company/sender, e.g. 'salutation', 'honorific', 'gender')
   defaultValue?: string
+  maleValue?: string   // customizable male substitution (e.g. 'Sir', 'Mr.', 'brother')
+  femaleValue?: string // customizable female substitution (e.g. 'Ma\'am', 'Ms.', 'sister')
 }
 ```
 
@@ -447,7 +471,7 @@ Resolution in `services/templateEngine.ts → resolveTemplate()`:
 
 | source | Resolved from |
 |---|---|
-| `prospect` | `prospect[field]` |
+| `prospect` | `prospect[field]` (with special gender-aware resolvers for `salutation`, `honorific`, `gender`) |
 | `company` | `company[field]` |
 | `sender` | sending user's profile (`first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `website`) |
 | `static` | `variable.defaultValue` |
@@ -478,5 +502,7 @@ pnpm test:watch
 Test suites live in `src/__tests__/`:
 - `api.test.ts` — Express route tests (health check, route protection)
 - `auth.test.ts` — JWT token generation, authMiddleware, session validation, requireRole
-- `templateEngine.test.ts` — Variable resolution, HTML converters, tracking pixel injection
+- `genderInference.test.ts` — Automated pronoun parsing and first-name dictionary inference
+- `templateEngine.test.ts` — Variable resolution, customizable salutations (Sir/Ma'am), HTML converters, tracking pixel injection
+- `types.test.ts` — Backend types, getGmailSearchUrl utility, and Trinity sync validation
 

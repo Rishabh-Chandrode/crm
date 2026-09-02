@@ -12,10 +12,14 @@ router.get('/', async (req, res, next) => {
     const result = await pool.query(
       `SELECT es.*,
               json_build_object('name', c.name) AS company,
-              json_build_object('name', t.name) AS template
+              json_build_object('name', t.name) AS template,
+              CASE WHEN j.id IS NOT NULL THEN
+                json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url)
+              ELSE NULL END AS job
        FROM email_schedules es
        LEFT JOIN companies c ON c.id = es.company_id
        LEFT JOIN email_templates t ON t.id = es.template_id
+       LEFT JOIN jobs j ON j.id = es.job_id
        ${where}
        ORDER BY es.scheduled_for DESC`,
       params
@@ -36,10 +40,14 @@ router.get('/:id', async (req, res, next) => {
     const result = await pool.query(
       `SELECT es.*,
               json_build_object('name', c.name) AS company,
-              json_build_object('name', t.name, 'subject', t.subject) AS template
+              json_build_object('name', t.name, 'subject', t.subject) AS template,
+              CASE WHEN j.id IS NOT NULL THEN
+                json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url)
+              ELSE NULL END AS job
        FROM email_schedules es
        LEFT JOIN companies c ON c.id = es.company_id
        LEFT JOIN email_templates t ON t.id = es.template_id
+       LEFT JOIN jobs j ON j.id = es.job_id
        WHERE es.id = $1 ${ownerWhere}`,
       params
     );
@@ -79,6 +87,8 @@ router.post('/', async (req, res, next) => {
       customValues = {},
       scheduledFor,
       documentIds = [],
+      jobId,
+      job_id,
     } = req.body as {
       templateId: string;
       companyId?: string | null;
@@ -86,6 +96,8 @@ router.post('/', async (req, res, next) => {
       customValues?: Record<string, string>;
       scheduledFor: string;
       documentIds?: string[];
+      jobId?: string;
+      job_id?: string;
     };
 
     if (!templateId || !scheduledFor) {
@@ -118,12 +130,14 @@ router.post('/', async (req, res, next) => {
       totalProspects = parseInt(r.rows[0]?.count ?? '0', 10);
     }
 
+    const targetJobId = jobId || job_id || null;
+
     const result = await pool.query(
       `INSERT INTO email_schedules
-         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects, document_ids, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (template_id, company_id, prospect_ids, custom_values, scheduled_for, total_prospects, document_ids, created_by, job_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects, documentIds, req.user!.id]
+      [templateId, companyId, prospectIds, JSON.stringify(customValues), scheduledDate, totalProspects, documentIds, req.user!.id, targetJobId]
     );
 
     res.status(201).json({ data: result.rows[0] });
@@ -186,12 +200,16 @@ router.post('/quick', async (req, res, next) => {
       body,
       scheduledFor,
       documentIds = [],
+      jobId,
+      job_id,
     } = req.body as {
       email: string;
       subject: string;
       body: string;
       scheduledFor: string;
       documentIds?: string[];
+      jobId?: string;
+      job_id?: string;
     };
 
     if (!email || !subject || !body || !scheduledFor) {
@@ -222,12 +240,14 @@ router.post('/quick', async (req, res, next) => {
       prospect = insertRes.rows[0]!;
     }
 
+    const targetJobId = jobId || job_id || null;
+
     const result = await pool.query(
       `INSERT INTO email_schedules
-         (template_id, company_id, prospect_ids, subject, body, scheduled_for, total_prospects, document_ids, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (template_id, company_id, prospect_ids, subject, body, scheduled_for, total_prospects, document_ids, created_by, job_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [null, prospect.company_id ?? null, [prospect.id], subject, body, scheduledDate, 1, documentIds, userId]
+      [null, prospect.company_id ?? null, [prospect.id], subject, body, scheduledDate, 1, documentIds, userId, targetJobId]
     );
 
     res.status(201).json({ data: result.rows[0] });

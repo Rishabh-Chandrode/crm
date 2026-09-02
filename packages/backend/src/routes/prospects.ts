@@ -2,11 +2,14 @@ import { Router } from 'express';
 import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
 import { inferRoleCategory } from '../services/roleCategory.js';
-import type { Prospect } from '../types/index.js';
+import { inferProspectGender } from '../services/genderInference.js';
+import type { Prospect, DiscoverPeopleRequest, BulkImportProspectsRequest } from '../types/index.js';
 import { CONFIG } from '../config.js';
 import { getEnrichmentService } from '../services/enrichment/index.js';
+import { discoverPeople } from '../services/discoverPeople.js';
 
 const router: ReturnType<typeof Router> = Router();
+
 
 const ALLOWED_SORT_COLS: Record<string, string> = {
   first_name: 'p.first_name',
@@ -90,7 +93,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes } =
+    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes, gender } =
       req.body as Partial<Prospect>;
     const role_category: string | null =
       (req.body as { role_category?: string | null }).role_category !== undefined
@@ -100,9 +103,11 @@ router.post('/', async (req, res, next) => {
     if (!first_name?.trim()) { res.status(400).json({ error: 'first_name is required' }); return; }
     if (!email?.trim()) { res.status(400).json({ error: 'email is required' }); return; }
 
+    const resolvedGender = gender?.trim() || inferProspectGender({ firstName: first_name });
+
     const result = await pool.query<Prospect>(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, gender, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         company_id ?? null,
         first_name.trim(),
@@ -113,6 +118,7 @@ router.post('/', async (req, res, next) => {
         linkedin_url ?? null,
         phone ?? null,
         notes ?? null,
+        resolvedGender ?? null,
         req.user!.id,
       ]
     );
@@ -129,13 +135,14 @@ router.post('/', async (req, res, next) => {
 // Used by the browser extension: accepts company_name and creates the company if needed.
 router.post('/quick-add', async (req, res, next) => {
   try {
-    const { first_name, last_name, email, company_name, job_title, linkedin_url } = req.body as {
+    const { first_name, last_name, email, company_name, job_title, linkedin_url, gender } = req.body as {
       first_name: string;
       last_name?: string | null;
       email: string;
       company_name?: string | null;
       job_title?: string | null;
       linkedin_url?: string | null;
+      gender?: string | null;
     };
 
     if (!first_name?.trim()) { res.status(400).json({ error: 'first_name is required' }); return; }
@@ -173,10 +180,12 @@ router.post('/quick-add', async (req, res, next) => {
       }
     }
 
+    const resolvedGender = gender?.trim() || inferProspectGender({ firstName: first_name });
+
     const result = await pool.query(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null, userId]
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, gender, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null, resolvedGender ?? null, userId]
     );
 
     res.status(201).json({ data: result.rows[0] });
@@ -267,6 +276,170 @@ router.get('/enrich/credits', async (req, res, next) => {
   }
 });
 
+router.post('/discover', async (req, res, next) => {
+  try {
+    const { company_name, company_domain, role_category, job_titles, seniorities, limit, page } = req.body as DiscoverPeopleRequest;
+    const userId = req.user!.id;
+
+    if (!company_name?.trim() && !company_domain?.trim()) {
+      res.status(400).json({ error: 'company_name or company_domain is required' });
+      return;
+    }
+
+    const result = await discoverPeople(userId, {
+      company_name: company_name?.trim(),
+      company_domain: company_domain?.trim(),
+      role_category: role_category || 'all',
+      job_titles: Array.isArray(job_titles) ? job_titles : undefined,
+      seniorities: Array.isArray(seniorities) ? seniorities : undefined,
+      limit: limit ? Math.min(Math.max(Number(limit), 1), 50) : 25,
+      page: page ? Math.max(Number(page), 1) : 1,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('Discover prospects error:', err);
+    res.status(400).json({ error: err.message || 'Failed to discover prospects' });
+  }
+});
+
+router.post('/bulk-import', async (req, res, next) => {
+  try {
+    const { prospects, default_company_id } = req.body as BulkImportProspectsRequest;
+    const userId = req.user!.id;
+
+    if (!Array.isArray(prospects) || prospects.length === 0) {
+      res.status(400).json({ error: 'prospects array is required and must not be empty' });
+      return;
+    }
+
+    const imported: Prospect[] = [];
+    let skipped = 0;
+    const enrichmentService = getEnrichmentService();
+
+    // Cache of company name -> companyId for this user
+    const companyCache = new Map<string, string>();
+    if (default_company_id) {
+      const c = await pool.query<{ id: string }>('SELECT id FROM companies WHERE id = $1', [default_company_id]);
+      if (c.rows[0]) {
+        companyCache.set('__default__', c.rows[0].id);
+      }
+    }
+
+    for (const item of prospects) {
+      if (!item.first_name?.trim()) {
+        skipped++;
+        continue;
+      }
+
+      let email = item.email?.trim().toLowerCase() || '';
+
+      // Auto-enrich email if requested and missing
+      if (!email && item.auto_enrich_email && item.linkedin_url) {
+        try {
+          const enriched = await enrichmentService.enrich({
+            first_name: item.first_name.trim(),
+            last_name: item.last_name?.trim(),
+            company_name: item.company_name?.trim(),
+            linkedin_url: item.linkedin_url.trim(),
+          });
+          if (enriched.email) {
+            email = enriched.email.trim().toLowerCase();
+          }
+        } catch {
+          // If enrichment fails, fallback to placeholder
+        }
+      }
+
+      if (!email) {
+        const cleanFirst = item.first_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanLast = (item.last_name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanCompany = (item.company_name || 'contact').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        email = `${cleanFirst}${cleanLast ? '.' + cleanLast : ''}@${cleanCompany || 'company'}.crm.local`;
+      }
+
+      // Check duplicate
+      const existingCheck = await pool.query<{ id: string }>(
+        `SELECT id FROM prospects 
+         WHERE created_by = $1 AND (
+           email = $2 
+           ${item.linkedin_url ? `OR LOWER(TRIM(TRAILING '/' FROM linkedin_url)) = LOWER(TRIM(TRAILING '/' FROM $3))` : ''}
+         ) LIMIT 1`,
+        item.linkedin_url ? [userId, email, item.linkedin_url.trim()] : [userId, email]
+      );
+
+      if (existingCheck.rows[0]) {
+        skipped++;
+        continue;
+      }
+
+      // Resolve company
+      let companyId: string | null = companyCache.get('__default__') ?? null;
+      const compName = item.company_name?.trim();
+      if (compName) {
+        const lowerComp = compName.toLowerCase();
+        if (companyCache.has(lowerComp)) {
+          companyId = companyCache.get(lowerComp)!;
+        } else {
+          const compRes = await pool.query<{ id: string }>(
+            'SELECT id FROM companies WHERE LOWER(name) = LOWER($1) AND created_by = $2 LIMIT 1',
+            [compName, userId]
+          );
+          if (compRes.rows[0]) {
+            companyId = compRes.rows[0].id;
+          } else {
+            const newComp = await pool.query<{ id: string }>(
+              'INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id',
+              [compName, userId]
+            );
+            companyId = newComp.rows[0]?.id ?? null;
+          }
+          if (companyId) {
+            companyCache.set(lowerComp, companyId);
+          }
+        }
+      }
+
+      const roleCategory = item.role_category || inferRoleCategory(item.job_title) || 'other';
+      const itemGender = item.gender?.trim() || inferProspectGender({ firstName: item.first_name });
+
+      const insertRes = await pool.query<Prospect>(
+        `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, gender, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING *`,
+        [
+          companyId,
+          item.first_name.trim(),
+          item.last_name?.trim() || null,
+          email,
+          item.job_title?.trim() || null,
+          roleCategory,
+          item.linkedin_url?.trim() || null,
+          item.phone?.trim() || null,
+          item.notes?.trim() || null,
+          itemGender ?? null,
+          userId,
+        ]
+      );
+
+      if (insertRes.rows[0]) {
+        imported.push(insertRes.rows[0]);
+      }
+    }
+
+    res.status(201).json({
+      data: imported,
+      imported_count: imported.length,
+      skipped_count: skipped,
+      total: prospects.length,
+    });
+  } catch (err: any) {
+    console.error('Bulk import prospects error:', err);
+    res.status(400).json({ error: err.message || 'Failed to bulk import prospects' });
+  }
+});
+
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -295,7 +468,7 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes } =
+    const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes, gender } =
       req.body as Partial<Prospect>;
     const bodyRoleCategory = (req.body as { role_category?: string | null }).role_category;
 
@@ -315,6 +488,7 @@ router.patch('/:id', async (req, res, next) => {
     if (linkedin_url !== undefined) add('linkedin_url', linkedin_url);
     if (phone !== undefined)        add('phone',        phone);
     if (notes !== undefined)        add('notes',        notes);
+    if (gender !== undefined)       add('gender',       gender ? gender.trim() : null);
     if (bodyRoleCategory !== undefined) {
       add('role_category', bodyRoleCategory || null);
     } else if (job_title !== undefined) {

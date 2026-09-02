@@ -179,6 +179,30 @@ router.post('/:id/detect-variables', async (req, res, next) => {
             source: preset.source as TemplateVariable['source'],
             field: preset.field ?? undefined,
             defaultValue: preset.default_value,
+            maleValue: preset.male_value ?? (k === 'salutation' ? 'Sir' : k === 'honorific' ? 'Mr.' : undefined),
+            femaleValue: preset.female_value ?? (k === 'salutation' ? 'Ma\'am' : k === 'honorific' ? 'Ms.' : undefined),
+          };
+        }
+        if (k.toLowerCase() === 'salutation') {
+          return {
+            key: k,
+            label: 'Salutation (Sir/Ma\'am)',
+            source: 'prospect' as const,
+            field: 'salutation',
+            defaultValue: 'Sir/Ma\'am',
+            maleValue: 'Sir',
+            femaleValue: 'Ma\'am',
+          };
+        }
+        if (k.toLowerCase() === 'honorific') {
+          return {
+            key: k,
+            label: 'Honorific (Mr./Ms.)',
+            source: 'prospect' as const,
+            field: 'honorific',
+            defaultValue: '',
+            maleValue: 'Mr.',
+            femaleValue: 'Ms.',
           };
         }
         return {

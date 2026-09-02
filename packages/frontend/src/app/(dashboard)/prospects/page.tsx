@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Prospect, Company } from '@/lib/types';
 import ImportModal from '@/components/ImportModal';
+import DiscoverProspectsModal from '@/components/DiscoverProspectsModal';
 import Combobox from '@/components/Combobox';
+
 
 interface ProspectFormData {
   company_id: string;
@@ -14,6 +17,7 @@ interface ProspectFormData {
   email: string;
   job_title: string;
   role_category: string;
+  gender: string;
   phone: string;
   linkedin_url: string;
   notes: string;
@@ -26,6 +30,7 @@ const EMPTY: ProspectFormData = {
   email: '',
   job_title: '',
   role_category: '',
+  gender: '',
   phone: '',
   linkedin_url: '',
   notes: '',
@@ -73,7 +78,11 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   );
 }
 
-export default function ProspectsPage() {
+function ProspectsContent() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams?.get('search') || '';
+  const initialCompany = searchParams?.get('companyId') || '';
+
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [total, setTotal] = useState(0);
@@ -84,17 +93,19 @@ export default function ProspectsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showDiscover, setShowDiscover] = useState(false);
+
 
   // Filters & sort
-  const [search, setSearch] = useState('');
-  const [filterCompany, setFilterCompany] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const [filterCompany, setFilterCompany] = useState(initialCompany);
   const [filterCategory, setFilterCategory] = useState('');
   const [sortBy, setSortBy] = useState<SortCol>('first_name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -153,6 +164,7 @@ export default function ProspectsPage() {
       email: p.email,
       job_title: p.job_title ?? '',
       role_category: p.role_category ?? '',
+      gender: p.gender ?? '',
       phone: p.phone ?? '',
       linkedin_url: p.linkedin_url ?? '',
       notes: p.notes ?? '',
@@ -172,6 +184,7 @@ export default function ProspectsPage() {
         email: form.email.trim(),
         job_title: form.job_title.trim() || null,
         role_category: form.role_category || null,
+        gender: form.gender.trim() || null,
         phone: form.phone.trim() || null,
         linkedin_url: form.linkedin_url.trim() || null,
         notes: form.notes.trim() || null,
@@ -232,6 +245,13 @@ export default function ProspectsPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
+            onClick={() => setShowDiscover(true)}
+            className="btn-secondary text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <span>🔍</span>
+            Discover Decision Makers
+          </button>
+          <button
             onClick={() => setShowImport(true)}
             className="btn-secondary"
           >
@@ -250,6 +270,7 @@ export default function ProspectsPage() {
             Add Prospect
           </button>
         </div>
+
       </div>
 
       {/* Filters toolbar */}
@@ -325,6 +346,7 @@ export default function ProspectsPage() {
                     <ThCol col="email" label="Email" />
                     <ThCol col="job_title" label="Title" />
                     <th className="text-left px-4 py-3 text-zinc-500 dark:text-zinc-400 font-semibold text-[11px] uppercase tracking-wider">Category</th>
+                    <th className="text-left px-4 py-3 text-zinc-500 dark:text-zinc-400 font-semibold text-[11px] uppercase tracking-wider">Gender</th>
                     <ThCol col="company_name" label="Company" />
                     <th className="px-4 py-3 text-right text-zinc-500 dark:text-zinc-400 font-semibold text-[11px] uppercase tracking-wider">Actions</th>
                   </tr>
@@ -342,6 +364,15 @@ export default function ProspectsPage() {
                         {p.role_category ? (
                           <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded ${CATEGORY_STYLES[p.role_category] ?? 'bg-zinc-100 text-zinc-500'}`}>
                             {CATEGORY_LABELS[p.role_category] ?? p.role_category}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-300 dark:text-zinc-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.gender ? (
+                          <span className="inline-flex text-[10px] font-medium px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 capitalize border border-zinc-200/60 dark:border-zinc-700/60">
+                            {p.gender}
                           </span>
                         ) : (
                           <span className="text-zinc-300 dark:text-zinc-600">—</span>
@@ -489,18 +520,33 @@ export default function ProspectsPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="form-label">Role Category <span className="text-zinc-400 font-normal">(auto-detected)</span></label>
-                <select
-                  className="form-select text-xs"
-                  value={form.role_category}
-                  onChange={(e) => f('role_category', e.target.value)}
-                >
-                  <option value="">— not set —</option>
-                  <option value="engineer">Engineer</option>
-                  <option value="hr">HR / Recruiter</option>
-                  <option value="other">Other</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Role Category <span className="text-zinc-400 font-normal">(auto-detected)</span></label>
+                  <select
+                    className="form-select text-xs"
+                    value={form.role_category}
+                    onChange={(e) => f('role_category', e.target.value)}
+                  >
+                    <option value="">— not set —</option>
+                    <option value="engineer">Engineer</option>
+                    <option value="hr">HR / Recruiter</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Gender / Salutation Base</label>
+                  <select
+                    className="form-select text-xs"
+                    value={form.gender}
+                    onChange={(e) => f('gender', e.target.value)}
+                  >
+                    <option value="">— auto infer / unspecified —</option>
+                    <option value="male">Male (Sir / Mr.)</option>
+                    <option value="female">Female (Ma'am / Ms.)</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -563,7 +609,27 @@ export default function ProspectsPage() {
           onDone={() => void load()}
         />
       )}
+
+      {showDiscover && (
+        <DiscoverProspectsModal
+          companies={companies}
+          onClose={() => setShowDiscover(false)}
+          onImportDone={() => {
+            setShowDiscover(false);
+            void load();
+          }}
+        />
+      )}
     </div>
+
+  );
+}
+
+export default function ProspectsPage() {
+  return (
+    <Suspense fallback={<div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto"><div className="animate-pulse h-8 bg-zinc-200 dark:bg-zinc-800 rounded w-48" /></div>}>
+      <ProspectsContent />
+    </Suspense>
   );
 }
 

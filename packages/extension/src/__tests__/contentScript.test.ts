@@ -68,6 +68,65 @@ describe('LinkedIn Content Script Scraper', () => {
       expect(extractCompany()).toBe('Microsoft');
     });
 
+    it('extracts company from modern LinkedIn SDUI markup without section or id', () => {
+      document.body.innerHTML = `
+        <div>
+          <div>
+            <h2 componentkey="ProfileNullStateCardAnchor_Experience">Experience</h2>
+          </div>
+          <div data-testid="profile_ExperienceTopLevelSection_ashmeet-kaur-1735b1317" data-component-type="LazyColumn">
+            <div componentkey="entity-collection-item-234de4cd">
+              <a href="https://www.linkedin.com/company/31274049/">
+                <figure>
+                  <svg aria-label="Urban Company logo" role="img"></svg>
+                  <img alt="Urban Company logo" src="https://media.licdn.com/logo.png" />
+                </figure>
+              </a>
+              <div>
+                <a href="https://www.linkedin.com/company/31274049/">
+                  <div>
+                    <p>Senior Associate</p>
+                    <p>Urban Company · Full-time</p>
+                  </div>
+                  <p>May 2026 - Present · 5 mos</p>
+                  <p>Gurugram, Haryana, India · On-site</p>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      expect(extractCompany()).toBe('Urban Company');
+      expect(extractJobTitle()).toBe('Senior Associate');
+    });
+
+    it('extracts company without employment type dot separator and ignores dates', () => {
+      document.body.innerHTML = `
+        <div>
+          <h2>Experience</h2>
+          <div>
+            <div componentkey="entity-collection-item-1">
+              <svg aria-label="Pocket FM logo" role="img"></svg>
+              <div>
+                <p>Junior HR Associate</p>
+                <p>Pocket FM</p>
+                <p>Aug 2023 - Jan 2025 · 1 yr 6 mos</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      expect(extractCompany()).toBe('Pocket FM');
+      expect(extractJobTitle()).toBe('Junior HR Associate');
+    });
+
+    it('falls back to document.title when DOM experience section is missing', () => {
+      document.body.innerHTML = '<div></div>';
+      document.title = 'Jane Doe - Lead Designer - Stripe | LinkedIn';
+      expect(extractCompany()).toBe('Stripe');
+      expect(extractJobTitle()).toBe('Lead Designer');
+    });
+
     it('falls back to headline "at Company" format when experience is empty', () => {
       document.body.innerHTML = `
         <div class="pv-text-details__left-panel">

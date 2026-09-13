@@ -5,6 +5,32 @@ function getText(el: Element | null): string {
   return ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
 }
 
+function isDateOrDuration(text: string): boolean {
+  if (!text) return false;
+  const dateMonthRegex = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{4})\b/i;
+  const durationRegex = /\b\d+\s*(mo|mos|yr|yrs|year|years|month|months)\b/i;
+  const presentRegex = /\b(present|current)\b/i;
+  return (
+    (dateMonthRegex.test(text) && (presentRegex.test(text) || /\d{4}/.test(text) || durationRegex.test(text))) ||
+    /^\d+\s*(mo|mos|yr|yrs|year|years|month|months)/i.test(text) ||
+    /·\s*\d+\s*(mo|mos|yr|yrs)/i.test(text) ||
+    /\b(present|current)\s*·/i.test(text)
+  );
+}
+
+function isLocation(text: string): boolean {
+  if (!text) return false;
+  return (
+    (/\b(on-site|hybrid|remote)\b/i.test(text) && (text.includes('·') || /,\s*[A-Z]/.test(text))) ||
+    /^[A-Za-z\s]+,\s*[A-Za-z\s]+,\s*[A-Za-z\s]+(\s*·.*)?$/.test(text)
+  );
+}
+
+function isSkillsOrDescription(text: string): boolean {
+  if (!text) return false;
+  return /\b\+\d+\s+skills?\b/i.test(text) || (/\bskills?\b/i.test(text) && text.includes('+')) || text.length > 150;
+}
+
 export function extractName(): { firstName: string; lastName: string } {
   const currentUrl = window.location.href;
 
@@ -16,14 +42,22 @@ export function extractName(): { firstName: string; lastName: string } {
   }
 
   if (!nameEl) {
-    nameEl = document.querySelector('.pv-text-details__left-panel h1, .ph5 h1, h1.text-heading-xlarge');
+    nameEl = document.querySelector('.pv-text-details__left-panel h1, .ph5 h1, h1.text-heading-xlarge, [data-testid="profile-name"]');
   }
 
   if (!nameEl) {
-    nameEl = document.querySelector('[componentkey*="profile.card"] h2');
+    nameEl = document.querySelector('[componentkey*="profile.card"] h2, [componentkey*="ProfileCard"] h2');
   }
 
-  const full = getText(nameEl);
+  let full = getText(nameEl);
+
+  if (!full && typeof document !== 'undefined' && document.title) {
+    const titleMatch = document.title.match(/^([^–—\-|]+)/);
+    if (titleMatch?.[1] && !titleMatch[1].toLowerCase().includes('linkedin')) {
+      full = titleMatch[1].trim();
+    }
+  }
+
   const parts = full.split(/\s+/).filter(Boolean);
   const firstName = parts[0] ?? '';
   const lastName = parts.length > 1 ? (parts[parts.length - 1] ?? '') : '';
@@ -40,55 +74,159 @@ export function cleanCompanyName(name: string): string {
     .trim();
 }
 
+export const EXPERIENCE_SELECTOR = [
+  '#experience',
+  '[data-testid*="ExperienceTopLevelSection"]',
+  '[data-testid*="profile_Experience"]',
+  '[data-testid*="experience"]',
+  '[componentkey*="ExperienceTopLevelSection"]',
+  '[componentkey*="ProfileNullStateCardAnchor_Experience"]',
+  '[data-view-name="profile-card-experience"]',
+  'section[id="experience"]',
+  'div[id="experience"]',
+].join(', ');
+
+export function getExperienceSection(): Element | null {
+  // 1. Check ID #experience
+  const byId = document.querySelector('#experience');
+  if (byId) {
+    const section = byId.closest('section, div.artdeco-card, [data-component-type="LazyColumn"]') ?? byId.parentElement ?? byId;
+    if (section) return section;
+  }
+
+  // 2. Semantic Visible Text Match (Zero dynamic class/ID dependency)
+  const headings = Array.from(document.querySelectorAll('h2, h3'));
+  const expHeading = headings.find(h => {
+    const text = getText(h).toLowerCase();
+    const key = (h.getAttribute('componentkey') || h.getAttribute('data-testid') || '').toLowerCase();
+    return text === 'experience' || key.includes('experience');
+  });
+  if (expHeading) {
+    const container =
+      expHeading.closest('section, div.artdeco-card, [data-component-type="LazyColumn"]') ??
+      expHeading.parentElement?.parentElement ??
+      expHeading.parentElement ??
+      expHeading;
+    if (container) return container;
+  }
+
+  // 3. Fallback to CSS selectors
+  const bySelector = document.querySelector(EXPERIENCE_SELECTOR);
+  if (bySelector) {
+    if (bySelector.tagName === 'H2' || bySelector.tagName === 'H3' || bySelector.tagName === 'A' || bySelector.id === 'experience') {
+      return (
+        bySelector.closest('section, div.artdeco-card, [data-component-type="LazyColumn"]') ??
+        bySelector.parentElement?.parentElement ??
+        bySelector.parentElement ??
+        bySelector
+      );
+    }
+    return bySelector;
+  }
+
+  return null;
+}
+
 export function extractCompany(): string {
   const experienceSection = getExperienceSection();
 
   if (experienceSection) {
     const firstEntry = experienceSection.querySelector(
-      'div[componentkey^="entity-collection-item"], li'
-    );
+      'div[componentkey^="entity-collection-item"], li.artdeco-list__item, li.pvs-list__paged-list-item, li'
+    ) ?? experienceSection;
 
-    const imgAlt = firstEntry?.querySelector('img[alt]')?.getAttribute('alt') ?? '';
+    // 1. Accessibility Logo Alt / Aria-label (Universal & Class-Free)
+    const imgAlt = firstEntry.querySelector('img[alt]')?.getAttribute('alt') ?? '';
     if (imgAlt && !imgAlt.toLowerCase().includes('profile')) {
-      const namePart = imgAlt.split(' logo')[0] ?? '';
-      return cleanCompanyName(namePart.trim());
+      const namePart = imgAlt.replace(/\s+logo\b.*$/i, '').replace(/^logo\s+of\s+/i, '').trim();
+      const candidate = cleanCompanyName(namePart);
+      if (candidate) return candidate;
     }
 
-    const svgLabel = firstEntry?.querySelector('svg[aria-label]')?.getAttribute('aria-label') ?? '';
-    if (svgLabel) {
-      const namePart = svgLabel.split(' logo')[0] ?? '';
-      return cleanCompanyName(namePart.trim());
+    const svgLabel = firstEntry.querySelector('svg[aria-label]')?.getAttribute('aria-label') ?? '';
+    if (svgLabel && !svgLabel.toLowerCase().includes('profile')) {
+      const namePart = svgLabel.replace(/\s+logo\b.*$/i, '').replace(/^logo\s+of\s+/i, '').trim();
+      const candidate = cleanCompanyName(namePart);
+      if (candidate) return candidate;
     }
 
-    // New LinkedIn SDUI: "Company · Employment Type" in a <p> element
-    const pElements = Array.from(firstEntry?.querySelectorAll('p') ?? []);
-    const companyP = pElements.find(p => getText(p).includes('·'));
-    if (companyP) {
-      const namePart = getText(companyP).split('·')[0] ?? '';
+    // 2. Company Link (href*="/company/")
+    const companyLink = firstEntry.querySelector('a[href*="/company/"]');
+    if (companyLink) {
+      const pList = Array.from(companyLink.querySelectorAll('p'));
+      const companyP = pList.find(p => {
+        const text = getText(p);
+        return text.includes('·') && !isDateOrDuration(text) && !isLocation(text) && !isSkillsOrDescription(text);
+      });
+      if (companyP) {
+        const namePart = getText(companyP).split('·')[0] ?? '';
+        const candidate = cleanCompanyName(namePart.trim());
+        if (candidate) return candidate;
+      }
+    }
+
+    // 3. Content Heuristic: <p> element with "Company · Employment Type"
+    const pElements = Array.from(firstEntry.querySelectorAll('p'));
+    const companyWithDot = pElements.find(p => {
+      const text = getText(p);
+      return text.includes('·') && !isDateOrDuration(text) && !isLocation(text) && !isSkillsOrDescription(text);
+    });
+    if (companyWithDot) {
+      const namePart = getText(companyWithDot).split('·')[0] ?? '';
       const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     }
 
+    // 4. Content Heuristic: Any non-title, non-date, non-location, non-skill paragraph
+    const jobTitle = extractJobTitle();
+    for (const p of pElements) {
+      const text = getText(p);
+      if (!text || text === jobTitle || isDateOrDuration(text) || isLocation(text) || isSkillsOrDescription(text)) {
+        continue;
+      }
+      const namePart = text.split('·')[0] ?? '';
+      const candidate = cleanCompanyName(namePart.trim());
+      if (candidate) return candidate;
+    }
+
+    // 5. Classic LinkedIn Hidden Spans (aria-hidden="true")
     const hiddenSpans = Array.from(
-      firstEntry?.querySelectorAll('span[aria-hidden="true"]') ?? []
+      firstEntry.querySelectorAll('span[aria-hidden="true"]')
     );
-    if (hiddenSpans.length >= 2) {
-      const namePart = getText(hiddenSpans[1] ?? null).split('·')[0] ?? '';
-      const candidate = cleanCompanyName(namePart.trim());
-      if (candidate) return candidate;
-    } else if (hiddenSpans.length === 1) {
-      const namePart = getText(hiddenSpans[0] ?? null).split('·')[0] ?? '';
+    for (const span of hiddenSpans) {
+      const text = getText(span);
+      if (!text || text === jobTitle || isDateOrDuration(text) || isLocation(text) || isSkillsOrDescription(text)) {
+        continue;
+      }
+      const namePart = text.split('·')[0] ?? '';
       const candidate = cleanCompanyName(namePart.trim());
       if (candidate) return candidate;
     }
   }
 
+  // 6. Fallback: Headline parsing (e.g. "... at Urban Company")
   const headline = document.querySelector(
-    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words'
+    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words, [data-testid="profile-headline"]'
   );
   const headlineText = getText(headline);
-  const atMatch = headlineText.match(/\bat\s+(.+)$/i);
-  return cleanCompanyName(atMatch?.[1]?.trim() ?? '');
+  const atMatch = headlineText.match(/\bat\s+([^·|,\n]+)/i);
+  if (atMatch?.[1]) {
+    const candidate = cleanCompanyName(atMatch[1].trim());
+    if (candidate) return candidate;
+  }
+
+  // 7. Fallback: document.title format ("Name - Job Title - Company | LinkedIn")
+  if (typeof document !== 'undefined' && document.title && document.title.includes('LinkedIn')) {
+    const titleParts = document.title
+      .replace(/\s*\|\s*LinkedIn.*$/i, '')
+      .split(/\s*[-–—]\s*/);
+    if (titleParts.length >= 3) {
+      const candidate = cleanCompanyName(titleParts[2]!.trim());
+      if (candidate) return candidate;
+    }
+  }
+
+  return '';
 }
 
 export function extractJobTitle(): string {
@@ -96,53 +234,51 @@ export function extractJobTitle(): string {
 
   if (experienceSection) {
     const firstEntry = experienceSection.querySelector(
-      'div[componentkey^="entity-collection-item"], li'
-    );
+      'div[componentkey^="entity-collection-item"], li.artdeco-list__item, li.pvs-list__paged-list-item, li'
+    ) ?? experienceSection;
 
-    // Grouped entries (multiple roles under one company) nest individual roles in <ul><li>.
-    // In that case the top-level <p> is the company name, so scope the title search to the
-    // first <li> to avoid mistaking the company name for a job title.
-    const firstRoleLi = firstEntry?.querySelector('ul > li');
+    const firstRoleLi = firstEntry.querySelector('ul > li');
     const titleRoot = firstRoleLi ?? firstEntry;
 
-    // New LinkedIn SDUI: job title is in the first <p> that has no "·" and isn't a date
-    const pElements = Array.from(titleRoot?.querySelectorAll('p') ?? []);
+    // 1. First <p> without "·" that isn't a date, location, or skills
+    const pElements = Array.from(titleRoot.querySelectorAll('p'));
     const titleP = pElements.find(p => {
       const text = getText(p);
-      return text && !text.includes('·') && !/^\d/.test(text);
+      return text && !text.includes('·') && !isDateOrDuration(text) && !isLocation(text) && !isSkillsOrDescription(text);
     });
     if (titleP) return getText(titleP);
 
+    // 2. Hidden spans
     const hiddenSpans = Array.from(
-      titleRoot?.querySelectorAll('span[aria-hidden="true"]') ?? []
+      titleRoot.querySelectorAll('span[aria-hidden="true"]')
     );
+    const candidate = hiddenSpans.map(s => getText(s)).find(text => {
+      return text && !text.includes('·') && !isDateOrDuration(text) && !isLocation(text) && !isSkillsOrDescription(text);
+    });
+    if (candidate) return candidate;
+  }
 
-    // spans[0] is the job title for a single-role entry; skip if it looks like
-    // a company name (contains '·') or a date/duration (starts with a digit)
-    const candidate = getText(hiddenSpans[0] ?? null);
-    if (candidate && !candidate.includes('·') && !/^\d/.test(candidate)) {
-      return candidate;
+  // Fallback 1: Headline tagline
+  const headline = document.querySelector(
+    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words, [data-testid="profile-headline"]'
+  );
+  const headlineText = getText(headline);
+  if (headlineText) {
+    const title = headlineText.replace(/\s+at\s+.+$/i, '').trim();
+    if (title) return title;
+  }
+
+  // Fallback 2: document.title format ("Name - Job Title - Company | LinkedIn")
+  if (typeof document !== 'undefined' && document.title && document.title.includes('LinkedIn')) {
+    const titleParts = document.title
+      .replace(/\s*\|\s*LinkedIn.*$/i, '')
+      .split(/\s*[-–—]\s*/);
+    if (titleParts.length >= 2) {
+      return titleParts[1]!.trim();
     }
   }
 
-  // Fallback: strip "at Company" from the profile headline tagline
-  const headline = document.querySelector(
-    '.pv-text-details__left-panel .text-body-medium, .ph5 .text-body-medium, .text-body-medium.break-words'
-  );
-  const text = getText(headline);
-  return text.replace(/\s+at\s+.+$/i, '').trim();
-}
-
-export const EXPERIENCE_SELECTOR =
-  '#experience, section[componentkey$="ExperienceTopLevelSection"], section[data-view-name="profile-card-experience"]';
-
-export function getExperienceSection(): Element | null {
-  const byId = document.querySelector('#experience');
-  if (byId) {
-    const section = byId.closest('section');
-    if (section) return section;
-  }
-  return document.querySelector(EXPERIENCE_SELECTOR);
+  return '';
 }
 
 export function getScrollContainer(): Element {
@@ -154,7 +290,7 @@ export function getScrollContainer(): Element {
 }
 
 export async function waitForExperienceSection(timeoutMs = 5000): Promise<Element | null> {
-  let existing = document.querySelector(EXPERIENCE_SELECTOR);
+  let existing = getExperienceSection();
   if (existing) return existing;
 
   const container = getScrollContainer();
@@ -168,7 +304,7 @@ export async function waitForExperienceSection(timeoutMs = 5000): Promise<Elemen
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    existing = document.querySelector(EXPERIENCE_SELECTOR);
+    existing = getExperienceSection();
     if (existing) return existing;
     
     if (container === document.documentElement) {
@@ -190,7 +326,7 @@ export async function waitForExperienceSection(timeoutMs = 5000): Promise<Elemen
     lastScrollTop = newScrollTop;
   }
 
-  return document.querySelector(EXPERIENCE_SELECTOR);
+  return getExperienceSection();
 }
 
 export function extractEmail(): string {

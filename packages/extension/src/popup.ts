@@ -805,15 +805,32 @@ enrichBtn.addEventListener('click', async () => {
       }),
     });
 
-    const json = await res.json() as { email?: string; error?: string };
+    const json = await res.json() as { email?: string; company_name?: string; job_title?: string; error?: string };
 
     if (!res.ok) {
       showContactStatus(json.error ?? 'Failed to fetch email', 'error');
-    } else if (json.email) {
-      emailEl.value = json.email;
-      persistForm();
-      showContactStatus('Email found!', 'success');
-      void updateCreditsDisplay();
+    } else {
+      let enrichedCount = 0;
+      if (json.email) {
+        emailEl.value = json.email;
+        enrichedCount++;
+      }
+      if (json.company_name && !companyEl.value.trim()) {
+        companyEl.value = json.company_name;
+        enrichedCount++;
+      }
+      if (json.job_title && !jobTitleEl.value.trim()) {
+        jobTitleEl.value = json.job_title;
+        enrichedCount++;
+      }
+
+      if (enrichedCount > 0) {
+        persistForm();
+        showContactStatus(json.email ? 'Email found!' : 'Details enriched!', 'success');
+        void updateCreditsDisplay();
+      } else {
+        showContactStatus('No email found for this prospect', 'error');
+      }
     }
   } catch (err) {
     showContactStatus('Network error while fetching email', 'error');

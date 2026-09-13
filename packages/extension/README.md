@@ -139,14 +139,19 @@ When the form is submitted, a `submit` or button-click listener fires `{ action:
 
 ---
 
-## Scraping flow
+## Scraping flow & Resilient Extraction
 
 1. Click **Scrape LinkedIn** in the side panel.
 2. Side panel sends `{ action: 'triggerScrape' }` to the background service worker.
 3. Background queries all active tabs (`chrome.tabs.query({ active: true })`), finds the LinkedIn tab, and injects `dist/contentScript.js`.
 4. Content script scrolls the page incrementally (one viewport at a time with 400 ms pauses) to trigger LinkedIn's lazy loading until the experience section appears.
-5. Extracts name, job title, company, and LinkedIn URL, then sends `{ action: 'scraped', ... }` to the background.
-6. Background forwards the message to the side panel, which fills the form fields.
+5. **Multi-tiered Resilient Extraction** extracts name, job title, company, pronouns/gender, email, and LinkedIn URL without depending on dynamic/obfuscated DOM classes or IDs:
+   - **Semantic Heading Matching**: Locates the experience container by visible text (`"Experience"`) across both classic semantic tags and modern SDUI `LazyColumn` containers.
+   - **Accessibility & Link Attributes**: Extracts company logos from universal `img[alt*="logo"]` / `svg[aria-label*="logo"]` and stable `a[href*="/company/"]` hyperlinks.
+   - **Content-based Text Classification**: Distinguishes job titles and company names from date/duration strings (`May 2026 - Present · 5 mos`), location tags (`Gurugram, Haryana, India · On-site`), and skill pills.
+   - **Metadata Fallback**: Uses `document.title` (`Name - Job Title - Company | LinkedIn`) and OpenGraph/meta tags when section DOMs are missing.
+   - **Prospeo API Auto-Enrichment**: When the user clicks **Enrich** (or when verified emails/contacts are fetched), the backend Prospeo integration fills any missing company name or job title alongside verified work emails.
+6. Sends `{ action: 'scraped', ... }` to the background service worker, which forwards it to the side panel to populate the form fields.
 
 > Tab queries from the side panel are unreliable — that's why all tab operations go through the background service worker.
 

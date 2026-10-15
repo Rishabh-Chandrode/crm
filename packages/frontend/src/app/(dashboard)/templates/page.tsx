@@ -45,7 +45,6 @@ export default function TemplatesPage() {
   const [form, setForm] = useState<TemplateForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [detecting, setDetecting] = useState(false);
 
   async function load() {
     const [tRes, pRes, dRes] = await Promise.all([
@@ -83,31 +82,15 @@ export default function TemplatesPage() {
     setShowEditor(true);
   }
 
-  async function detectVariables() {
-    if (!editing) {
-      const text = `${form.subject} ${form.body}`;
-      const matches = [...text.matchAll(/\{\{([^}]+)\}\}/g)];
-      const keys = [...new Set(matches.map((m) => m[1] ?? '').filter(Boolean))];
-      const existingKeys = new Set(form.variables.map((v) => v.key));
-      const newVars: TemplateVariable[] = keys
-        .filter((k) => !existingKeys.has(k))
-        .map((k) => buildVariableFromKey(k, presets));
-      setForm((prev) => ({ ...prev, variables: [...prev.variables, ...newVars] }));
-      return;
-    }
-
-    setDetecting(true);
-    try {
-      const res = await api.templates.detectVariables(editing.id, form.variables);
-      setForm((prev) => ({
-        ...prev,
-        variables: [...prev.variables, ...res.data.newVariables],
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to detect variables');
-    } finally {
-      setDetecting(false);
-    }
+  function detectVariables() {
+    const text = `${form.subject} ${form.body}`;
+    const matches = [...text.matchAll(/\{\{([^}]+)\}\}/g)];
+    const keys = [...new Set(matches.map((m) => m[1] ?? '').filter(Boolean))];
+    const existingKeys = new Set(form.variables.map((v) => v.key));
+    const newVars: TemplateVariable[] = keys
+      .filter((k) => !existingKeys.has(k))
+      .map((k) => buildVariableFromKey(k, presets));
+    setForm((prev) => ({ ...prev, variables: [...prev.variables, ...newVars] }));
   }
 
   function updateVariable(index: number, patch: Partial<TemplateVariable>) {
@@ -403,11 +386,10 @@ export default function TemplatesPage() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => void detectVariables()}
-                      disabled={detecting}
+                      onClick={detectVariables}
                       className="btn-secondary text-xs py-1 px-2.5"
                     >
-                      {detecting ? 'Scanning…' : '⚡ Auto-detect'}
+                      ⚡ Auto-detect
                     </button>
                     <button
                       onClick={addVariable}

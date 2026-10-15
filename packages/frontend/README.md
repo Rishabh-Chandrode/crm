@@ -21,7 +21,7 @@ src/
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
-│       ├── templates/page.tsx     # One card per template (latest version). Attachment badges count only documents that still exist
+│       ├── templates/page.tsx     # One card per template (latest version). Auto-detect reads the subject and body currently in the editor. Attachment badges count only documents that still exist
 │       ├── send/page.tsx          # Template and version dropdowns; All selects every prospect and checks those boxes by default
 │       ├── history/page.tsx       # Paginated email send log with open tracking
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel

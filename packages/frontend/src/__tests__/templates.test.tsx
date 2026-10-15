@@ -130,6 +130,24 @@ describe('TemplatesPage versions', () => {
     expect(resume).toBeChecked();
   });
 
+  it('detects a placeholder pasted into an open template before it is saved', async () => {
+    render(<TemplatesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('referral')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('referral'));
+    const body = screen.getByDisplayValue('Body');
+    fireEvent.change(body, { target: { value: 'Hello {{lastName}}' } });
+    fireEvent.click(screen.getByRole('button', { name: /auto-detect/i }));
+
+    expect(screen.getByDisplayValue('lastName')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Last Name')).toBeInTheDocument();
+    expect(api.templates.detectVariables).not.toHaveBeenCalled();
+    expect(api.templates.update).not.toHaveBeenCalled();
+  });
+
   it('deletes older versions from the latest card', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<TemplatesPage />);

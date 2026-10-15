@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { prospectFullName, getGmailSearchUrl } from '@/lib/types';
+import { prospectFullName, getGmailSearchUrl, formatTemplateLabel } from '@/lib/types';
 import type { EmailSend } from '@/lib/types';
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -101,7 +101,7 @@ function SendCard({
             <div className="text-[11px] text-zinc-400 font-mono truncate">{send.prospect?.email ?? ''}</div>
             {(send.company?.name ?? send.template?.name ?? send.job ?? send.job_url) && (
               <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1.5 flex-wrap">
-                {[send.company?.name, send.template?.name].filter(Boolean).join(' · ')}
+                {[send.company?.name, formatTemplateLabel(send.template)].filter(Boolean).join(' · ')}
                 {send.job && (
                   <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold px-2 py-0.5 rounded text-[10px] border border-amber-500/20">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -219,7 +219,7 @@ function SendCard({
             <div className="space-y-1.5 text-xs">
               <div>
                 <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] block">Template:</span>
-                <span className="text-zinc-800 dark:text-zinc-200 font-medium">{send.template?.name ?? 'Quick Email / Direct'}</span>
+                <span className="text-zinc-800 dark:text-zinc-200 font-medium">{formatTemplateLabel(send.template) || 'Quick Email / Direct'}</span>
               </div>
               <div>
                 <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] block">Company:</span>

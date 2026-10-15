@@ -25,12 +25,6 @@ vi.mock('../lib/api', () => ({
       gmailDisconnect: vi.fn(),
       updateProfile: vi.fn(),
     },
-    documents: {
-      list: vi.fn(),
-      upload: vi.fn(),
-      sync: vi.fn(),
-      delete: vi.fn(),
-    },
     variablePresets: {
       list: vi.fn(),
       create: vi.fn(),
@@ -64,7 +58,6 @@ describe('SettingsPage Component', () => {
       has_gmail_configured: false,
     } as any);
 
-    vi.mocked(api.documents.list).mockResolvedValue({ data: [] });
     vi.mocked(api.variablePresets.list).mockResolvedValue({ data: [] });
 
     render(
@@ -75,7 +68,8 @@ describe('SettingsPage Component', () => {
 
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getAllByText('Appearance').length).toBeGreaterThan(0);
-    expect(screen.getByText('Documents')).toBeInTheDocument();
+    expect(screen.queryByText('Documents')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resume Files')).not.toBeInTheDocument();
     expect(screen.getByText('Template Variables')).toBeInTheDocument();
 
     await waitFor(() => {

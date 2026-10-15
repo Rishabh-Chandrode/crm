@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { prospectFullName } from '@/lib/types';
 import type { Document, EmailTemplate, Company, Prospect, TemplateVariable, Job } from '@/lib/types';
+import { attachedDocumentIds } from '@/lib/attachedDocuments';
+import { latestSelectableVersion, latestTemplateCards, templateFamilyId, versionsInFamily } from '@/lib/templateVersions';
 import Combobox from '@/components/Combobox';
 import DateTimePicker from '@/components/DateTimePicker';
 
@@ -110,6 +112,7 @@ function SendPageInner() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [documentsReady, setDocumentsReady] = useState(false);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const hasLoadedDocs = useRef(false);
 
@@ -145,7 +148,7 @@ function SendPageInner() {
   useEffect(() => {
     async function load() {
       const [tRes, cRes, jRes] = await Promise.all([
-        api.templates.list(),
+        api.templates.list({ all: true }),
         api.companies.list(),
         api.jobs.list({ limit: 100 }),
       ]);
@@ -209,14 +212,18 @@ function SendPageInner() {
   useEffect(() => {
     if (hasLoadedDocs.current) return;
     hasLoadedDocs.current = true;
-    api.documents.list().then((r) => setDocuments(r.data)).catch(console.error);
+    api.documents.list()
+      .then((r) => setDocuments(r.data))
+      .catch(console.error)
+      .finally(() => setDocumentsReady(true));
   }, []);
 
   useEffect(() => {
     if (!selectedCompany) { setCompanyProspects([]); return; }
     api.prospects.list({ companyId: selectedCompany }).then((res) => {
-      setCompanyProspects(res.data as Prospect[]);
-      setSelectedProspects([]);
+      const rows = res.data as Prospect[];
+      setCompanyProspects(rows);
+      setSelectedProspects(rows.map((p) => p.id));
     }).catch(console.error);
   }, [selectedCompany]);
 
@@ -224,7 +231,11 @@ function SendPageInner() {
     if (!q.trim()) { setSearchResults([]); return; }
     setSearching(true);
     api.prospects.list({ search: q, limit: 30 })
-      .then((res) => setSearchResults(res.data as Prospect[]))
+      .then((res) => {
+        const rows = res.data as Prospect[];
+        setSearchResults(rows);
+        setSelectedProspects(rows.map((p) => p.id));
+      })
       .catch(console.error)
       .finally(() => setSearching(false));
   }, []);
@@ -238,16 +249,48 @@ function SendPageInner() {
   // Prospects visible in current mode
   const activeProspects = targetMode === 'company' ? companyProspects : searchResults;
 
-  const template = templates.find((t) => t.id === selectedTemplate);
+  const liveTemplates = templates.filter((t) => !t.deleted_at);
+  const templateChoices = latestTemplateCards(liveTemplates);
+  const template = liveTemplates.find((t) => t.id === selectedTemplate);
+  const selectedFamilyId = template ? templateFamilyId(template) : '';
+  const versionChoices = selectedFamilyId ? versionsInFamily(liveTemplates, selectedFamilyId) : [];
+
+  function selectTemplateFamily(familyId: string) {
+    const latest = latestSelectableVersion(versionsInFamily(liveTemplates, familyId));
+    if (!latest) {
+      setSelectedTemplate('');
+      return;
+    }
+    setSelectedTemplate(latest.id);
+    const attached = documentsReady
+      ? attachedDocumentIds(latest.document_ids, documents)
+      : (latest.document_ids ?? []);
+    if (attached.length) {
+      setSelectedDocumentIds((prev) => [...new Set([...attached, ...prev])]);
+    }
+  }
+
+  function selectTemplateVersion(versionId: string) {
+    setSelectedTemplate(versionId);
+    const chosen = liveTemplates.find((t) => t.id === versionId);
+    const attached = documentsReady
+      ? attachedDocumentIds(chosen?.document_ids, documents)
+      : (chosen?.document_ids ?? []);
+    if (attached.length) {
+      setSelectedDocumentIds((prev) => [...new Set([...attached, ...prev])]);
+    }
+  }
   const customVars = template?.variables.filter((v) => v.source === 'custom') ?? [];
-  const templateDocIds = template?.document_ids ?? [];
+  const templateDocIds = documentsReady
+    ? attachedDocumentIds(template?.document_ids, documents)
+    : (template?.document_ids ?? []);
 
   // Prospects that will actually be sent to
   const targetProspects = selectedProspects.length > 0
     ? activeProspects.filter((p) => selectedProspects.includes(p.id))
     : activeProspects;
 
-  const canProceed = !!selectedTemplate && (
+  const canProceed = !!selectedTemplate && selectedProspects.length > 0 && (
     targetMode === 'company' ? !!selectedCompany : searchResults.length > 0
   );
 
@@ -269,12 +312,10 @@ function SendPageInner() {
     setSending(true);
     try {
       if (targetMode === 'company') {
-        const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
-        const res = await api.email.sendCompany(selectedTemplate, selectedCompany, ids, customValues, selectedDocumentIds, selectedJobId || undefined);
+        const res = await api.email.sendCompany(selectedTemplate, selectedCompany, selectedProspects, customValues, selectedDocumentIds, selectedJobId || undefined);
         setResult(res.data);
       } else {
-        const ids = selectedProspects.length > 0 ? selectedProspects : searchResults.map((p) => p.id);
-        const res = await api.email.sendBatch(selectedTemplate, ids, customValues, selectedDocumentIds, selectedJobId || undefined);
+        const res = await api.email.sendBatch(selectedTemplate, selectedProspects, customValues, selectedDocumentIds, selectedJobId || undefined);
         setResult(res.data);
       }
       setStep('result');
@@ -292,11 +333,9 @@ function SendPageInner() {
     try {
       const scheduledFor = isoOverride ?? new Date(scheduleDateTime).toISOString();
       if (targetMode === 'company') {
-        const ids = selectedProspects.length > 0 ? selectedProspects : undefined;
-        await api.schedules.create({ templateId: selectedTemplate, companyId: selectedCompany, prospectIds: ids, customValues, scheduledFor, documentIds: selectedDocumentIds, jobId: selectedJobId || undefined });
+        await api.schedules.create({ templateId: selectedTemplate, companyId: selectedCompany, prospectIds: selectedProspects, customValues, scheduledFor, documentIds: selectedDocumentIds, jobId: selectedJobId || undefined });
       } else {
-        const ids = selectedProspects.length > 0 ? selectedProspects : searchResults.map((p) => p.id);
-        await api.schedules.create({ templateId: selectedTemplate, prospectIds: ids, customValues, scheduledFor, documentIds: selectedDocumentIds, jobId: selectedJobId || undefined });
+        await api.schedules.create({ templateId: selectedTemplate, prospectIds: selectedProspects, customValues, scheduledFor, documentIds: selectedDocumentIds, jobId: selectedJobId || undefined });
       }
       setShowSchedulePicker(false);
       setShowCustomPicker(false);
@@ -506,27 +545,38 @@ function SendPageInner() {
               </div>
 
               {/* Template */}
-              <div>
-                <label className="form-label">Email Template *</label>
-                <Combobox
-                  options={templates.map((t) => ({
-                    value: t.id,
-                    label: t.name,
-                    sublabel: t.job_description ?? undefined,
-                  }))}
-                  value={selectedTemplate}
-                  onChange={(tId) => {
-                    setSelectedTemplate(tId);
-                    const t = templates.find((t) => t.id === tId);
-                    if (t?.document_ids?.length) {
-                      setSelectedDocumentIds((prev) => [...new Set([...t.document_ids, ...prev])]);
-                    }
-                  }}
-                  placeholder="Choose a template…"
-                  clearLabel="— no template —"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Email Template *</label>
+                  <Combobox
+                    options={templateChoices.map((t) => ({
+                      value: templateFamilyId(t),
+                      label: t.name,
+                      sublabel: t.job_description ?? undefined,
+                    }))}
+                    value={selectedFamilyId}
+                    onChange={selectTemplateFamily}
+                    placeholder="Choose a template…"
+                    clearLabel="— no template —"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Version</label>
+                  <Combobox
+                    options={versionChoices.map((t) => ({
+                      value: t.id,
+                      label: `v${t.version || 1}`,
+                      sublabel: t.subject,
+                    }))}
+                    value={selectedTemplate}
+                    onChange={selectTemplateVersion}
+                    placeholder="Latest version"
+                    clearLabel="— no version —"
+                    clearable={false}
+                  />
+                </div>
                 {template && (
-                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 font-mono">Subject: {template.subject}</p>
+                  <p className="sm:col-span-2 text-[11px] text-zinc-400 dark:text-zinc-500 font-mono">Subject: {template.subject}</p>
                 )}
               </div>
 
@@ -562,15 +612,15 @@ function SendPageInner() {
                     {companyProspects.length > 0 && (
                       <div>
                         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2">
-                          {selectedProspects.length === 0
+                          {companyProspects.every((p) => selectedProspects.includes(p.id))
                             ? `Sending to all ${companyProspects.length} prospects — or narrow by category below`
                             : `${selectedProspects.length} of ${companyProspects.length} selected`}
                         </p>
                         <div className="flex flex-wrap gap-1.5 mb-2">
                           <button
-                            onClick={() => setSelectedProspects([])}
+                            onClick={() => setSelectedProspects(companyProspects.map((p) => p.id))}
                             className={`text-xs px-2.5 py-0.5 rounded border transition-colors ${
-                              selectedProspects.length === 0
+                              companyProspects.every((p) => selectedProspects.includes(p.id))
                                 ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100 font-semibold'
                                 : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:hover:text-zinc-300'
                             }`}
@@ -635,13 +685,13 @@ function SendPageInner() {
                       <>
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-[11px] text-zinc-400">
-                            {selectedProspects.length === 0
+                            {searchResults.every((p) => selectedProspects.includes(p.id))
                               ? `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''} — sending to all`
                               : `${selectedProspects.length} of ${searchResults.length} selected`}
                           </p>
-                          {selectedProspects.length > 0 && (
+                          {!searchResults.every((p) => selectedProspects.includes(p.id)) && (
                             <button
-                              onClick={() => setSelectedProspects([])}
+                              onClick={() => setSelectedProspects(searchResults.map((p) => p.id))}
                               className="text-xs text-zinc-700 dark:text-zinc-300 hover:underline font-medium"
                             >
                               Select all

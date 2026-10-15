@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import cron from 'node-cron';
 import { pool } from '../db/index.js';
-import { startScheduler, processPendingSchedules } from '../services/scheduler.js';
+import { startScheduler, processPendingSchedules, processDailyDocumentSync } from '../services/scheduler.js';
 
 describe('Scheduler Service & Neon DB Auto-Suspend Optimization', () => {
   beforeEach(() => {
@@ -32,6 +32,49 @@ describe('Scheduler Service & Neon DB Auto-Suspend Optimization', () => {
     startScheduler('0,30 * * * *');
 
     expect(scheduleSpy).toHaveBeenCalledWith('0,30 * * * *', expect.any(Function));
+  });
+
+  it('the 30-minute tick also checks for a daily document refetch', async () => {
+    let tick: (() => Promise<void>) | undefined;
+    vi.spyOn(cron, 'schedule').mockImplementation((_expr, fn) => {
+      tick = fn as () => Promise<void>;
+      return {} as never;
+    });
+    const query = vi.spyOn(pool, 'query')
+      .mockResolvedValueOnce({ rows: [] } as any)
+      .mockResolvedValueOnce({ rows: [] } as any)
+      .mockResolvedValueOnce({ rows: [] } as any);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    startScheduler();
+    await tick?.();
+
+    const sqls = query.mock.calls.map((call) => String(call[0]));
+    expect(sqls[0]).toContain('gmail_refresh_token');
+    expect(sqls[1]).toContain('email_schedules');
+    expect(sqls[2]).toContain('daily_document_sync');
+  });
+
+  it('processDailyDocumentSync skips work when nobody is due', async () => {
+    vi.spyOn(pool, 'query').mockResolvedValueOnce({ rows: [] } as any);
+
+    await expect(processDailyDocumentSync()).resolves.toBe(0);
+    expect(pool.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('processDailyDocumentSync refetches Drive documents for each due user', async () => {
+    const query = vi.spyOn(pool, 'query')
+      .mockResolvedValueOnce({ rows: [{ id: 'user-1' }] } as any)
+      .mockResolvedValueOnce({ rows: [] } as any)
+      .mockResolvedValueOnce({ rows: [] } as any);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await expect(processDailyDocumentSync()).resolves.toBe(1);
+
+    expect(String(query.mock.calls[1]?.[0])).toContain('created_by = $1');
+    expect(query.mock.calls[1]?.[1]).toEqual(['user-1']);
+    expect(String(query.mock.calls[2]?.[0])).toContain('daily_document_synced_at = NOW()');
+    expect(query.mock.calls[2]?.[1]).toEqual(['user-1']);
   });
 
   it('processPendingSchedules returns 0 when no schedules are pending', async () => {

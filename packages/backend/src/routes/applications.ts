@@ -58,8 +58,8 @@ router.get('/', async (req: Request, res: Response) => {
          LEFT JOIN companies c ON (j.company_id = c.id OR (LOWER(c.name) = LOWER(ja.company_name) AND (c.created_by = ja.user_id OR c.created_by IS NULL)))
          LEFT JOIN (
            SELECT es.job_id,
-                  COUNT(es.id) AS email_count,
-                  MIN(es.created_at) AS latest_referral_requested_at
+                  COUNT(es.id) FILTER (WHERE es.status = 'sent') AS email_count,
+                  MIN(COALESCE(es.sent_at, es.created_at)) FILTER (WHERE es.status = 'sent') AS latest_referral_requested_at
            FROM email_sends es
            WHERE es.job_id IS NOT NULL
            GROUP BY es.job_id
@@ -110,7 +110,7 @@ router.get('/:id/emails', async (req: Request, res: Response) => {
                 'job_title', p.job_title
               ) AS prospect,
               json_build_object('name', c.name) AS company,
-              json_build_object('name', t.name) AS template
+              json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at) AS template
        FROM email_sends es
        LEFT JOIN prospects p ON es.prospect_id = p.id
        LEFT JOIN companies c ON es.company_id = c.id

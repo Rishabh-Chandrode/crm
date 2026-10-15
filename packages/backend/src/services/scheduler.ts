@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { pool } from '../db/index.js';
 import { getEmailProviderForUser } from './email/index.js';
+import { ensureFreshGmailToken, refreshDueGmailTokens, saveGmailToken } from './email/gmailToken.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from './templateEngine.js';
 
 function pixelUrl(sendId: string): string {
@@ -8,7 +9,9 @@ function pixelUrl(sendId: string): string {
   return `${base}/api/track/open/${sendId}.gif`;
 }
 import { getAttachments } from './attachmentHelper.js';
+import { syncDriveDocuments } from './driveSync.js';
 import { maybeCreateApplicationFromEmail } from './autoTrackApplication.js';
+import { recordReferralOutreach } from './jobs.js';
 import type { EmailTemplate, Prospect, Company, SenderProfile } from '../types/index.js';
 
 interface ScheduleRow {
@@ -112,10 +115,32 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const fullName = [userRow.first_name, userRow.last_name].filter(Boolean).join(' ');
   const fromName = (userRow.from_name as string | null) || fullName || (userRow.username as string) || 'CRM';
 
+  let refreshToken = userRow.gmail_refresh_token as string | null;
+  let accessToken: string | undefined;
+  if (hasOAuth && schedule.created_by) {
+    try {
+      const fresh = await ensureFreshGmailToken(schedule.created_by);
+      if (fresh) {
+        refreshToken = fresh.refreshToken;
+        accessToken = fresh.accessToken;
+      }
+    } catch (err) {
+      console.error(`[Scheduler] Gmail token refresh failed before send for ${schedule.created_by}:`, err);
+    }
+  }
+
   const provider = hasOAuth
     ? getEmailProviderForUser({
         method: 'oauth',
-        creds: { gmailUser: userRow.gmail_user as string, refreshToken: userRow.gmail_refresh_token as string, fromName },
+        creds: {
+          gmailUser: userRow.gmail_user as string,
+          refreshToken: refreshToken ?? '',
+          fromName,
+          accessToken,
+          onTokenRefreshed: schedule.created_by
+            ? (token) => saveGmailToken(schedule.created_by!, token)
+            : undefined,
+        },
       })
     : getEmailProviderForUser({
         method: 'app_password',
@@ -123,6 +148,9 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
       });
 
   const attachments = await getAttachments(schedule.document_ids);
+  if (schedule.job_id && schedule.created_by) {
+    await recordReferralOutreach(schedule.created_by, schedule.job_id);
+  }
   let sentCount = 0;
   let failedCount = 0;
   const errorMessages: string[] = [];
@@ -251,10 +279,44 @@ export async function processPendingSchedules(): Promise<number> {
 
 const EMAIL_SCHEDULER_CRON = '*/30 * * * *';
 
+/** Users who opted in and have not been refreshed in the last day. */
+export async function processDailyDocumentSync(): Promise<number> {
+  try {
+    const due = await pool.query<{ id: string }>(
+      `SELECT id FROM users
+       WHERE daily_document_sync = TRUE
+         AND (daily_document_synced_at IS NULL OR daily_document_synced_at <= NOW() - INTERVAL '1 day')`
+    );
+    if (due.rows.length === 0) return 0;
+
+    console.log(`[Scheduler] Daily document refetch for ${due.rows.length} user(s)...`);
+    for (const user of due.rows) {
+      try {
+        const result = await syncDriveDocuments(user.id);
+        console.log(
+          `[Scheduler] Refetched documents for ${user.id}: ${result.updated} updated, ${result.failed} failed, ${result.removed} removed`
+        );
+      } catch (err) {
+        console.error(`[Scheduler] Daily document refetch failed for ${user.id}:`, err);
+      }
+      await pool.query(
+        `UPDATE users SET daily_document_synced_at = NOW() WHERE id = $1`,
+        [user.id]
+      );
+    }
+    return due.rows.length;
+  } catch (err) {
+    console.error('Daily document sync poll error:', err);
+    return 0;
+  }
+}
+
 export function startScheduler(customCron?: string): void {
   const emailCron = customCron ?? EMAIL_SCHEDULER_CRON;
   cron.schedule(emailCron, async () => {
+    await refreshDueGmailTokens();
     await processPendingSchedules();
+    await processDailyDocumentSync();
   });
 
   console.log(`Email scheduler started (polling every 30 minutes with cron '${emailCron}')`);

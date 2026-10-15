@@ -6,6 +6,7 @@ import { CONFIG } from '../config.js';
 import jobsRouter from '../routes/jobs.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { pool } from '../db/index.js';
+import { resolveOutreachJobId, recordReferralOutreach } from '../services/jobs.js';
 
 const app = express();
 app.use(express.json());
@@ -173,7 +174,8 @@ describe('Jobs Routes', () => {
         } as any)
         .mockResolvedValueOnce({
           rows: [{ id: 'comp-1', name: 'OpenAI' }],
-        } as any);
+        } as any)
+        .mockResolvedValueOnce({ rows: [{ id: 'app-new' }] } as any);
 
       const res = await request(app)
         .post('/api/jobs')
@@ -206,7 +208,8 @@ describe('Jobs Routes', () => {
         } as any) // job insert
         .mockResolvedValueOnce({
           rows: [{ id: 'comp-existing', name: 'Anthropic' }],
-        } as any); // company lookup
+        } as any) // company lookup
+        .mockResolvedValueOnce({ rows: [{ id: 'app-new-2' }] } as any); // saved application
 
       const res = await request(app)
         .post('/api/jobs')
@@ -325,5 +328,61 @@ describe('Jobs Routes', () => {
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].subject).toBe('Referral for Backend Role');
     });
+  });
+});
+
+describe('outreach job linking', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('links a send to the only open job at that company when none was selected', async () => {
+    vi.spyOn(pool, 'query').mockResolvedValueOnce({ rows: [{ id: 'job-1' }] } as any);
+
+    const id = await resolveOutreachJobId('user-123', null, 'comp-1');
+
+    expect(id).toBe('job-1');
+  });
+
+  it('does not guess a job when the company has more than one open role', async () => {
+    vi.spyOn(pool, 'query').mockResolvedValueOnce({
+      rows: [{ id: 'job-1' }, { id: 'job-2' }],
+    } as any);
+
+    const id = await resolveOutreachJobId('user-123', null, 'comp-1');
+
+    expect(id).toBeNull();
+  });
+
+  it('keeps an explicitly selected job', async () => {
+    vi.spyOn(pool, 'query').mockResolvedValueOnce({ rows: [{ id: 'job-9' }] } as any);
+
+    const id = await resolveOutreachJobId('user-123', 'job-9', 'comp-1');
+
+    expect(id).toBe('job-9');
+  });
+
+  it('creates a referral application when mail is sent for a job that has none', async () => {
+    vi.spyOn(pool, 'query')
+      .mockResolvedValueOnce({
+        rows: [{ title: 'Backend Engineer', job_url: 'https://stripe.com/jobs/1', company_id: 'comp-1', status: 'open' }],
+      } as any)
+      .mockResolvedValueOnce({ rowCount: 1 } as any)
+      .mockResolvedValueOnce({ rows: [{ name: 'Stripe' }] } as any)
+      .mockResolvedValueOnce({ rows: [] } as any)
+      .mockResolvedValueOnce({ rows: [{ id: 'app-1' }] } as any);
+
+    await recordReferralOutreach('user-123', 'job-1');
+
+    const insertCall = vi.mocked(pool.query).mock.calls.find((call) =>
+      String(call[0]).includes('INSERT INTO job_applications')
+    );
+    expect(insertCall?.[1]).toEqual([
+      'user-123',
+      'job-1',
+      'Stripe',
+      'Backend Engineer',
+      'https://stripe.com/jobs/1',
+    ]);
   });
 });

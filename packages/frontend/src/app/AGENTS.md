@@ -22,8 +22,8 @@ These rules apply to all page files within `packages/frontend/src/app/`.
 | `/scheduled`       | `(dashboard)/scheduled/`     | Scheduled email management   |
 | `/history`         | `(dashboard)/history/`       | Email send history           |
 | `/applications`    | `(dashboard)/applications/`  | Job application tracking     |
-| `/settings`        | `(dashboard)/settings/`      | User settings & integrations |
-| `/profile`         | `(dashboard)/profile/`       | User profile management      |
+| `/settings`        | `(dashboard)/settings/`      | Appearance, Gmail, template variables |
+| `/profile`         | `(dashboard)/profile/`       | Profile fields and documents |
 | `/users`           | `(dashboard)/users/`         | User management (admin)      |
 | `/login`           | `login/`                     | Login page (public)          |
 | `/signup`          | `signup/`                    | Signup page (public)         |

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db/index.js';
+import { syncOutreachForDashboard } from '../services/jobs.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -11,6 +12,11 @@ router.get('/', async (req, res, next) => {
     const w = isAdmin ? '' : ' WHERE created_by = $1';
     const a = isAdmin ? '' : ' AND created_by = $1'; // appended AND
     const appW = isAdmin ? '' : ' WHERE user_id = $1';
+    const sentByOwner = isAdmin ? '' : 'AND es.created_by = $1';
+
+    if (!isAdmin) {
+      await syncOutreachForDashboard(userId);
+    }
 
     const [
       countsRes,
@@ -23,6 +29,7 @@ router.get('/', async (req, res, next) => {
       appStatsRes,
       recentAppsRes,
       readyToApplyRes,
+      referralSentRes,
       notAppliedAppsRes,
       activeInterviewsRes,
       failedSendsRes,
@@ -66,7 +73,7 @@ router.get('/', async (req, res, next) => {
         `SELECT es.*,
                 json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email, 'job_title', p.job_title) AS prospect,
                 json_build_object('name', c.name) AS company,
-                json_build_object('name', t.name) AS template
+                json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at) AS template
          FROM email_sends es
          LEFT JOIN prospects p ON p.id = es.prospect_id
          LEFT JOIN companies c ON c.id = es.company_id
@@ -78,7 +85,7 @@ router.get('/', async (req, res, next) => {
       pool.query(
         `SELECT es.*,
                 json_build_object('name', c.name) AS company,
-                json_build_object('name', t.name) AS template
+                json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at) AS template
          FROM email_schedules es
          LEFT JOIN companies c ON c.id = es.company_id
          LEFT JOIN email_templates t ON t.id = es.template_id
@@ -110,20 +117,42 @@ router.get('/', async (req, res, next) => {
       pool.query(
         `SELECT ja.*,
                 COALESCE(em.email_count, 0)::int AS email_count,
-                COALESCE(em.latest_referral_requested_at, ja.created_at) AS referral_requested_at
+                COALESCE(em.first_sent_at, ja.updated_at) AS referral_requested_at
          FROM job_applications ja
          LEFT JOIN (
            SELECT es.job_id,
-                  COUNT(es.id) AS email_count,
-                  MIN(es.created_at) AS latest_referral_requested_at
+                  COUNT(es.id) FILTER (WHERE es.status = 'sent') AS email_count,
+                  MIN(COALESCE(es.sent_at, es.created_at)) FILTER (WHERE es.status = 'sent') AS first_sent_at
            FROM email_sends es
            WHERE es.job_id IS NOT NULL
+           ${sentByOwner}
            GROUP BY es.job_id
          ) em ON em.job_id = ja.job_id
          WHERE ja.status = 'referral_requested'
-           AND COALESCE(em.latest_referral_requested_at, ja.created_at) <= NOW() - INTERVAL '2 days'
+           AND COALESCE(em.first_sent_at, ja.updated_at) <= NOW() - INTERVAL '2 days'
            ${isAdmin ? '' : 'AND ja.user_id = $1'}
          ORDER BY referral_requested_at ASC
+         LIMIT 6`,
+        p
+      ),
+      pool.query(
+        `SELECT ja.*,
+                COALESCE(em.email_count, 0)::int AS email_count,
+                COALESCE(em.first_sent_at, ja.updated_at) AS referral_requested_at
+         FROM job_applications ja
+         LEFT JOIN (
+           SELECT es.job_id,
+                  COUNT(es.id) FILTER (WHERE es.status = 'sent') AS email_count,
+                  MIN(COALESCE(es.sent_at, es.created_at)) FILTER (WHERE es.status = 'sent') AS first_sent_at
+           FROM email_sends es
+           WHERE es.job_id IS NOT NULL
+           ${sentByOwner}
+           GROUP BY es.job_id
+         ) em ON em.job_id = ja.job_id
+         WHERE ja.status = 'referral_requested'
+           AND COALESCE(em.first_sent_at, ja.updated_at) > NOW() - INTERVAL '2 days'
+           ${isAdmin ? '' : 'AND ja.user_id = $1'}
+         ORDER BY email_count DESC, referral_requested_at DESC
          LIMIT 6`,
         p
       ),
@@ -133,9 +162,10 @@ router.get('/', async (req, res, next) => {
          FROM job_applications ja
          LEFT JOIN (
            SELECT es.job_id,
-                  COUNT(es.id) AS email_count
+                  COUNT(es.id) FILTER (WHERE es.status = 'sent') AS email_count
            FROM email_sends es
            WHERE es.job_id IS NOT NULL
+           ${sentByOwner}
            GROUP BY es.job_id
          ) em ON em.job_id = ja.job_id
          WHERE ja.status IN ('not_applied', 'open')
@@ -150,9 +180,10 @@ router.get('/', async (req, res, next) => {
          FROM job_applications ja
          LEFT JOIN (
            SELECT es.job_id,
-                  COUNT(es.id) AS email_count
+                  COUNT(es.id) FILTER (WHERE es.status = 'sent') AS email_count
            FROM email_sends es
            WHERE es.job_id IS NOT NULL
+           ${sentByOwner}
            GROUP BY es.job_id
          ) em ON em.job_id = ja.job_id
          WHERE ja.status IN ('screening', 'interview', 'offer')
@@ -165,7 +196,7 @@ router.get('/', async (req, res, next) => {
         `SELECT es.*,
                 json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email, 'job_title', p.job_title) AS prospect,
                 json_build_object('name', c.name) AS company,
-                json_build_object('name', t.name) AS template
+                json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at) AS template
          FROM email_sends es
          LEFT JOIN prospects p ON p.id = es.prospect_id
          LEFT JOIN companies c ON c.id = es.company_id
@@ -205,6 +236,8 @@ router.get('/', async (req, res, next) => {
       recentApplications: recentAppsRes.rows,
       readyToApplyApplications: readyToApplyRes.rows,
       readyToApplyCount: readyToApplyRes.rows.length,
+      referralSentApplications: referralSentRes.rows,
+      referralSentCount: referralSentRes.rows.length,
       notAppliedApplications: notAppliedAppsRes.rows,
       notAppliedCount: notAppliedAppsRes.rows.length,
       activeInterviewApplications: activeInterviewsRes.rows,

@@ -1,4 +1,10 @@
 import type { ProspectData, ScrapeMessage, TemplateInfo, AuthState, UserProfile, AutofillResultMessage, WorkExperience, Project } from './types';
+import {
+  DOCUMENT_PICKER_EMPTY_NOTE,
+  buildDocumentPickerOptions,
+  defaultDocumentSelection,
+  type AutofillDocument,
+} from './documentPicker';
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -1348,8 +1354,6 @@ function renderProfileCard(profile: UserProfile): void {
   profileIncompleteEl.style.display = hasEmpty && !q ? 'block' : 'none';
 }
 
-interface DocumentItem { id: string; name: string; filename: string; }
-
 async function fetchJson<T>(url: string, token: string): Promise<T> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1358,17 +1362,18 @@ async function fetchJson<T>(url: string, token: string): Promise<T> {
 
 async function loadDocuments(token: string, backendUrl: string): Promise<void> {
   try {
-    const json = await fetchJson<{ data: DocumentItem[] }>(`${backendUrl}/api/documents`, token);
+    const json = await fetchJson<{ data: AutofillDocument[] }>(`${backendUrl}/api/documents`, token);
     const docs = json.data ?? [];
-    resumePickerEl.innerHTML = '<option value="">Don\'t attach a resume</option>';
-    docs.forEach(d => {
+    resumePickerEl.innerHTML = '';
+    for (const option of buildDocumentPickerOptions(docs)) {
       const opt = document.createElement('option');
-      opt.value = d.id;
-      opt.textContent = d.name || d.filename;
-      opt.dataset['filename'] = d.filename;
+      opt.value = option.value;
+      opt.textContent = option.label;
+      if (option.filename) opt.dataset['filename'] = option.filename;
       resumePickerEl.appendChild(opt);
-    });
-    if (docs.length === 1) resumePickerEl.value = docs[0]!.id;
+    }
+    resumePickerEl.value = defaultDocumentSelection(docs);
+    resumePickerNoteEl.textContent = DOCUMENT_PICKER_EMPTY_NOTE;
     resumePickerNoteEl.style.display = docs.length === 0 ? 'block' : 'none';
   } catch (err) {
     console.error('[CRM] Failed to load documents:', err);
@@ -1713,7 +1718,7 @@ async function loadTemplates(): Promise<void> {
     templates.forEach((t) => templateMap.set(t.id, t));
     templateSelectEl.innerHTML =
       '<option value="">Choose a template…</option>' +
-      templates.map((t) => `<option value="${t.id}">${t.name}</option>`).join('');
+      templates.map((t) => `<option value="${t.id}">${t.name} v${t.version || 1}</option>`).join('');
     templatesLoaded = true;
 
     chrome.storage.local.get(['selectedTemplateId'], (local) => {

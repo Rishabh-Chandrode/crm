@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { prospectFullName, getGmailSearchUrl } from '@/lib/types';
+import { prospectFullName, getGmailSearchUrl, formatTemplateLabel } from '@/lib/types';
 import type { EmailSend, EmailSchedule, JobApplication } from '@/lib/types';
 
 interface ExtendedStats {
@@ -23,6 +23,8 @@ interface ExtendedStats {
   recentApplications?: JobApplication[];
   readyToApplyApplications?: JobApplication[];
   readyToApplyCount?: number;
+  referralSentApplications?: JobApplication[];
+  referralSentCount?: number;
   notAppliedApplications?: JobApplication[];
   notAppliedCount?: number;
   activeInterviewApplications?: JobApplication[];
@@ -35,7 +37,7 @@ interface ExtendedStats {
   dailyActivity?: { day: string; sent: number; failed: number }[];
 }
 
-type ActionFilter = 'all' | 'ready_to_apply' | 'not_applied' | 'interview' | 'failed';
+type ActionFilter = 'all' | 'referral_sent' | 'ready_to_apply' | 'not_applied' | 'interview' | 'failed';
 
 const STATUS_COLOR: Record<string, string> = {
   sent: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
@@ -55,74 +57,6 @@ const APP_STATUS_CONFIG: Record<string, { label: string; color: string; dotColor
   rejected: { label: 'Rejected', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20', dotColor: 'bg-rose-500' },
   withdrawn: { label: 'Withdrawn', color: 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', dotColor: 'bg-zinc-400' },
 };
-
-function KpiCard({
-  label,
-  value,
-  badge,
-  badgeColor = 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
-  sub,
-  icon,
-  href,
-  onClick,
-}: {
-  label: string;
-  value: string | number;
-  badge?: string;
-  badgeColor?: string;
-  sub?: string;
-  icon: React.ReactNode;
-  href?: string;
-  onClick?: () => void;
-}) {
-  const content = (
-    <div className="card p-4 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200 group flex flex-col justify-between h-full cursor-pointer relative overflow-hidden">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">{label}</p>
-            {badge && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border border-current/10 ${badgeColor}`}>
-                {badge}
-              </span>
-            )}
-          </div>
-          <p className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight mt-1.5">{value}</p>
-        </div>
-        <div className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 shrink-0 group-hover:scale-105 transition-transform">
-          {icon}
-        </div>
-      </div>
-
-      {sub && (
-        <div className="mt-3.5 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium truncate">{sub}</p>
-          <span className="text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 group-hover:translate-x-0.5 transition-all text-xs font-semibold">
-            →
-          </span>
-        </div>
-      )}
-    </div>
-  );
-
-  if (href) {
-    return (
-      <Link href={href} className="block focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 rounded-xl">
-        {content}
-      </Link>
-    );
-  }
-
-  if (onClick) {
-    return (
-      <button onClick={onClick} type="button" className="text-left w-full focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 rounded-xl">
-        {content}
-      </button>
-    );
-  }
-
-  return content;
-}
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<ExtendedStats | null>(null);
@@ -146,6 +80,10 @@ export default function DashboardPage() {
           if (extended.readyToApplyApplications) {
             extended.readyToApplyApplications = extended.readyToApplyApplications.filter((a) => !dismissed.includes(a.id));
             extended.readyToApplyCount = extended.readyToApplyApplications.length;
+          }
+          if (extended.referralSentApplications) {
+            extended.referralSentApplications = extended.referralSentApplications.filter((a) => !dismissed.includes(a.id));
+            extended.referralSentCount = extended.referralSentApplications.length;
           }
           if (extended.notAppliedApplications) {
             extended.notAppliedApplications = extended.notAppliedApplications.filter((a) => !dismissed.includes(a.id));
@@ -176,6 +114,10 @@ export default function DashboardPage() {
           ...prev,
           readyToApplyApplications: prev.readyToApplyApplications?.filter((a) => a.id !== id),
           readyToApplyCount: Math.max(0, (prev.readyToApplyCount ?? 1) - 1),
+          referralSentApplications: prev.referralSentApplications?.filter((a) => a.id !== id),
+          referralSentCount: prev.referralSentApplications?.some((a) => a.id === id)
+            ? Math.max(0, (prev.referralSentCount ?? 1) - 1)
+            : prev.referralSentCount,
           notAppliedApplications: prev.notAppliedApplications?.filter((a) => a.id !== id),
           notAppliedCount: Math.max(0, (prev.notAppliedCount ?? 1) - 1),
         };
@@ -204,6 +146,10 @@ export default function DashboardPage() {
           ...prev,
           readyToApplyApplications: prev.readyToApplyApplications?.filter((a) => a.id !== id),
           readyToApplyCount: Math.max(0, (prev.readyToApplyCount ?? 1) - 1),
+          referralSentApplications: prev.referralSentApplications?.filter((a) => a.id !== id),
+          referralSentCount: prev.referralSentApplications?.some((a) => a.id === id)
+            ? Math.max(0, (prev.referralSentCount ?? 1) - 1)
+            : prev.referralSentCount,
           notAppliedApplications: prev.notAppliedApplications?.filter((a) => a.id !== id),
           notAppliedCount: Math.max(0, (prev.notAppliedCount ?? 1) - 1),
         };
@@ -216,7 +162,7 @@ export default function DashboardPage() {
   };
 
   // Handle removing/dismissing an action item from the priority queue
-  const handleDismissAction = async (type: 'ready' | 'not_applied' | 'interview' | 'failed', id: string) => {
+  const handleDismissAction = async (type: 'ready' | 'referral_sent' | 'not_applied' | 'interview' | 'failed', id: string) => {
     try {
       if (type === 'failed') {
         if (typeof window !== 'undefined') {
@@ -249,6 +195,8 @@ export default function DashboardPage() {
           ...prev,
           readyToApplyApplications: prev.readyToApplyApplications?.filter((a) => a.id !== id),
           readyToApplyCount: type === 'ready' ? Math.max(0, (prev.readyToApplyCount ?? 1) - 1) : prev.readyToApplyCount,
+          referralSentApplications: prev.referralSentApplications?.filter((a) => a.id !== id),
+          referralSentCount: type === 'referral_sent' ? Math.max(0, (prev.referralSentCount ?? 1) - 1) : prev.referralSentCount,
           notAppliedApplications: prev.notAppliedApplications?.filter((a) => a.id !== id),
           notAppliedCount: type === 'not_applied' ? Math.max(0, (prev.notAppliedCount ?? 1) - 1) : prev.notAppliedCount,
           activeInterviewApplications: prev.activeInterviewApplications?.filter((a) => a.id !== id),
@@ -262,54 +210,17 @@ export default function DashboardPage() {
     }
   };
 
-  // Pipeline summary aggregation
-  const pipelineMetrics = useMemo(() => {
-    if (!stats?.applicationsByStatus) {
-      return { totalActive: 0, screening: 0, interview: 0, offer: 0, applied: 0 };
-    }
-    const map: Record<string, number> = {};
-    for (const item of stats.applicationsByStatus) {
-      map[item.status] = (map[item.status] ?? 0) + item.count;
-    }
-    const applied = map['applied'] ?? 0;
-    const screening = map['screening'] ?? 0;
-    const interview = map['interview'] ?? 0;
-    const offer = map['offer'] ?? 0;
-    const totalActive = applied + screening + interview + offer;
-    return { totalActive, screening, interview, offer, applied };
-  }, [stats?.applicationsByStatus]);
-
   // Action items counts
   const readyCount = stats?.readyToApplyCount ?? stats?.readyToApplyApplications?.length ?? 0;
+  const referralSentCount = stats?.referralSentCount ?? stats?.referralSentApplications?.length ?? 0;
   const notAppliedCount = stats?.notAppliedCount ?? stats?.notAppliedApplications?.length ?? 0;
   const interviewCount = stats?.activeInterviewCount ?? stats?.activeInterviewApplications?.length ?? 0;
   const failedCount = stats?.failedSends?.length ?? (stats?.emails?.failed ? Math.min(stats.emails.failed, 3) : 0);
-  const totalActionCount = readyCount + notAppliedCount + interviewCount + (stats?.failedSends?.length ?? 0);
+  const totalActionCount = readyCount + referralSentCount + notAppliedCount + interviewCount + (stats?.failedSends?.length ?? 0);
 
   if (loading) {
     return (
       <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto animate-pulse">
-        <div className="flex justify-between items-center pb-2 border-b border-zinc-200/80 dark:border-zinc-800/80">
-          <div className="space-y-2">
-            <div className="h-7 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-48" />
-            <div className="h-4 bg-zinc-200/60 dark:bg-zinc-800/60 rounded-md w-72" />
-          </div>
-          <div className="flex gap-2">
-            <div className="h-9 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-28" />
-            <div className="h-9 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-32" />
-          </div>
-        </div>
-
-        {/* Action Toolbar Skeleton */}
-        <div className="h-12 bg-zinc-200/50 dark:bg-zinc-900/50 rounded-xl" />
-
-        {/* 4 KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 bg-zinc-200/60 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50" />
-          ))}
-        </div>
-
         {/* Priority Actions Hub Skeleton */}
         <div className="h-72 bg-zinc-200/60 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50" />
 
@@ -326,170 +237,6 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Header & Urgent Status Briefing */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-zinc-200/80 dark:border-zinc-800/80">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
-              Mission Control
-            </h1>
-            {totalActionCount > 0 ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 animate-in fade-in duration-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {totalActionCount} Priority Action{totalActionCount !== 1 ? 's' : ''} Pending
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                All Systems Clear
-              </span>
-            )}
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-700/80">
-              Live Sync
-            </span>
-          </div>
-          <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-1">
-            Focus on what matters: urgent application deadlines, follow-ups, and live email engagements.
-          </p>
-        </div>
-
-        {/* Primary Action Buttons */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link href="/send" className="btn-primary">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            Compose Outreach
-          </Link>
-          <Link href="/applications" className="btn-secondary">
-            <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            Applications Board
-          </Link>
-          <Link href="/prospects" className="btn-secondary">
-            <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-            </svg>
-            Prospects
-          </Link>
-        </div>
-      </div>
-
-      {/* Quick Links & Workflow Shortcuts Bar */}
-      <div className="p-2.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-zinc-900/40 flex items-center justify-between gap-2 overflow-x-auto">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-2 shrink-0 flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          Direct Shortcuts
-        </span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Link
-            href="/send"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/80 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors shadow-2xs"
-          >
-            ✉️ Quick Send
-          </Link>
-          <Link
-            href="/applications"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/80 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors shadow-2xs"
-          >
-            📋 Application Pipeline
-          </Link>
-          <Link
-            href="/prospects"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/80 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors shadow-2xs"
-          >
-            👥 Recruiter Directory
-          </Link>
-          <Link
-            href="/history"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/80 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors shadow-2xs"
-          >
-            👁️ Email Opens & History
-          </Link>
-          <Link
-            href="/scheduled"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/80 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors shadow-2xs"
-          >
-            ⏰ Scheduled Outbox
-          </Link>
-          <Link
-            href="/companies"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/80 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors shadow-2xs"
-          >
-            🏢 Target Companies
-          </Link>
-        </div>
-      </div>
-
-      {/* High-Signal 4-KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Active In-Flight Pipeline */}
-        <KpiCard
-          label="Active Pipeline"
-          value={pipelineMetrics.totalActive}
-          badge={pipelineMetrics.interview > 0 ? `${pipelineMetrics.interview} in interview` : undefined}
-          badgeColor="bg-purple-500/10 text-purple-700 dark:text-purple-300"
-          sub={`${pipelineMetrics.screening} screening · ${pipelineMetrics.offer} offer`}
-          href="/applications"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
-          }
-        />
-
-        {/* KPI 2: Priority Action Items Pending */}
-        <KpiCard
-          label="Priority Actions"
-          value={totalActionCount}
-          badge={readyCount > 0 ? `${readyCount} expired referrals` : undefined}
-          badgeColor="bg-amber-500/10 text-amber-700 dark:text-amber-300"
-          sub={`${notAppliedCount} saved awaiting outreach`}
-          onClick={() => {
-            const el = document.getElementById('priority-action-center');
-            el?.scrollIntoView({ behavior: 'smooth' });
-          }}
-          icon={
-            <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          }
-        />
-
-        {/* KPI 3: Outreach & Open Rate */}
-        <KpiCard
-          label="Outreach & Opens"
-          value={`${stats.emails.openRate}%`}
-          badge={`${stats.emails.opened} opened`}
-          badgeColor="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-          sub={`${stats.emails.sent} sent · ${stats.emails.total} total recorded`}
-          href="/history"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-.274.832-.67 1.608-1.166 2.305" />
-            </svg>
-          }
-        />
-
-        {/* KPI 4: Verified Prospects Network */}
-        <KpiCard
-          label="Prospects Network"
-          value={stats.prospects}
-          badge={`${stats.companies} companies`}
-          sub="Verified recruiter & engineer contacts"
-          href="/prospects"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2h5M12 12a4 4 0 100-8 4 4 0 000 8z" />
-            </svg>
-          }
-        />
-      </div>
-
       {/* Hero Section: Priority Action Center */}
       <div id="priority-action-center" className="card p-5 sm:p-6 border-zinc-200 dark:border-zinc-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
@@ -520,6 +267,20 @@ export default function DashboardPage() {
             >
               All Actions ({totalActionCount})
             </button>
+
+            {referralSentCount > 0 && (
+              <button
+                onClick={() => setActionFilter('referral_sent')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  actionFilter === 'referral_sent'
+                    ? 'bg-white dark:bg-zinc-900 text-amber-800 dark:text-amber-200 shadow-2xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Referral Sent ({referralSentCount})
+              </button>
+            )}
 
             <button
               onClick={() => setActionFilter('ready_to_apply')}
@@ -577,6 +338,70 @@ export default function DashboardPage() {
 
         {/* Action Items List */}
         <div className="space-y-3">
+          {/* Referral emails sent in the last 2 days */}
+          {(actionFilter === 'all' || actionFilter === 'referral_sent') &&
+            stats.referralSentApplications &&
+            stats.referralSentApplications.map((app) => {
+              const sentCount = app.email_count ?? 0;
+              return (
+                <div
+                  key={`sent-${app.id}`}
+                  className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-amber-500/60 relative group"
+                >
+                  <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{app.company_name}</span>
+                      <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{app.job_title}</span>
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                        Referral outreach
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      <span className="inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        {sentCount} referral email{sentCount !== 1 ? 's' : ''} sent
+                      </span>
+                      <span>·</span>
+                      <span>Waiting on the referral window</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {app.job_url && (
+                      <a
+                        href={app.job_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                      >
+                        Open Portal
+                        <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                    <Link
+                      href={`/send?jobId=${app.job_id ?? app.id}&companyName=${encodeURIComponent(app.company_name)}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Send another
+                    </Link>
+                    <button
+                      onClick={() => handleDismissAction('referral_sent', app.id)}
+                      disabled={actioningId === app.id}
+                      className="text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
+                      title="Dismiss from action queue"
+                      aria-label="Dismiss action"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
           {/* 1. Ready to Apply Directly (Referral Expired > 48h) */}
           {(actionFilter === 'all' || actionFilter === 'ready_to_apply') &&
             stats.readyToApplyApplications &&
@@ -692,6 +517,11 @@ export default function DashboardPage() {
 
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
                     Saved on {new Date(app.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · Ready for referral outreach or direct application
+                    {app.email_count && app.email_count > 0 ? (
+                      <span className="font-medium text-amber-700 dark:text-amber-300">
+                        {' '}· {app.email_count} referral email{app.email_count !== 1 ? 's' : ''} sent
+                      </span>
+                    ) : null}
                   </p>
                 </div>
 
@@ -922,7 +752,7 @@ export default function DashboardPage() {
                           )}
                         </div>
                         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
-                          {send.template?.name ?? send.subject ?? 'Direct message'}
+                          {formatTemplateLabel(send.template) || send.subject || 'Direct message'}
                         </p>
                       </div>
 
@@ -983,7 +813,7 @@ export default function DashboardPage() {
                     <div className="flex justify-between items-start gap-2">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">{s.company?.name ?? 'Target Company'}</p>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{s.template?.name ?? 'Batch outreach'}</p>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{formatTemplateLabel(s.template) || 'Batch outreach'}</p>
                       </div>
                       <span className={`shrink-0 inline-flex px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${STATUS_COLOR[s.status] ?? ''}`}>
                         {s.total_prospects} recipient{s.total_prospects !== 1 ? 's' : ''}

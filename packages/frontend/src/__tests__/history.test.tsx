@@ -37,6 +37,7 @@ describe('HistoryPage Component', () => {
         created_at: new Date().toISOString(),
         prospect: { first_name: 'John', last_name: 'Smith', email: 'recruiter@tech.com' },
         company: { name: 'TechCorp' },
+        template: { name: 'referral', version: 2, deleted_at: null },
         open_count: 3,
         opened_at: new Date().toISOString(),
       },
@@ -58,6 +59,7 @@ describe('HistoryPage Component', () => {
     await waitFor(() => {
       expect(screen.getByText('Intro - Full Dev')).toBeInTheDocument();
     });
+    expect(screen.getByText(/referral v2/)).toBeInTheDocument();
 
     // Check Open in Gmail link
     const gmailLinks = screen.getAllByRole('link', { name: /Open in Gmail/i });

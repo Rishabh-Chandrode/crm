@@ -16,7 +16,7 @@ vi.mock('../lib/api', () => ({
   },
 }));
 
-describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
+describe('DashboardPage Priority Action Center', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
@@ -30,7 +30,7 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
     expect(pulses.length).toBeGreaterThan(0);
   });
 
-  it('renders revamped dashboard with 4-KPI grid, Priority Action Center, and direct workflow links', async () => {
+  it('renders the Priority Action Center first, without summary cards or shortcuts', async () => {
     const mockStats = {
       companies: 12,
       prospects: 48,
@@ -91,6 +91,21 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
         },
       ],
       readyToApplyCount: 1,
+      referralSentApplications: [
+        {
+          id: 'app-sent-1',
+          user_id: 'u1',
+          company_name: 'Figma',
+          job_title: 'Product Engineer',
+          status: 'referral_requested',
+          email_count: 5,
+          job_id: 'job-figma',
+          job_url: 'https://figma.com/jobs/product',
+          applied_at: new Date().toISOString(),
+          referral_requested_at: new Date().toISOString(),
+        },
+      ],
+      referralSentCount: 1,
       notAppliedApplications: [
         {
           id: 'app-not-applied-1',
@@ -144,26 +159,15 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Mission Control')).toBeInTheDocument();
+      expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
     });
 
-    // Check Header badges
-    expect(screen.getByText('Live Sync')).toBeInTheDocument();
-    expect(screen.getByText(/Priority Actions Pending/)).toBeInTheDocument();
-
-    // Check Direct Shortcuts Toolbar
-    expect(screen.getByText('Direct Shortcuts')).toBeInTheDocument();
-    expect(screen.getByText('✉️ Quick Send')).toBeInTheDocument();
-    expect(screen.getByText('📋 Application Pipeline')).toBeInTheDocument();
-    expect(screen.getByText('👥 Recruiter Directory')).toBeInTheDocument();
-
-    // Check 4-KPI Grid (Active Pipeline, Priority Actions, Outreach & Opens, Prospects Network)
-    expect(screen.getByText('Active Pipeline')).toBeInTheDocument();
-    expect(screen.getByText('Priority Actions')).toBeInTheDocument();
-    expect(screen.getByText('Outreach & Opens')).toBeInTheDocument();
-    expect(screen.getByText('Prospects Network')).toBeInTheDocument();
-    expect(screen.getByText('49%')).toBeInTheDocument(); // Open Rate
-    expect(screen.getByText('48')).toBeInTheDocument(); // Prospects
+    expect(screen.queryByText('Mission Control')).not.toBeInTheDocument();
+    expect(screen.queryByText('Live Sync')).not.toBeInTheDocument();
+    expect(screen.queryByText('Direct Shortcuts')).not.toBeInTheDocument();
+    expect(screen.queryByText('Active Pipeline')).not.toBeInTheDocument();
+    expect(screen.queryByText('Outreach & Opens')).not.toBeInTheDocument();
+    expect(screen.queryByText('Prospects Network')).not.toBeInTheDocument();
 
     // Check Priority Action Center
     expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
@@ -173,6 +177,9 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
     expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
     expect(screen.getByText(/Referral window expired/)).toBeInTheDocument();
     expect(screen.getByText('2 referral emails sent')).toBeInTheDocument();
+    expect(screen.getByText('5 referral emails sent')).toBeInTheDocument();
+    expect(screen.getByText('Figma')).toBeInTheDocument();
+    expect(screen.getByText('Referral Sent (1)')).toBeInTheDocument();
     expect(screen.getByText('Follow-up Note')).toBeInTheDocument();
 
     // Check Saved Job Item
@@ -217,7 +224,7 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
     expect(dismissButtons.length).toBeGreaterThan(0);
     fireEvent.click(dismissButtons[0]);
     await waitFor(() => {
-      expect(api.applications.update).toHaveBeenCalledWith('app-interview-1', { status: 'closed' });
+      expect(api.applications.update).toHaveBeenCalledWith('app-sent-1', { status: 'closed' });
     });
   });
 
@@ -266,7 +273,7 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Mission Control')).toBeInTheDocument();
+      expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
     });
 
     // Click "Referral Expired" tab filter
@@ -316,10 +323,10 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Mission Control')).toBeInTheDocument();
+      expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('All Systems Clear')).toBeInTheDocument();
+    expect(screen.queryByText('Mission Control')).not.toBeInTheDocument();
     expect(screen.getByText('All caught up! No urgent action items.')).toBeInTheDocument();
     expect(screen.getByText('No outreach emails sent yet.')).toBeInTheDocument();
     expect(screen.getByText('No upcoming outreach scheduled.')).toBeInTheDocument();
@@ -379,7 +386,7 @@ describe('DashboardPage (Revamped Priority Actions & Direct Links)', () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Mission Control')).toBeInTheDocument();
+      expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
     });
 
     // Verify dismissed items do NOT reappear

@@ -83,8 +83,8 @@ export async function listJobs(
     LEFT JOIN (
       SELECT 
         job_id,
-        COUNT(id) AS email_count,
-        MIN(COALESCE(sent_at, created_at)) AS first_sent_at
+        COUNT(id) FILTER (WHERE status = 'sent') AS email_count,
+        MIN(COALESCE(sent_at, created_at)) FILTER (WHERE status = 'sent') AS first_sent_at
       FROM email_sends
       WHERE job_id IS NOT NULL
       GROUP BY job_id
@@ -129,8 +129,8 @@ export async function getJobById(
     LEFT JOIN (
       SELECT 
         job_id,
-        COUNT(id) AS email_count,
-        MIN(COALESCE(sent_at, created_at)) AS first_sent_at
+        COUNT(id) FILTER (WHERE status = 'sent') AS email_count,
+        MIN(COALESCE(sent_at, created_at)) FILTER (WHERE status = 'sent') AS first_sent_at
       FROM email_sends
       WHERE job_id IS NOT NULL
       GROUP BY job_id
@@ -153,7 +153,7 @@ export async function getJobById(
         json_build_object('name', c.name)
       ELSE NULL END AS company,
       CASE WHEN t.id IS NOT NULL THEN
-        json_build_object('name', t.name)
+        json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at)
       ELSE NULL END AS template
     FROM email_sends es
     LEFT JOIN prospects p ON p.id = es.prospect_id
@@ -219,6 +219,19 @@ export async function createJob(
     job.company = compRes.rows[0];
   }
 
+  await pool.query(
+    `INSERT INTO job_applications (user_id, job_id, company_name, job_title, job_url, platform, status)
+     VALUES ($1, $2, $3, $4, $5, 'Direct', $6)`,
+    [
+      userId,
+      job.id,
+      job.company?.name || input.company_name?.trim() || 'Company',
+      job.title,
+      job.job_url,
+      applicationStatusForJob(job.status),
+    ]
+  );
+
   return job;
 }
 
@@ -274,7 +287,7 @@ export async function updateJob(
           );
         }
       }
-    } else if (input.status === 'open' || input.status === 'not_applied' || input.status === 'referral_requested') {
+    } else if (input.status === 'open' || input.status === 'not_applied') {
       await pool.query(
         `DELETE FROM job_applications WHERE job_id = $1 AND user_id = $2`,
         [id, userId]
@@ -338,7 +351,7 @@ export async function getJobEmails(id: string, userId: string): Promise<EmailSen
         json_build_object('name', c.name)
       ELSE NULL END AS company,
       CASE WHEN t.id IS NOT NULL THEN
-        json_build_object('name', t.name)
+        json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at)
       ELSE NULL END AS template
     FROM email_sends es
     LEFT JOIN prospects p ON p.id = es.prospect_id
@@ -350,4 +363,169 @@ export async function getJobEmails(id: string, userId: string): Promise<EmailSen
   );
 
   return result.rows as EmailSend[];
+}
+
+function applicationStatusForJob(status: string): string {
+  if (status === 'applied') return 'applied';
+  if (status === 'interviewing') return 'interview';
+  if (status === 'referral_requested') return 'referral_requested';
+  if (status === 'closed') return 'closed';
+  return 'not_applied';
+}
+
+/** Use the selected job, or the user's only open job at that company. */
+export async function resolveOutreachJobId(
+  userId: string,
+  explicitJobId: string | null | undefined,
+  companyId: string | null | undefined,
+): Promise<string | null> {
+  if (explicitJobId) {
+    const owned = await pool.query<{ id: string }>(
+      `SELECT id FROM jobs WHERE id = $1 AND created_by = $2`,
+      [explicitJobId, userId]
+    );
+    return owned.rows[0]?.id ?? null;
+  }
+
+  if (!companyId) return null;
+
+  const matches = await pool.query<{ id: string }>(
+    `SELECT id FROM jobs
+     WHERE company_id = $1 AND created_by = $2 AND status <> 'closed'
+     ORDER BY created_at DESC
+     LIMIT 2`,
+    [companyId, userId]
+  );
+  if (matches.rows.length === 1) return matches.rows[0]!.id;
+  return null;
+}
+
+/** Make sure the job has an application the dashboard can count emails against. */
+export async function recordReferralOutreach(userId: string, jobId: string): Promise<void> {
+  const jobRes = await pool.query<{
+    title: string;
+    job_url: string;
+    company_id: string | null;
+    status: string;
+  }>(
+    `SELECT title, job_url, company_id, status FROM jobs WHERE id = $1 AND created_by = $2`,
+    [jobId, userId]
+  );
+  const job = jobRes.rows[0];
+  if (!job) return;
+
+  if (job.status === 'open') {
+    await pool.query(
+      `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
+      [jobId, userId]
+    );
+  }
+
+  let companyName = 'Company';
+  if (job.company_id) {
+    const companyRes = await pool.query<{ name: string }>(
+      `SELECT name FROM companies WHERE id = $1`,
+      [job.company_id]
+    );
+    if (companyRes.rows[0]?.name) companyName = companyRes.rows[0].name;
+  }
+
+  const existing = await pool.query<{ id: string; status: string }>(
+    `SELECT id, status FROM job_applications WHERE job_id = $1 AND user_id = $2 ORDER BY created_at ASC LIMIT 1`,
+    [jobId, userId]
+  );
+  if (!existing.rows[0]) {
+    await pool.query(
+      `INSERT INTO job_applications (user_id, job_id, company_name, job_title, job_url, platform, status)
+       VALUES ($1, $2, $3, $4, $5, 'Direct', 'referral_requested')`,
+      [userId, jobId, companyName, job.title, job.job_url]
+    );
+    return;
+  }
+
+  if (existing.rows[0].status === 'open' || existing.rows[0].status === 'not_applied') {
+    await pool.query(
+      `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE id = $1`,
+      [existing.rows[0].id]
+    );
+  }
+}
+
+/**
+ * Attach already-sent company emails to the matching job and create the
+ * application row the action center counts. Safe to run on each dashboard load.
+ */
+export async function syncOutreachForDashboard(userId: string): Promise<void> {
+  await pool.query(
+    `WITH candidates AS (
+       SELECT es.id AS send_id, (array_agg(j.id))[1] AS job_id
+       FROM email_sends es
+       JOIN jobs j
+         ON j.company_id = es.company_id
+        AND j.created_by = es.created_by
+        AND j.status <> 'closed'
+        AND j.created_at <= es.created_at
+       WHERE es.created_by = $1
+         AND es.job_id IS NULL
+         AND es.company_id IS NOT NULL
+       GROUP BY es.id
+       HAVING COUNT(DISTINCT j.id) = 1
+     )
+     UPDATE email_sends es
+     SET job_id = candidates.job_id
+     FROM candidates
+     WHERE es.id = candidates.send_id`,
+    [userId]
+  );
+
+  await pool.query(
+    `UPDATE jobs j
+     SET status = 'referral_requested', updated_at = NOW()
+     WHERE j.created_by = $1
+       AND j.status = 'open'
+       AND EXISTS (
+         SELECT 1 FROM email_sends es
+         WHERE es.job_id = j.id AND es.status = 'sent' AND es.created_by = $1
+       )`,
+    [userId]
+  );
+
+  await pool.query(
+    `INSERT INTO job_applications (user_id, job_id, company_name, job_title, job_url, platform, status)
+     SELECT
+       j.created_by,
+       j.id,
+       COALESCE(c.name, 'Company'),
+       j.title,
+       j.job_url,
+       'Direct',
+       CASE
+         WHEN EXISTS (
+           SELECT 1 FROM email_sends es
+           WHERE es.job_id = j.id AND es.status = 'sent' AND es.created_by = j.created_by
+         ) THEN 'referral_requested'
+         ELSE 'not_applied'
+       END
+     FROM jobs j
+     LEFT JOIN companies c ON c.id = j.company_id
+     WHERE j.created_by = $1
+       AND j.status <> 'closed'
+       AND NOT EXISTS (
+         SELECT 1 FROM job_applications ja
+         WHERE ja.job_id = j.id AND ja.user_id = j.created_by
+       )`,
+    [userId]
+  );
+
+  await pool.query(
+    `UPDATE job_applications ja
+     SET status = 'referral_requested', updated_at = NOW()
+     WHERE ja.user_id = $1
+       AND ja.status IN ('open', 'not_applied')
+       AND EXISTS (
+         SELECT 1 FROM email_sends es
+         WHERE es.job_id = ja.job_id AND es.status = 'sent' AND es.created_by = $1
+       )`,
+    [userId]
+  );
 }

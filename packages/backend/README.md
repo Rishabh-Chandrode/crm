@@ -52,10 +52,12 @@ src/
 │   │   ├── types.ts             # EmailProvider interface
 │   │   ├── resend.ts            # Resend implementation
 │   │   ├── gmail.ts             # Gmail OAuth2/Nodemailer implementation
+│   │   ├── gmailToken.ts        # Periodic Gmail access-token refresh + refresh-token rotation
 │   │   └── index.ts             # Factory — picks provider per user
 │   ├── templateEngine.ts        # {{variable}} resolution + dynamic salutations (Sir/Ma'am) + plain-text → HTML
 │   ├── genderInference.ts       # Automated gender & pronoun inference from name and bio/profile
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
+│   ├── documentRefs.ts          # Keeps template and schedule attachment ids limited to documents that still exist
 │   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
 │   └── scheduler.ts             # node-cron job — processes pending email_schedules + Drive sync
 └── types/
@@ -211,11 +213,12 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/templates` | — | `{ data: EmailTemplate[] }` |
-| `POST` | `/api/templates` | `{ name: string, subject: string, body: string, description?, job_description?, variables?: TemplateVariable[], document_ids?: string[] }` | `{ data: EmailTemplate }` — `201` |
+| `GET` | `/api/templates` | **Query:** `all=true` returns every version, including deleted ones. Default returns the latest non-deleted version of each family | `{ data: EmailTemplate[] }` — each row includes `version`, `family_id`, `deleted_at`. `document_ids` is pruned to documents that still exist before the list is returned |
+| `POST` | `/api/templates` | `{ name: string, subject: string, body: string, description?, job_description?, variables?: TemplateVariable[], document_ids?: string[] }` | `{ data: EmailTemplate }` — `201`. Creates version `1` and sets `family_id` to the new id |
 | `GET` | `/api/templates/:id` | — | `{ data: EmailTemplate }` |
-| `PATCH` | `/api/templates/:id` | Any subset of: `name`, `description`, `subject`, `body`, `job_description`, `variables`, `document_ids` | `{ data: EmailTemplate }` |
-| `DELETE` | `/api/templates/:id` | — | `{ data: { id } }` |
+| `PATCH` | `/api/templates/:id` | Any subset of: `name`, `description`, `subject`, `body`, `job_description`, `variables`, `document_ids` | `{ data: EmailTemplate }` — inserts the next version in the same family. The previous row is unchanged. `400` if that version is deleted |
+| `DELETE` | `/api/templates/:id` | — | `{ data: { id } }` — sets `deleted_at`. The row stays so history can show the name, version, and deleted mark |
+| `DELETE` | `/api/templates/:id/older-versions` | — | `{ data: { ids: string[] } }` — soft-deletes every earlier live version in the family. The latest version stays |
 | `POST` | `/api/templates/:id/detect-variables` | `{ existing: TemplateVariable[] }` | `{ data: { detected: string[], newVariables: TemplateVariable[] } }` — scans `subject + body` for `{{key}}` placeholders, returns keys not already in `existing`. New variables are auto-matched against saved variable presets. |
 
 ---
@@ -225,10 +228,10 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `POST` | `/api/email/preview` | `{ templateId: string, prospectId: string, customValues?: Record<string, string> }` | `{ data: { subject, body, html } }` — resolves template variables without sending |
-| `POST` | `/api/email/send` | `{ templateId: string, prospectId: string, customValues?: Record<string, string>, documentIds?: string[] }` | `{ data: { id, status: 'sent', resend_id } }` — sends via user's Gmail (OAuth or app password). `502` on delivery failure. Auto-tracks job application if `customValues.jobUrl` present. |
-| `POST` | `/api/email/send-company` | `{ templateId: string, companyId: string, prospectIds?: string[], customValues?: Record<string, string>, documentIds?: string[] }` — if `prospectIds` omitted, sends to ALL prospects at the company | `{ data: { sent, failed, total, results: [{ email, status, error? }] } }` |
-| `POST` | `/api/email/send-batch` | `{ templateId: string, prospectIds: string[], customValues?: Record<string, string>, documentIds?: string[] }` — sends to an explicit list of prospects (no company constraint, each resolved with own company) | `{ data: { sent, failed, total, results: [{ email, status, error? }] } }` |
-| `POST` | `/api/email/quick-send` | `{ email: string, subject: string, body: string, documentIds?: string[] }` — sends without a template. Auto-creates prospect if email doesn't exist. | `{ data: { id, status: 'sent' } }` |
+| `POST` | `/api/email/send` | `{ templateId: string, prospectId: string, customValues?: Record<string, string>, documentIds?: string[], jobId?: string }` | `{ data: { id, status: 'sent', resend_id } }` — sends via user's Gmail (OAuth or app password). `502` on delivery failure. Stores `job_id` from `jobId`, or from the user's only open job at the prospect's company. That job's application becomes `referral_requested` so the dashboard can count sent mail. Auto-tracks job application if `customValues.jobUrl` present. |
+| `POST` | `/api/email/send-company` | `{ templateId: string, companyId: string, prospectIds?: string[], customValues?: Record<string, string>, documentIds?: string[], jobId?: string }` — if `prospectIds` omitted, sends to ALL prospects at the company. `jobId` links every send; if omitted and the company has one open job, that job is used | `{ data: { sent, failed, total, results: [{ email, status, error? }] } }` |
+| `POST` | `/api/email/send-batch` | `{ templateId: string, prospectIds: string[], customValues?: Record<string, string>, documentIds?: string[], jobId?: string }` — sends to an explicit list of prospects (no company constraint, each resolved with own company). Without `jobId`, each prospect is linked only when their company has a single open job | `{ data: { sent, failed, total, results: [{ email, status, error? }] } }` |
+| `POST` | `/api/email/quick-send` | `{ email: string, subject: string, body: string, documentIds?: string[], jobId?: string }` — sends without a template. Auto-creates prospect if email doesn't exist. Links `jobId` the same way as `/send`. | `{ data: { id, status: 'sent' } }` |
 | `GET` | `/api/email/history` | **Query:** `limit?` (default 50), `offset?`, `status?` (all \| sent \| failed \| pending), `search?`, `company_id?`, `template_id?`, `prospect_id?` | `{ data: EmailSend[], total: number }` — each includes nested `prospect`, `company`, `template` objects |
 | `POST` | `/api/email/retry/:id` | — | `{ data: { id, status: 'sent' } }` — only works for `status = 'failed'`. `502` if retry also fails. |
 
@@ -265,9 +268,11 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `GET` | `/api/documents` | — | `{ data: Document[] }` — includes `drive_url`, `drive_synced_at`, `drive_sync_error` |
 | `POST` | `/api/documents` | **multipart/form-data:** `document` (file, max 10MB, .pdf/.doc/.docx only) + `name` (string) | `{ data: Document }` — `201`. File stored via object storage service. |
 | `POST` | `/api/documents/from-drive` | `{ name: string, drive_url: string }` — accepts Google Drive/Docs/Sheets/Slides share URLs | `{ data: Document }` — `201`. Downloads file immediately. |
-| `POST` | `/api/documents/:id/sync` | — | `{ data: Document }` — Re-fetches updated file on demand from Google Drive. |
+| `POST` | `/api/documents/:id/sync` | — | `{ data: Document }` — Re-fetches one Drive-linked file on demand. |
+| `GET` | `/api/documents/daily-sync` | — | `{ data: { enabled: boolean, last_synced_at: string \| null } }` — whether this user has daily Drive refetch turned on. |
+| `PUT` | `/api/documents/daily-sync` | `{ enabled: boolean }` | `{ data: { enabled, last_synced_at } }`. Turning it on refetches that user's Drive documents immediately, then the scheduler repeats the refetch once a day. |
 | `GET` | `/api/documents/:id/download` | — | Binary file response with `Content-Disposition: attachment` header |
-| `DELETE` | `/api/documents/:id` | — | `{ data: { id } }` — deletes from storage + removes document ID from any templates that reference it |
+| `DELETE` | `/api/documents/:id` | — | `{ data: { id } }` — deletes from storage and removes that document id from `email_templates.document_ids` and `email_schedules.document_ids`. The documents table is the source of truth for attachments |
 
 ---
 
@@ -275,8 +280,8 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/jobs` | **Query:** `companyId?`, `status?` (`open` \| `referral_requested` \| `applied` \| `interviewing` \| `closed`), `search?` (job title or company name), `limit?` (default 50), `offset?` | `{ data: Job[], total: number }` — each includes nested `company`, `application`, `email_count`, and `referral_requested_at` |
-| `POST` | `/api/jobs` | `{ title: string, job_url: string, company_id?: string, company_name?: string, status?: string, notes?: string }` — auto-creates/links company if `company_name` given | `{ data: Job }` — `201` |
+| `GET` | `/api/jobs` | **Query:** `companyId?`, `status?` (`open` \| `referral_requested` \| `applied` \| `interviewing` \| `closed`), `search?` (job title or company name), `limit?` (default 50), `offset?` | `{ data: Job[], total: number }` — each includes nested `company`, `application`, `email_count` (sent emails only), and `referral_requested_at` |
+| `POST` | `/api/jobs` | `{ title: string, job_url: string, company_id?: string, company_name?: string, status?: string, notes?: string }` — auto-creates/links company if `company_name` given, and creates a matching `job_applications` row so the dashboard can count outreach | `{ data: Job }` — `201` |
 | `GET` | `/api/jobs/:id` | — | `{ data: Job & { emails: EmailSend[] } }` |
 | `PATCH` | `/api/jobs/:id` | Any subset of: `title`, `job_url`, `company_id`, `status`, `notes` | `{ data: Job }` |
 | `DELETE` | `/api/jobs/:id` | — | `{ data: { id, deleted: true } }` |
@@ -309,7 +314,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. Before returning, links unassigned sends to the user's only open job at that company and counts **sent** emails. `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. |
 
 ---
 
@@ -356,7 +361,10 @@ users (id UUID PK, username, email, password_hash, role, is_active,
        skills JSONB, projects JSONB, work_experiences JSONB,
        google_id,                          -- links Google OAuth account
        gmail_user, gmail_refresh_token,    -- per-user Gmail OAuth2 credentials
+       gmail_access_token, gmail_access_token_expires_at, gmail_token_error,
        from_name, reply_to_email,          -- email display name / reply-to overrides
+       daily_document_sync,                -- opt-in daily Drive document refetch
+       daily_document_synced_at,           -- last time that daily refetch ran
        created_at, updated_at)
 
 jobs             (id UUID PK, company_id→companies, title, job_url,
@@ -372,8 +380,8 @@ companies      (id, name, website, industry, created_by→users, created_at, upd
 prospects      (id, company_id→companies, first_name, last_name, email,
                 job_title, role_category, gender, linkedin_url, phone, notes,
                 created_by→users, created_at, updated_at)
-email_templates (id, name, description, subject, body, job_description,
-                 variables JSONB, document_ids UUID[],
+email_templates (id, family_id, version, name, description, subject, body, job_description,
+                 variables JSONB, document_ids UUID[], deleted_at,
                  created_by→users, created_at, updated_at)
 email_sends     (id, template_id, prospect_id, company_id, subject, body,
                  status, resend_id, sent_at, error_message, opened_at, open_count,
@@ -419,7 +427,7 @@ interface EmailProvider {
 
 `services/email/index.ts → getEmailProviderForUser()` returns a provider for the given user credentials:
 
-- **Gmail** (default) — uses the user's stored `gmail_refresh_token` to send via the Gmail REST API (returning `threadId` for direct thread linking in the web client). Each user connects their own account from Settings.
+- **Gmail** (default) — uses the user's stored `gmail_refresh_token` to send via the Gmail REST API (returning `threadId` for direct thread linking in the web client). Each user connects their own account from Settings. Access tokens expire in about an hour. `services/email/gmailToken.ts` refreshes them on the 30-minute scheduler (when they expire within 45 minutes) and again immediately before a send. If Google rotates the refresh token, the new one is saved.
 - **Resend** (fallback) — used only if `RESEND_API_KEY` is set and no Gmail credentials are provided.
 
 **Display name fallback chain** (applied in both immediate and scheduled sends):
@@ -436,17 +444,17 @@ To add a new provider, implement `EmailProvider` and update the factory in `serv
 
 `services/scheduler.ts` runs a `node-cron` job:
 
-- **Every 30 minutes** (`*/30 * * * *`) — picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs, updates counts, and finishes work in batch. The PostgreSQL pool is configured with `idleTimeoutMillis: 10000` so that after processing finishes, all idle connections are dropped within 10 seconds, allowing serverless Neon DB compute to suspend after 5 minutes of inactivity and rest for the remainder of the interval.
+- **Every 30 minutes** (`*/30 * * * *`) — first refreshes Gmail OAuth access tokens that are missing or expire within 45 minutes (`refreshDueGmailTokens`), then picks up `email_schedules` with `status = 'pending'` and `scheduled_for <= NOW()`, sends to all prospect IDs, updates counts, and finishes work in batch. The same tick calls `processDailyDocumentSync()`, which refetches Drive documents only for users who turned on daily refetch and were last synced more than a day ago. The PostgreSQL pool is configured with `idleTimeoutMillis: 10000` so that after processing finishes, all idle connections are dropped within 10 seconds, allowing serverless Neon DB compute to suspend after 5 minutes of inactivity and rest for the remainder of the interval.
 
 ## Google Drive sync
 
-Drive files are synced on-demand via `POST /api/documents/:id/sync` rather than an automatic cron to conserve compute.
+Each Drive-linked file can be refreshed on demand with **Re-fetch** (`POST /api/documents/:id/sync`). **Profile → Documents → Refetch daily** (`PUT /api/documents/daily-sync`) opts that user into an automatic refresh once a day. The 30-minute scheduler runs it only when `users.daily_document_synced_at` is older than 24 hours.
 
 `services/driveSync.ts` handles Drive-linked documents:
 
 - **`parseDriveUrl(url)`** — extracts the file ID from Drive/Docs/Sheets/Slides share URLs.
 - **`fetchAndSaveFile(driveUrl, existingPath?)`** — downloads the file. If `existingPath` is provided and exists on disk/storage, it overwrites that path (no orphaned files). Handles Google's virus-scan confirmation redirect for large files.
-- **`syncDriveDocuments()`** — utility function to refresh documents with a `drive_url`.
+- **`syncDriveDocuments(userId?)`** — refreshes documents with a `drive_url`. Pass a user id to limit the refresh to that user's files. If Drive says the file is gone, the document row is deleted and that id is removed from template and schedule attachments.
 
 
 ---

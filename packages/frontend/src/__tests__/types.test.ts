@@ -4,10 +4,21 @@ import {
   getGmailSearchUrl,
   toVariableLabel,
   buildVariableFromKey,
+  formatTemplateLabel,
   type VariablePreset,
 } from '../lib/types';
 
 describe('Frontend Types & Utility Functions', () => {
+  describe('formatTemplateLabel', () => {
+    it('shows the template name and version', () => {
+      expect(formatTemplateLabel({ name: 'referral', version: 2 })).toBe('referral v2');
+    });
+
+    it('marks a deleted version', () => {
+      expect(formatTemplateLabel({ name: 'referral', version: 2, deleted_at: '2026-01-01' })).toBe('referral v2 · Deleted');
+    });
+  });
+
   describe('prospectFullName', () => {
     it('concatenates first and last name correctly', () => {
       expect(prospectFullName({ first_name: 'John', last_name: 'Doe' })).toBe('John Doe');
@@ -181,6 +192,15 @@ describe('Frontend Types & Utility Functions', () => {
       expect(doc.id).toBe('doc-123');
       expect(doc.name).toBe('Resume 2026');
       expect(doc.drive_url).toContain('docs.google.com');
+    });
+
+    it('describes the daily document refetch preference', () => {
+      const pref: import('../lib/types').DocumentDailySync = {
+        enabled: true,
+        last_synced_at: '2026-10-14T04:00:00.000Z',
+      };
+      expect(pref.enabled).toBe(true);
+      expect(pref.last_synced_at).toContain('2026-10-14');
     });
   });
 });

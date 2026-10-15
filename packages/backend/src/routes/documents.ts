@@ -1,11 +1,13 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
-import { parseDriveUrl, fetchAndSaveFile } from '../services/driveSync.js';
+import { detachDocument } from '../services/documentRefs.js';
+import { parseDriveUrl, fetchAndSaveFile, syncDriveDocuments } from '../services/driveSync.js';
 
 import { getStorageService } from '../services/storage/index.js';
 
@@ -37,6 +39,77 @@ router.get('/', async (req, res, next) => {
       params
     );
     res.json({ data: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/daily-sync', async (req, res, next) => {
+  try {
+    const result = await pool.query<{ daily_document_sync: boolean; daily_document_synced_at: Date | null }>(
+      `SELECT daily_document_sync, daily_document_synced_at FROM users WHERE id = $1`,
+      [req.user!.id]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({
+      data: {
+        enabled: row.daily_document_sync,
+        last_synced_at: row.daily_document_synced_at,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const DailySyncSchema = z.object({ enabled: z.boolean() });
+
+router.put('/daily-sync', async (req, res, next) => {
+  try {
+    const parsed = DailySyncSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+
+    if (!parsed.data.enabled) {
+      const result = await pool.query<{ daily_document_synced_at: Date | null }>(
+        `UPDATE users SET daily_document_sync = FALSE WHERE id = $1
+         RETURNING daily_document_synced_at`,
+        [req.user!.id]
+      );
+      if (!result.rows[0]) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      res.json({
+        data: { enabled: false, last_synced_at: result.rows[0].daily_document_synced_at },
+      });
+      return;
+    }
+
+    const enabled = await pool.query(
+      `UPDATE users SET daily_document_sync = TRUE WHERE id = $1`,
+      [req.user!.id]
+    );
+    if (!enabled.rowCount) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    await syncDriveDocuments(req.user!.id);
+    const result = await pool.query<{ daily_document_synced_at: Date | null }>(
+      `UPDATE users SET daily_document_synced_at = NOW() WHERE id = $1
+       RETURNING daily_document_synced_at`,
+      [req.user!.id]
+    );
+    res.json({
+      data: { enabled: true, last_synced_at: result.rows[0]?.daily_document_synced_at ?? null },
+    });
   } catch (err) {
     next(err);
   }
@@ -161,13 +234,7 @@ router.delete('/:id', async (req, res, next) => {
       /* already gone from storage — that's fine */ 
     }
 
-    // Remove deleted document from any templates that reference it
-    await pool.query(
-      `UPDATE email_templates
-       SET document_ids = array_remove(document_ids, $1::uuid)
-       WHERE $1::uuid = ANY(document_ids)`,
-      [docId]
-    );
+    await detachDocument(docId);
 
     res.json({ data: { id: docId } });
   } catch (err) {

@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
 import { getEmailProviderForUser } from '../services/email/index.js';
+import { ensureFreshGmailToken, saveGmailToken } from '../services/email/gmailToken.js';
 import { resolveTemplate, plainTextToHtml, wrapEmailHtml } from '../services/templateEngine.js';
 import { getAttachments } from '../services/attachmentHelper.js';
 import { maybeCreateApplicationFromEmail } from '../services/autoTrackApplication.js';
+import { recordReferralOutreach, resolveOutreachJobId } from '../services/jobs.js';
 import type { EmailTemplate, Prospect, Company, EmailSend, SenderProfile } from '../types/index.js';
 
 interface UserEmailConfig {
@@ -45,15 +47,32 @@ async function loadUserEmailConfig(userId: string): Promise<UserEmailConfig | nu
   };
 }
 
-function resolveEmailProvider(config: UserEmailConfig) {
+async function resolveEmailProvider(config: UserEmailConfig, userId: string) {
   const fullName = [config.senderProfile.first_name, config.senderProfile.last_name].filter(Boolean).join(' ');
   const fromName = config.fromName || fullName || config.username || 'CRM';
 
   // OAuth takes priority over app password
   if (config.gmailUser && config.gmailRefreshToken) {
+    let refreshToken = config.gmailRefreshToken;
+    let accessToken: string | undefined;
+    try {
+      const fresh = await ensureFreshGmailToken(userId);
+      if (fresh) {
+        refreshToken = fresh.refreshToken;
+        accessToken = fresh.accessToken;
+      }
+    } catch (err) {
+      console.error(`[Email] Gmail token refresh failed for ${userId}:`, err);
+    }
     return getEmailProviderForUser({
       method: 'oauth',
-      creds: { gmailUser: config.gmailUser, refreshToken: config.gmailRefreshToken, fromName },
+      creds: {
+        gmailUser: config.gmailUser,
+        refreshToken,
+        fromName,
+        accessToken,
+        onTokenRefreshed: (token) => saveGmailToken(userId, token),
+      },
     });
   }
   if (config.gmailUser && config.gmailAppPassword) {
@@ -63,6 +82,16 @@ function resolveEmailProvider(config: UserEmailConfig) {
     });
   }
   throw new Error('Gmail not connected. Go to Settings → Gmail to connect your account.');
+}
+
+async function linkedOutreachJobId(
+  userId: string,
+  explicitJobId: string | null,
+  companyId: string | null,
+): Promise<string | null> {
+  const jobId = await resolveOutreachJobId(userId, explicitJobId, companyId);
+  if (jobId) await recordReferralOutreach(userId, jobId);
+  return jobId;
 }
 
 const router: ReturnType<typeof Router> = Router();
@@ -114,7 +143,7 @@ router.get('/history', async (req, res, next) => {
       `SELECT es.*,
               json_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email, 'job_title', p.job_title) AS prospect,
               json_build_object('name', c.name) AS company,
-              json_build_object('name', t.name) AS template,
+              json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at) AS template,
               CASE WHEN j.id IS NOT NULL THEN
                 json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url)
               ELSE NULL END AS job
@@ -181,7 +210,7 @@ router.post('/retry/:id', async (req, res, next) => {
 
     let provider;
     try {
-      provider = resolveEmailProvider(userConfig);
+      provider = await resolveEmailProvider(userConfig, req.user!.id);
     } catch (cfgErr) {
       const msg = cfgErr instanceof Error ? cfgErr.message : 'Email not configured';
       await pool.query(`UPDATE email_sends SET status = 'failed', error_message = $1 WHERE id = $2`, [msg, id]);
@@ -321,7 +350,7 @@ router.post('/send', async (req, res, next) => {
 
     let provider;
     try {
-      provider = resolveEmailProvider(userConfig);
+      provider = await resolveEmailProvider(userConfig, req.user!.id);
     } catch (cfgErr) {
       res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
       return;
@@ -336,7 +365,7 @@ router.post('/send', async (req, res, next) => {
     const attachments = await getAttachments(allDocumentIds);
 
     const jobUrl = customValues['jobUrl'] ?? customValues['job_url'] ?? null;
-    const targetJobId = jobId || job_id || null;
+    const targetJobId = await linkedOutreachJobId(req.user!.id, jobId || job_id || null, prospect.company_id ?? null);
 
     const sendRecord = await pool.query<EmailSend>(
       `INSERT INTO email_sends (template_id, prospect_id, company_id, subject, body, status, created_by, job_url, job_id)
@@ -345,17 +374,6 @@ router.post('/send', async (req, res, next) => {
     );
     const sendId = sendRecord.rows[0]!.id;
     const html = wrapEmailHtml(plainTextToHtml(resolvedBody), pixelUrl(sendId));
-
-    if (targetJobId) {
-      pool.query(
-        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
-        [targetJobId, req.user!.id]
-      ).catch(() => undefined);
-      pool.query(
-        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
-        [targetJobId, req.user!.id]
-      ).catch(() => undefined);
-    }
 
     try {
       const result = await provider.send({
@@ -456,7 +474,7 @@ router.post('/send-company', async (req, res, next) => {
 
     let provider;
     try {
-      provider = resolveEmailProvider(userConfig);
+      provider = await resolveEmailProvider(userConfig, req.user!.id);
     } catch (cfgErr) {
       res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
       return;
@@ -465,18 +483,7 @@ router.post('/send-company', async (req, res, next) => {
     const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
     const attachments = await getAttachments(allDocumentIds);
     const sender = userConfig.senderProfile;
-    const targetJobId = jobId || job_id || null;
-
-    if (targetJobId) {
-      pool.query(
-        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
-        [targetJobId, userId]
-      ).catch(() => undefined);
-      pool.query(
-        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
-        [targetJobId, userId]
-      ).catch(() => undefined);
-    }
+    const targetJobId = await linkedOutreachJobId(userId, jobId || job_id || null, company.id);
 
     const results = await Promise.allSettled(
       prospects.map(async (prospect) => {
@@ -585,7 +592,7 @@ router.post('/send-batch', async (req, res, next) => {
 
     let provider;
     try {
-      provider = resolveEmailProvider(userConfig);
+      provider = await resolveEmailProvider(userConfig, req.user!.id);
     } catch (cfgErr) {
       res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
       return;
@@ -594,22 +601,26 @@ router.post('/send-batch', async (req, res, next) => {
     const allDocumentIds = [...new Set([...(template.document_ids ?? []), ...documentIds])];
     const attachments = await getAttachments(allDocumentIds);
     const sender = userConfig.senderProfile;
-    const targetJobId = jobId || job_id || null;
-
-    if (targetJobId) {
-      pool.query(
-        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
-        [targetJobId, userId]
-      ).catch(() => undefined);
-      pool.query(
-        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
-        [targetJobId, userId]
-      ).catch(() => undefined);
+    const explicitJobId = jobId || job_id || null;
+    const jobByCompany = new Map<string, string | null>();
+    async function jobIdForProspect(companyId: string | null): Promise<string | null> {
+      if (explicitJobId) {
+        if (!jobByCompany.has('__explicit__')) {
+          jobByCompany.set('__explicit__', await linkedOutreachJobId(userId, explicitJobId, null));
+        }
+        return jobByCompany.get('__explicit__') ?? null;
+      }
+      const key = companyId ?? '';
+      if (!jobByCompany.has(key)) {
+        jobByCompany.set(key, await linkedOutreachJobId(userId, null, companyId));
+      }
+      return jobByCompany.get(key) ?? null;
     }
 
     const results = await Promise.allSettled(
       prospects.map(async (prospect) => {
         const company = prospect.company;
+        const targetJobId = await jobIdForProspect(prospect.company_id ?? null);
         const context = { prospect, company, custom: customValues, sender };
         const subject = resolveTemplate(template.subject, template.variables, context);
         const body = resolveTemplate(template.body, template.variables, context);
@@ -707,7 +718,7 @@ router.post('/quick-send', async (req, res, next) => {
 
     let provider;
     try {
-      provider = resolveEmailProvider(userConfig);
+      provider = await resolveEmailProvider(userConfig, req.user!.id);
     } catch (cfgErr) {
       res.status(400).json({ error: cfgErr instanceof Error ? cfgErr.message : 'Email not configured' });
       return;
@@ -730,18 +741,7 @@ router.post('/quick-send', async (req, res, next) => {
     }
 
     const attachments = await getAttachments(documentIds);
-    const targetJobId = jobId || job_id || null;
-
-    if (targetJobId) {
-      pool.query(
-        `UPDATE jobs SET status = 'referral_requested', updated_at = NOW() WHERE id = $1 AND created_by = $2 AND status = 'open'`,
-        [targetJobId, userId]
-      ).catch(() => undefined);
-      pool.query(
-        `UPDATE job_applications SET status = 'referral_requested', updated_at = NOW() WHERE job_id = $1 AND user_id = $2 AND status IN ('open', 'not_applied')`,
-        [targetJobId, userId]
-      ).catch(() => undefined);
-    }
+    const targetJobId = await linkedOutreachJobId(userId, jobId || job_id || null, prospect.company_id ?? null);
 
     const sendRecord = await pool.query<EmailSend>(
       `INSERT INTO email_sends (prospect_id, company_id, subject, body, status, created_by, job_url, job_id)

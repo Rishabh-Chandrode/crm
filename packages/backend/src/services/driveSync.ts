@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { pool } from '../db/index.js';
+import { detachDocument } from './documentRefs.js';
 import { getStorageService } from './storage/index.js';
 
 type DriveFileType = 'file' | 'doc' | 'sheet' | 'slides';
@@ -133,28 +134,36 @@ interface DriveDoc {
   drive_url: string;
 }
 
-export async function syncDriveDocuments(): Promise<void> {
-  const result = await pool.query<DriveDoc>(
-    `SELECT id, name, path, drive_url FROM documents WHERE drive_url IS NOT NULL`,
-  );
+export async function syncDriveDocuments(userId?: string): Promise<{ updated: number; failed: number; removed: number }> {
+  const result = userId
+    ? await pool.query<DriveDoc>(
+        `SELECT id, name, path, drive_url FROM documents WHERE drive_url IS NOT NULL AND created_by = $1`,
+        [userId],
+      )
+    : await pool.query<DriveDoc>(
+        `SELECT id, name, path, drive_url FROM documents WHERE drive_url IS NOT NULL`,
+      );
+
+  let updated = 0;
+  let failed = 0;
+  let removed = 0;
 
   for (const doc of result.rows) {
     try {
-      const { filePath, size } = await fetchAndSaveFile(doc.drive_url, doc.path);
+      const { filePath, filename, size } = await fetchAndSaveFile(doc.drive_url, doc.path);
       await pool.query(
-        `UPDATE documents SET path = $1, size = $2, drive_synced_at = NOW(), drive_sync_error = NULL WHERE id = $3`,
-        [filePath, size, doc.id],
+        `UPDATE documents SET path = $1, filename = $2, size = $3, drive_synced_at = NOW(), drive_sync_error = NULL WHERE id = $4`,
+        [filePath, filename, size, doc.id],
       );
+      updated += 1;
       console.log(`Drive sync: updated "${doc.name}" (${doc.id})`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === 'DRIVE_FILE_GONE' || (err as { code?: string }).code === 'DRIVE_FILE_GONE') {
         // File was deleted from Drive — clean up locally
-        await pool.query(
-          `UPDATE email_templates SET document_ids = array_remove(document_ids, $1::uuid) WHERE $1::uuid = ANY(document_ids)`,
-          [doc.id],
-        );
+        await detachDocument(doc.id);
         await pool.query(`DELETE FROM documents WHERE id = $1`, [doc.id]);
+        removed += 1;
         try { 
           if (doc.path) {
             const storageService = getStorageService();
@@ -167,8 +176,11 @@ export async function syncDriveDocuments(): Promise<void> {
           `UPDATE documents SET drive_sync_error = $1, drive_synced_at = NOW() WHERE id = $2`,
           [msg, doc.id],
         );
+        failed += 1;
         console.error(`Drive sync: failed for "${doc.name}" (${doc.id}):`, msg);
       }
     }
   }
+
+  return { updated, failed, removed };
 }

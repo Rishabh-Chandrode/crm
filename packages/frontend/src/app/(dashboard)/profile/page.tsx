@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import type { CrmUser, Document, Project, WorkExperience } from '@/lib/types';
+import type { CrmUser, Document, DocumentDailySync, Project, WorkExperience } from '@/lib/types';
 
 // ─── types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'personal' | 'work' | 'education' | 'resume' | 'projects' | 'skills';
+type Tab = 'personal' | 'work' | 'education' | 'documents' | 'projects' | 'skills';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   {
@@ -23,7 +23,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>,
   },
   {
-    id: 'resume', label: 'Resume Files',
+    id: 'documents', label: 'Documents',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
   },
   {
@@ -625,113 +625,302 @@ function EducationTab({ user }: { user: CrmUser }) {
   );
 }
 
-// ─── resume files tab ───────────────────────────────────────────────────────────
+// ─── documents tab ──────────────────────────────────────────────────────────────
 
-function ResumeTab() {
+function DocumentsTab() {
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [uploading,  setUploading]  = useState(false);
-  const [uploadName, setUploadName] = useState('');
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [error,   setError]   = useState('');
-  const [success, setSuccess] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [name, setName]           = useState('');
+  const [error, setError]         = useState('');
+  const [success, setSuccess]     = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  const load = useCallback(() => {
-    api.documents.list().then(r => setDocuments(r.data)).catch(console.error);
+  const [showDrive, setShowDrive]     = useState(false);
+  const [driveName, setDriveName]     = useState('');
+  const [driveUrl, setDriveUrl]       = useState('');
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveError, setDriveError]   = useState('');
+  const [syncingId, setSyncingId]     = useState<string | null>(null);
+  const [dailySync, setDailySync]     = useState<DocumentDailySync>({ enabled: false, last_synced_at: null });
+  const [dailyBusy, setDailyBusy]     = useState(false);
+
+  useEffect(() => {
+    api.documents.list().then((r) => setDocuments(r.data)).catch(console.error);
+    api.documents.dailySync.get().then((r) => setDailySync(r.data)).catch(console.error);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingFile(file);
+    if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '));
+  }
 
-  async function upload() {
-    if (!uploadFile) return;
-    setUploading(true); setError(''); setSuccess('');
+  async function handleUpload() {
+    if (!pendingFile) { fileRef.current?.click(); return; }
+    if (!name.trim()) { setError('Please enter a label for this document'); return; }
+    setError(''); setSuccess(''); setUploading(true);
     try {
-      await api.documents.upload(uploadFile, uploadName || uploadFile.name);
-      setUploadFile(null); setUploadName('');
+      const r = await api.documents.upload(pendingFile, name.trim());
+      setDocuments((prev) => [r.data, ...prev]);
+      setSuccess(`"${r.data.name}" uploaded.`);
+      setName(''); setPendingFile(null);
       if (fileRef.current) fileRef.current.value = '';
-      setSuccess('File uploaded successfully.');
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
     } finally { setUploading(false); }
   }
 
-  async function del(id: string) {
+  async function handleAddFromDrive() {
+    if (!driveName.trim() || !driveUrl.trim()) return;
+    setDriveError('');
+    setDriveLoading(true);
+    try {
+      const r = await api.documents.fromDrive(driveName.trim(), driveUrl.trim());
+      setDocuments((prev) => [r.data, ...prev]);
+      setSuccess(`"${r.data.name}" linked from Drive.`);
+      setDriveName(''); setDriveUrl(''); setShowDrive(false);
+    } catch (err) {
+      setDriveError(err instanceof Error ? err.message : 'Failed to fetch from Drive');
+    } finally { setDriveLoading(false); }
+  }
+
+  async function handleSync(doc: Document) {
+    setError(''); setSuccess(''); setSyncingId(doc.id);
+    try {
+      const r = await api.documents.sync(doc.id);
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? r.data : d)));
+      setSuccess(`"${doc.name}" updated from Google Drive.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to re-fetch document from Google Drive');
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
+  async function toggleDailySync() {
+    const next = !dailySync.enabled;
+    setError(''); setSuccess(''); setDailyBusy(true);
+    try {
+      const r = await api.documents.dailySync.set(next);
+      setDailySync(r.data);
+      if (next) {
+        const list = await api.documents.list();
+        setDocuments(list.data);
+        setSuccess('Daily refetch is on. Drive documents were updated and will refresh every day.');
+      } else {
+        setSuccess('Daily refetch is off. Use Re-fetch on a document to update it yourself.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update daily refetch');
+    } finally {
+      setDailyBusy(false);
+    }
+  }
+
+  async function handleDelete(id: string, docName: string) {
+    if (!confirm(`Remove "${docName}"?`)) return;
+    setError(''); setSuccess('');
     try {
       await api.documents.delete(id);
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed');
+      setDocuments((prev) => prev.filter((d) => d.id !== id));
+      setSuccess(`"${docName}" removed.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
     }
   }
 
   return (
     <div>
-      <SectionHeader title="Resume Files" description="Upload your resume and cover letter files. These can be attached when sending outreach emails." />
+      <SectionHeader
+        title="Documents"
+        description="Resumes, cover letters, and portfolios. The browser extension attaches the file you pick here when autofilling job applications. The same files can be attached to outreach emails."
+      />
 
-      <div className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl p-4 mb-4 bg-zinc-50/50 dark:bg-zinc-950/40 space-y-2.5">
-        <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Upload New Resume or Document</p>
-        <input
-          ref={fileRef}
-          type="file"
-          className="block w-full text-xs text-zinc-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-zinc-200 dark:file:bg-zinc-800 file:text-zinc-700 dark:file:text-zinc-300 hover:file:bg-zinc-300 cursor-pointer"
-          onChange={e => {
-            const f = e.target.files?.[0];
-            if (f) { setUploadFile(f); setUploadName(f.name.replace(/\.[^.]+$/, '')); }
-          }}
-        />
-        {uploadFile && (
-          <div className="space-y-2 pt-2">
-            {error   && <Alert type="error"   message={error} />}
-            {success && <Alert type="success" message={success} />}
-            <div className="flex gap-2">
-              <input
-                className="form-input text-xs flex-1"
-                placeholder="Display name"
-                value={uploadName}
-                onChange={e => setUploadName(e.target.value)}
-              />
+      <div className="flex items-center justify-between gap-3 mb-4 px-3.5 py-3 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Daily refetch</p>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+            {dailySync.enabled
+              ? `Drive-linked documents update once a day.${dailySync.last_synced_at ? ` Last update ${new Date(dailySync.last_synced_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.` : ''}`
+              : 'Turn this on to re-fetch every Drive-linked document once a day.'}
+          </p>
+        </div>
+        <button
+          onClick={() => void toggleDailySync()}
+          disabled={dailyBusy}
+          className={dailySync.enabled ? 'btn-ghost shrink-0' : 'btn-primary shrink-0'}
+        >
+          {dailyBusy ? 'Updating…' : dailySync.enabled ? 'Turn off daily refetch' : 'Refetch daily'}
+        </button>
+      </div>
+
+      {error   && <Alert type="error"   message={error} />}
+      {success && <Alert type="success" message={success} />}
+
+      <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 space-y-3 mb-4">
+        <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Upload a file</p>
+        <div>
+          <label className="form-label text-xs">Label *</label>
+          <input
+            className="form-input text-xs"
+            placeholder="e.g. Backend Resume, Cover Letter – Stripe"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="form-label text-xs">
+            File * <span className="text-zinc-400 font-normal">(PDF, DOC, DOCX · max 10 MB)</span>
+          </label>
+          {pendingFile ? (
+            <div className="flex items-center gap-2.5 px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-xs">
+              <svg className="w-4 h-4 text-zinc-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="flex-1 truncate text-zinc-800 dark:text-zinc-200 font-medium">{pendingFile.name}</span>
               <button
-                onClick={() => void upload()}
-                disabled={uploading}
+                onClick={() => { setPendingFile(null); if (fileRef.current) fileRef.current.value = ''; }}
+                className="text-zinc-400 hover:text-rose-500 transition-colors p-1"
+              >✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center justify-center gap-2 w-full border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 rounded-lg px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors bg-white/50 dark:bg-zinc-900/30"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Choose file to upload
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => void handleUpload()}
+          disabled={uploading || !pendingFile || !name.trim()}
+          className="btn-primary"
+        >
+          {uploading ? 'Uploading…' : 'Upload document'}
+        </button>
+      </div>
+
+      <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 mb-4">
+        <button
+          onClick={() => { setShowDrive((v) => !v); setDriveError(''); }}
+          className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors w-full text-left cursor-pointer"
+        >
+          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
+          </svg>
+          Link from Google Drive / Docs
+          <svg className={`w-3.5 h-3.5 text-zinc-400 ml-auto transition-transform ${showDrive ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showDrive && (
+          <div className="mt-3 space-y-2.5 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              Paste a public Google Drive or Google Docs link. The document will be cached locally and can be re-fetched on demand.
+            </p>
+            <div>
+              <label className="form-label text-xs">Label *</label>
+              <input
+                className="form-input text-xs"
+                placeholder="e.g. My Resume"
+                value={driveName}
+                onChange={(e) => setDriveName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="form-label text-xs">Google Drive URL *</label>
+              <input
+                className="form-input text-xs"
+                placeholder="https://drive.google.com/file/d/… or docs.google.com/document/d/…"
+                value={driveUrl}
+                onChange={(e) => setDriveUrl(e.target.value)}
+              />
+            </div>
+            {driveError && <p className="text-xs text-rose-600 dark:text-rose-400">{driveError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleAddFromDrive()}
+                disabled={driveLoading || !driveName.trim() || !driveUrl.trim()}
                 className="btn-primary"
               >
-                {uploading ? 'Uploading…' : 'Upload File'}
+                {driveLoading ? 'Fetching…' : 'Fetch & save'}
+              </button>
+              <button
+                onClick={() => { setShowDrive(false); setDriveError(''); setDriveName(''); setDriveUrl(''); }}
+                className="btn-ghost"
+              >
+                Cancel
               </button>
             </div>
           </div>
         )}
-        {!uploadFile && (error || success) && (
-          <div>
-            {error   && <Alert type="error"   message={error} />}
-            {success && <Alert type="success" message={success} />}
-          </div>
-        )}
       </div>
 
+      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleFileChange} />
+
       {documents.length === 0 ? (
-        <p className="text-xs text-zinc-400 py-8 text-center">No resume documents uploaded yet.</p>
+        <p className="text-zinc-400 text-xs text-center py-6">No documents added yet.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {documents.map(doc => (
-            <li key={doc.id} className="flex items-center justify-between px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">{doc.name}</p>
-                <p className="text-[11px] text-zinc-400 font-mono">
-                  {doc.filename}{formatBytes(doc.size) ? ` · ${formatBytes(doc.size)}` : ''}
+        <div className="space-y-1.5">
+          {documents.map((doc) => (
+            <div key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 transition-colors">
+              <div className="w-7 h-7 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0 text-zinc-600 dark:text-zinc-300">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{doc.name}</p>
+                  {doc.drive_url && (
+                    <span className="flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded flex-shrink-0 font-medium">
+                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
+                      </svg>
+                      Drive
+                    </span>
+                  )}
+                  {doc.drive_sync_error && (
+                    <span className="text-[10px] text-rose-500" title={doc.drive_sync_error}>sync error</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                  {doc.filename}
+                  {doc.size ? ` · ${formatBytes(doc.size)}` : ''}
+                  {doc.drive_url && doc.drive_synced_at
+                    ? ` · synced ${new Date(doc.drive_synced_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`
+                    : ` · ${new Date(doc.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}`}
                 </p>
               </div>
+              {doc.drive_url && (
+                <button
+                  onClick={() => void handleSync(doc)}
+                  disabled={syncingId === doc.id}
+                  className="flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline px-2 py-1 rounded transition-colors flex-shrink-0 disabled:opacity-50"
+                  title="Re-fetch file from Google Drive"
+                >
+                  <svg className={`w-3 h-3 ${syncingId === doc.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {syncingId === doc.id ? 'Re-fetching…' : 'Re-fetch'}
+                </button>
+              )}
               <button
-                onClick={() => void del(doc.id)}
-                className="ml-3 shrink-0 p-1 text-zinc-400 hover:text-rose-500 rounded transition-colors"
+                onClick={() => void handleDelete(doc.id, doc.name)}
+                className="text-[11px] font-medium text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded transition-colors flex-shrink-0"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
+                Remove
               </button>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
@@ -998,7 +1187,8 @@ function ProfileContent() {
   const [user,    setUser]    = useState<CrmUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const tab = (searchParams.get('tab') as Tab | null) ?? 'personal';
+  const requested = searchParams.get('tab');
+  const tab = ((requested === 'resume' ? 'documents' : requested) ?? 'personal') as Tab;
 
   function goTab(id: Tab) {
     router.replace(`/profile?tab=${id}`);
@@ -1023,7 +1213,7 @@ function ProfileContent() {
       <div className="pb-1 border-b border-zinc-200/80 dark:border-zinc-800/80">
         <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Candidate Profile</h1>
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-          Your autofill details and resume files — used by the browser extension to fill job applications.
+          Your autofill details and documents — used by the browser extension to fill job applications.
         </p>
       </div>
 
@@ -1053,7 +1243,7 @@ function ProfileContent() {
           {tab === 'personal'  && <PersonalTab  user={user} />}
           {tab === 'work'      && <WorkTab      user={user} />}
           {tab === 'education' && <EducationTab user={user} />}
-          {tab === 'resume'    && <ResumeTab />}
+          {tab === 'documents' && <DocumentsTab />}
           {tab === 'projects'  && <ProjectsTab  initialProjects={user.projects ?? []} />}
           {tab === 'skills'    && <SkillsTab    initialSkills={user.skills ?? []} />}
         </div>

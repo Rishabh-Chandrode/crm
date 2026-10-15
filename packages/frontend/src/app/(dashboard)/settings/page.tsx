@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import type { CrmUser, Document, VariablePreset, VariableSource } from '@/lib/types';
+import type { CrmUser, VariablePreset, VariableSource } from '@/lib/types';
 import { PROSPECT_FIELDS, COMPANY_FIELDS, SENDER_FIELDS, toVariableLabel } from '@/lib/types';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -21,7 +21,7 @@ const EMPTY_PRESET = {
   key: '', label: '', source: 'prospect' as VariableSource, field: '', default_value: '',
 };
 
-type Section = 'appearance' | 'documents' | 'variables' | 'gmail';
+type Section = 'appearance' | 'variables' | 'gmail';
 
 const NAV: { id: Section; label: string; description: string; icon: React.ReactNode }[] = [
   {
@@ -32,17 +32,6 @@ const NAV: { id: Section; label: string; description: string; icon: React.ReactN
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
           d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'documents',
-    label: 'Documents',
-    description: 'Attachments for email sends',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
   },
@@ -68,15 +57,6 @@ const NAV: { id: Section; label: string; description: string; icon: React.ReactN
     ),
   },
 ];
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 // ─── shared sub-components ────────────────────────────────────────────────────
 
@@ -515,268 +495,6 @@ function GmailSection() {
   );
 }
 
-// ─── documents section ────────────────────────────────────────────────────────
-
-function DocumentsSection() {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [name, setName]           = useState('');
-  const [error, setError]         = useState('');
-  const [success, setSuccess]     = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-
-  const [showDrive, setShowDrive]     = useState(false);
-  const [driveName, setDriveName]     = useState('');
-  const [driveUrl, setDriveUrl]       = useState('');
-  const [driveLoading, setDriveLoading] = useState(false);
-  const [driveError, setDriveError]   = useState('');
-  const [syncingId, setSyncingId]     = useState<string | null>(null);
-
-  useEffect(() => {
-    api.documents.list().then((r) => setDocuments(r.data)).catch(console.error);
-  }, []);
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingFile(file);
-    if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '));
-  }
-
-  async function handleUpload() {
-    if (!pendingFile) { fileRef.current?.click(); return; }
-    if (!name.trim()) { setError('Please enter a label for this document'); return; }
-    setError(''); setSuccess(''); setUploading(true);
-    try {
-      const r = await api.documents.upload(pendingFile, name.trim());
-      setDocuments((prev) => [r.data, ...prev]);
-      setSuccess(`"${r.data.name}" uploaded.`);
-      setName(''); setPendingFile(null);
-      if (fileRef.current) fileRef.current.value = '';
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
-    } finally { setUploading(false); }
-  }
-
-  async function handleAddFromDrive() {
-    if (!driveName.trim() || !driveUrl.trim()) return;
-    setDriveError('');
-    setDriveLoading(true);
-    try {
-      const r = await api.documents.fromDrive(driveName.trim(), driveUrl.trim());
-      setDocuments((prev) => [r.data, ...prev]);
-      setSuccess(`"${r.data.name}" linked from Drive.`);
-      setDriveName(''); setDriveUrl(''); setShowDrive(false);
-    } catch (err) {
-      setDriveError(err instanceof Error ? err.message : 'Failed to fetch from Drive');
-    } finally { setDriveLoading(false); }
-  }
-
-  async function handleSync(doc: Document) {
-    setError(''); setSuccess(''); setSyncingId(doc.id);
-    try {
-      const r = await api.documents.sync(doc.id);
-      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? r.data : d)));
-      setSuccess(`"${doc.name}" updated from Google Drive.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to re-fetch document from Google Drive');
-    } finally {
-      setSyncingId(null);
-    }
-  }
-
-  async function handleDelete(id: string, docName: string) {
-    if (!confirm(`Remove "${docName}"?`)) return;
-    setError(''); setSuccess('');
-    try {
-      await api.documents.delete(id);
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
-      setSuccess(`"${docName}" removed.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed');
-    }
-  }
-
-  return (
-    <div>
-      <SectionHeader
-        title="Documents"
-        description="Upload resumes, cover letters, and portfolios to attach to outreach emails. Drive-linked files can be manually re-fetched on demand."
-      />
-
-      {error   && <Alert type="error"   message={error} />}
-      {success && <Alert type="success" message={success} />}
-
-      {/* Upload card */}
-      <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 space-y-3 mb-4">
-        <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Upload a file</p>
-        <div>
-          <label className="form-label text-xs">Label *</label>
-          <input
-            className="form-input text-xs"
-            placeholder="e.g. Backend Resume, Cover Letter – Stripe"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="form-label text-xs">
-            File * <span className="text-zinc-400 font-normal">(PDF, DOC, DOCX · max 10 MB)</span>
-          </label>
-          {pendingFile ? (
-            <div className="flex items-center gap-2.5 px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-xs">
-              <svg className="w-4 h-4 text-zinc-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="flex-1 truncate text-zinc-800 dark:text-zinc-200 font-medium">{pendingFile.name}</span>
-              <button
-                onClick={() => { setPendingFile(null); if (fileRef.current) fileRef.current.value = ''; }}
-                className="text-zinc-400 hover:text-rose-500 transition-colors p-1"
-              >✕</button>
-            </div>
-          ) : (
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="flex items-center justify-center gap-2 w-full border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 rounded-lg px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors bg-white/50 dark:bg-zinc-900/30"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              Choose file to upload
-            </button>
-          )}
-        </div>
-        <button
-          onClick={() => void handleUpload()}
-          disabled={uploading || !pendingFile || !name.trim()}
-          className="btn-primary"
-        >
-          {uploading ? 'Uploading…' : 'Upload document'}
-        </button>
-      </div>
-
-      {/* Drive link */}
-      <div className="bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 mb-4">
-        <button
-          onClick={() => { setShowDrive((v) => !v); setDriveError(''); }}
-          className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors w-full text-left cursor-pointer"
-        >
-          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
-          </svg>
-          Link from Google Drive / Docs
-          <svg className={`w-3.5 h-3.5 text-zinc-400 ml-auto transition-transform ${showDrive ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {showDrive && (
-          <div className="mt-3 space-y-2.5 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Paste a public Google Drive or Google Docs link. The document will be cached locally and can be re-fetched on demand.
-            </p>
-            <div>
-              <label className="form-label text-xs">Label *</label>
-              <input
-                className="form-input text-xs"
-                placeholder="e.g. My Resume"
-                value={driveName}
-                onChange={(e) => setDriveName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="form-label text-xs">Google Drive URL *</label>
-              <input
-                className="form-input text-xs"
-                placeholder="https://drive.google.com/file/d/… or docs.google.com/document/d/…"
-                value={driveUrl}
-                onChange={(e) => setDriveUrl(e.target.value)}
-              />
-            </div>
-            {driveError && <p className="text-xs text-rose-600 dark:text-rose-400">{driveError}</p>}
-            <div className="flex gap-2">
-              <button
-                onClick={() => void handleAddFromDrive()}
-                disabled={driveLoading || !driveName.trim() || !driveUrl.trim()}
-                className="btn-primary"
-              >
-                {driveLoading ? 'Fetching…' : 'Fetch & save'}
-              </button>
-              <button
-                onClick={() => { setShowDrive(false); setDriveError(''); setDriveName(''); setDriveUrl(''); }}
-                className="btn-ghost"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleFileChange} />
-
-      {documents.length === 0 ? (
-        <p className="text-zinc-400 text-xs text-center py-6">No documents added yet.</p>
-      ) : (
-        <div className="space-y-1.5">
-          {documents.map((doc) => (
-            <div key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 transition-colors">
-              <div className="w-7 h-7 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0 text-zinc-600 dark:text-zinc-300">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{doc.name}</p>
-                  {doc.drive_url && (
-                    <span className="flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded flex-shrink-0 font-medium">
-                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M6.28 3l5.74 9.94L6.28 21H2.1l5.74-9.94L2.1 3h4.18zm7.44 0l5.74 9.94-5.74 9.06h-4.18l5.74-9.06L9.54 3h4.18z"/>
-                      </svg>
-                      Drive
-                    </span>
-                  )}
-                  {doc.drive_sync_error && (
-                    <span className="text-[10px] text-rose-500" title={doc.drive_sync_error}>sync error</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                  {doc.filename}
-                  {doc.size ? ` · ${formatBytes(doc.size)}` : ''}
-                  {doc.drive_url && doc.drive_synced_at
-                    ? ` · synced ${new Date(doc.drive_synced_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`
-                    : ` · ${new Date(doc.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}`}
-                </p>
-              </div>
-              {doc.drive_url && (
-                <button
-                  onClick={() => void handleSync(doc)}
-                  disabled={syncingId === doc.id}
-                  className="flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline px-2 py-1 rounded transition-colors flex-shrink-0 disabled:opacity-50"
-                  title="Re-fetch file from Google Drive"
-                >
-                  <svg className={`w-3 h-3 ${syncingId === doc.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  {syncingId === doc.id ? 'Re-fetching…' : 'Re-fetch'}
-                </button>
-              )}
-              <button
-                onClick={() => void handleDelete(doc.id, doc.name)}
-                className="text-[11px] font-medium text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded transition-colors flex-shrink-0"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── variable presets section ─────────────────────────────────────────────────
 
 function VariablesSection() {
@@ -994,7 +712,7 @@ function SettingsContent() {
 
   const tabParam = searchParams.get('tab') as Section | null;
   const [active, setActive] = useState<Section>(
-    tabParam && ['appearance', 'documents', 'variables', 'gmail'].includes(tabParam)
+    tabParam && ['appearance', 'variables', 'gmail'].includes(tabParam)
       ? tabParam
       : 'appearance'
   );
@@ -1044,7 +762,6 @@ function SettingsContent() {
         <div className="flex-1 card p-5 min-w-0">
           <p className="sr-only">{current.label}</p>
           {active === 'appearance' && <AppearanceSection />}
-          {active === 'documents'  && <DocumentsSection />}
           {active === 'variables'  && <VariablesSection />}
           {active === 'gmail'      && <GmailSection />}
         </div>

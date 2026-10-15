@@ -178,14 +178,14 @@ Variable presets (Settings → Template Variables) let you wire up a key once an
 
 ## Documents & Drive sync
 
-Documents are managed in **Settings → Documents**. Two ways to add:
+Documents are managed in **Profile → Documents**. Two ways to add:
 
 - **Upload** — upload a PDF/DOC/DOCX from your machine (max 10 MB).
-- **Link from Google Drive** — paste a public Google Drive or Google Docs/Slides/Sheets URL. The file is downloaded immediately and stored locally. Every 2 hours the scheduler re-fetches it so the local copy stays current with whatever is in Drive.
+- **Link from Google Drive** — paste a public Google Drive or Google Docs/Slides/Sheets URL. The file is downloaded immediately and stored locally. **Re-fetch** updates one file. **Refetch daily** turns on a once-a-day refresh of every Drive-linked document.
 
 If a Drive-linked file is deleted from Drive (or its sharing is revoked), the next sync automatically removes it from the system and cleans it out of any templates that referenced it.
 
-Attach documents to templates in the template editor (Settings → Documents → pick the template). Attached documents are sent as real file attachments — not links.
+Attach documents to templates in the template editor. The same Profile → Documents files are what the browser extension attaches when autofilling a job application. Attached documents are sent as real file attachments — not links.
 
 ---
 

@@ -117,6 +117,15 @@ export function prospectFullName(p: Pick<Prospect, 'first_name' | 'last_name'>):
   return [p.first_name, p.last_name].filter(Boolean).join(' ');
 }
 
+export function formatTemplateLabel(
+  template: { name: string; version?: number | null; deleted_at?: string | Date | null } | null | undefined,
+): string {
+  if (!template?.name) return '';
+  const version = template.version && template.version > 0 ? template.version : 1;
+  const base = `${template.name} v${version}`;
+  return template.deleted_at ? `${base} · Deleted` : base;
+}
+
 export function getGmailSearchUrl(query: {
   to?: string | null;
   subject?: string | null;
@@ -174,6 +183,9 @@ export interface EmailTemplate {
   job_description: string | null;
   variables: TemplateVariable[];
   document_ids: string[];
+  version: number;
+  family_id: string;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -199,7 +211,7 @@ export interface EmailSend {
   created_at: string;
   prospect?: { first_name: string; last_name: string | null; email: string; job_title?: string | null };
   company?: { name: string };
-  template?: { name: string };
+  template?: { name: string; version?: number | null; deleted_at?: string | null };
   job?: Pick<Job, 'id' | 'title' | 'job_url'>;
 }
 
@@ -221,12 +233,17 @@ export interface EmailSchedule {
   created_at: string;
   sent_at: string | null;
   company?: { name: string };
-  template?: { name: string; subject?: string };
+  template?: { name: string; subject?: string; version?: number | null; deleted_at?: string | null };
   job?: Pick<Job, 'id' | 'title' | 'job_url'>;
 }
 
 export interface EmailScheduleDetail extends EmailSchedule {
   prospects: { id: string; first_name: string; last_name: string | null; email: string; job_title: string | null }[];
+}
+
+export interface DocumentDailySync {
+  enabled: boolean;
+  last_synced_at: string | null;
 }
 
 export interface Document {

@@ -19,9 +19,8 @@ export function getEmailProviderForUser(input: UserEmailCredentials): EmailProvi
   let provider: EmailProvider;
 
   if (input.method === 'oauth') {
-    const { gmailUser, refreshToken, fromName } = input.creds;
-    key = `oauth:${gmailUser}:${refreshToken}:${fromName}`;
-    if (!_cache.has(key)) _cache.set(key, new GmailRestApiProvider(input.creds));
+    // Do not cache: each send carries the latest access token, which expires within an hour.
+    return new GmailRestApiProvider(input.creds);
   } else {
     const { gmailUser, appPassword, fromName } = input.creds;
     key = `app:${gmailUser}:${appPassword}:${fromName}`;

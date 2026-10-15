@@ -195,8 +195,10 @@ export const api = {
 
 
   templates: {
-    list: () =>
-      request<{ data: import('./types').EmailTemplate[] }>('/templates'),
+    list: (params?: { all?: boolean }) =>
+      request<{ data: import('./types').EmailTemplate[] }>(
+        params?.all ? '/templates?all=true' : '/templates',
+      ),
     get: (id: string) =>
       request<{ data: import('./types').EmailTemplate }>(`/templates/${id}`),
     create: (body: Partial<import('./types').EmailTemplate>) =>
@@ -211,6 +213,8 @@ export const api = {
       }),
     delete: (id: string) =>
       request<{ data: { id: string } }>(`/templates/${id}`, { method: 'DELETE' }),
+    deleteOlderVersions: (id: string) =>
+      request<{ data: { ids: string[] } }>(`/templates/${id}/older-versions`, { method: 'DELETE' }),
     detectVariables: (id: string, existing: import('./types').TemplateVariable[]) =>
       request<{
         data: {
@@ -355,6 +359,15 @@ export const api = {
       request<{ data: import('./types').Document }>(`/documents/${id}/sync`, {
         method: 'POST',
       }),
+    dailySync: {
+      get: () =>
+        request<{ data: import('./types').DocumentDailySync }>('/documents/daily-sync'),
+      set: (enabled: boolean) =>
+        request<{ data: import('./types').DocumentDailySync }>('/documents/daily-sync', {
+          method: 'PUT',
+          body: JSON.stringify({ enabled }),
+        }),
+    },
     delete: (id: string) =>
       request<{ data: { id: string } }>(`/documents/${id}`, { method: 'DELETE' }),
   },
@@ -388,6 +401,8 @@ export const api = {
         recentApplications?: import('./types').JobApplication[];
         readyToApplyApplications?: import('./types').JobApplication[];
         readyToApplyCount?: number;
+        referralSentApplications?: import('./types').JobApplication[];
+        referralSentCount?: number;
         notAppliedApplications?: import('./types').JobApplication[];
         notAppliedCount?: number;
         activeInterviewApplications?: import('./types').JobApplication[];

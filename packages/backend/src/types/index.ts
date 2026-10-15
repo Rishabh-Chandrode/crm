@@ -86,8 +86,16 @@ export interface EmailTemplate {
   job_description: string | null;
   variables: TemplateVariable[];
   document_ids: string[];
+  version: number;
+  family_id: string;
+  deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface DocumentDailySync {
+  enabled: boolean;
+  last_synced_at: Date | null;
 }
 
 export interface Document {
@@ -125,7 +133,7 @@ export interface EmailSend {
   created_at: Date;
   prospect?: Pick<Prospect, 'first_name' | 'last_name' | 'email'>;
   company?: Pick<Company, 'name'>;
-  template?: Pick<EmailTemplate, 'name'>;
+  template?: Pick<EmailTemplate, 'name' | 'version' | 'deleted_at'>;
   job?: Pick<Job, 'id' | 'title' | 'job_url'>;
 }
 

@@ -17,18 +17,18 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Revamped Mission Control: Priority Action Center, 4-KPI grid, direct shortcuts, and live email tracking
+│       ├── dashboard/page.tsx     # Priority Action Center first (recent referral send counts, then feeds)
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
-│       ├── templates/page.tsx     # Template CRUD + variable manager with customizable gender-aware salutations (Sir/Ma'am)
-│       ├── send/page.tsx          # Multi-step send wizard & quick compose
+│       ├── templates/page.tsx     # One card per template (latest version). Attachment badges count only documents that still exist
+│       ├── send/page.tsx          # Template and version dropdowns; All selects every prospect and checks those boxes by default
 │       ├── history/page.tsx       # Paginated email send log with open tracking
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel
 │       ├── jobs/page.tsx          # Redirects /jobs → /applications
 │       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + waiting period + stages
-│       ├── profile/page.tsx       # Full profile editor — personal, professional, preferences
-│       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, Documents, Variables
+│       ├── profile/page.tsx       # Profile editor — personal, work, education, documents, projects, skills
+│       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, & quick theme switcher
@@ -129,6 +129,7 @@ api.email.retry(id)
 // Schedules, Documents, Variable Presets, Stats, Import
 api.schedules.list() / .create() / .get(id) / .cancel(id) / .quick()
 api.documents.list() / .upload(file, name) / .fromDrive(name, url) / .sync(id) / .delete(id) / .download(id)
+api.documents.dailySync.get() / .set(enabled)   // Profile → Documents daily Drive refetch
 api.variablePresets.list() / .create() / .update() / .delete()
 api.stats.get()
 api.import.parse(file)
@@ -205,7 +206,7 @@ pnpm test:watch
 ```
 
 Test suites live in `src/__tests__/`:
-- `dashboard.test.tsx` — Dashboard UI rendering, stats cards, 14-day continuous activity timeline chart, responsive mid-size breakpoint (1024px) layout, loading skeletons, and empty states
+- `dashboard.test.tsx` — Priority Action Center rendering, filters, dismissals, loading skeletons, and empty states
 - `applications.test.tsx` — Applications tracker page, status summary cards, interactive status filters, full application editing modal, manual application creation, and referral outreach email history modal with Send History and Gmail navigation
 - `history.test.tsx` — Email history log viewer, status filter pills, search query parameter support, Open in Gmail integration, and delivery retry
 - `jobs.test.tsx` — Jobs & referral outreach tracker, KPI summary cards, status filters, create/edit modals, and email history drawer

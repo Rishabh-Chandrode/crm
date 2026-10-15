@@ -14,6 +14,7 @@ export interface TemplateVariable {
 export interface TemplateInfo {
   id: string;
   name: string;
+  version: number;
   variables: TemplateVariable[];
 }
 
@@ -163,6 +164,11 @@ export interface ScrapeErrorMessage {
 
 export interface TriggerScrapeMessage {
   action: 'triggerScrape';
+}
+
+export interface DocumentDailySync {
+  enabled: boolean;
+  last_synced_at: string | null;
 }
 
 export interface Document {

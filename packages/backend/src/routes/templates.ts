@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/index.js';
 import { ownerFilter } from '../middleware/ownerFilter.js';
 import type { EmailTemplate, TemplateVariable } from '../types/index.js';
+import { liveDocumentIds, pruneMissingDocumentRefs } from '../services/documentRefs.js';
 import { extractPlaceholders, toVariableLabel } from '../services/templateEngine.js';
 import type { VariablePreset } from './variable-presets.js';
 
@@ -9,11 +10,23 @@ const router: ReturnType<typeof Router> = Router();
 
 router.get('/', async (req, res, next) => {
   try {
+    await pruneMissingDocumentRefs();
+    const includeAll = req.query.all === 'true';
     const { sql, value } = ownerFilter(req.user!, 'email_templates', 1);
-    const where = sql ? `WHERE ${sql}` : '';
     const params = value ? [value] : [];
+    const ownerAnd = sql ? `AND ${sql}` : '';
+    const ownerWhere = sql ? `WHERE ${sql}` : '';
+
     const result = await pool.query<EmailTemplate>(
-      `SELECT * FROM email_templates ${where} ORDER BY name ASC`,
+      includeAll
+        ? `SELECT * FROM email_templates ${ownerWhere} ORDER BY name ASC, version DESC`
+        : `SELECT * FROM (
+             SELECT DISTINCT ON (family_id) *
+             FROM email_templates
+             WHERE deleted_at IS NULL ${ownerAnd}
+             ORDER BY family_id, version DESC
+           ) latest
+           ORDER BY name ASC`,
       params
     );
     res.json({ data: result.rows });
@@ -32,8 +45,12 @@ router.post('/', async (req, res, next) => {
     if (!body?.trim()) { res.status(400).json({ error: 'body is required' }); return; }
 
     const result = await pool.query<EmailTemplate>(
-      `INSERT INTO email_templates (name, description, subject, body, job_description, variables, document_ids, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO email_templates (
+         id, family_id, name, description, subject, body, job_description, variables, document_ids, created_by, version
+       )
+       SELECT s.id, s.id, $1, $2, $3, $4, $5, $6, $7, $8, 1
+       FROM (SELECT uuid_generate_v4() AS id) s
+       RETURNING *`,
       [
         name.trim(),
         description ?? null,
@@ -41,7 +58,7 @@ router.post('/', async (req, res, next) => {
         body,
         job_description ?? null,
         JSON.stringify(variables ?? []),
-        document_ids ?? [],
+        await liveDocumentIds(document_ids ?? []),
         req.user!.id,
       ]
     );
@@ -63,11 +80,13 @@ router.get('/:id', async (req, res, next) => {
       `SELECT * FROM email_templates WHERE id = $1 ${ownerWhere}`,
       params
     );
-    if (!result.rows[0]) {
+    const template = result.rows[0];
+    if (!template) {
       res.status(404).json({ error: 'Template not found' });
       return;
     }
-    res.json({ data: result.rows[0] });
+    template.document_ids = await liveDocumentIds(template.document_ids ?? []);
+    res.json({ data: template });
   } catch (err) {
     next(err);
   }
@@ -79,43 +98,101 @@ router.patch('/:id', async (req, res, next) => {
     const { name, description, subject, body, job_description, variables, document_ids } =
       req.body as Partial<EmailTemplate>;
 
-    const fields: string[] = [];
-    const values: unknown[] = [];
-
-    const add = (col: string, val: unknown) => {
-      fields.push(`${col} = $${fields.length + 1}`);
-      values.push(val);
-    };
-
-    if (name !== undefined) add('name', name);
-    if (description !== undefined) add('description', description);
-    if (subject !== undefined) add('subject', subject);
-    if (body !== undefined) add('body', body);
-    if (job_description !== undefined) add('job_description', job_description);
-    if (variables !== undefined) add('variables', JSON.stringify(variables));
-    if (document_ids !== undefined) add('document_ids', document_ids);
-
-    if (fields.length === 0) {
-      res.status(400).json({ error: 'No fields to update' });
-      return;
-    }
-
-    fields.push('updated_at = NOW()');
-    values.push(id);
-
-    const { sql, value } = ownerFilter(req.user!, 'email_templates', values.length + 1);
+    const { sql, value } = ownerFilter(req.user!, 'email_templates', 2);
     const ownerWhere = sql ? `AND ${sql}` : '';
-    if (value) values.push(value);
+    const params: unknown[] = [id];
+    if (value) params.push(value);
 
-    const result = await pool.query<EmailTemplate>(
-      `UPDATE email_templates SET ${fields.join(', ')} WHERE id = $${values.length - (value ? 1 : 0)} ${ownerWhere} RETURNING *`,
-      values
+    const existing = await pool.query<EmailTemplate & { created_by: string | null }>(
+      `SELECT * FROM email_templates WHERE id = $1 ${ownerWhere}`,
+      params
     );
-    if (!result.rows[0]) {
+    const source = existing.rows[0];
+    if (!source) {
       res.status(404).json({ error: 'Template not found' });
       return;
     }
-    res.json({ data: result.rows[0] });
+    if (source.deleted_at) {
+      res.status(400).json({ error: 'Deleted templates cannot be edited' });
+      return;
+    }
+
+    const nextName = (name ?? source.name).trim();
+    const nextSubject = (subject ?? source.subject).trim();
+    const nextBody = body ?? source.body;
+    if (!nextName || !nextSubject || !nextBody.trim()) {
+      res.status(400).json({ error: 'name, subject, and body are required' });
+      return;
+    }
+
+    const versionRes = await pool.query<{ version: number }>(
+      `SELECT COALESCE(MAX(version), 0) + 1 AS version FROM email_templates WHERE family_id = $1`,
+      [source.family_id]
+    );
+    const nextVersion = versionRes.rows[0]!.version;
+
+    const inserted = await pool.query<EmailTemplate>(
+      `INSERT INTO email_templates (
+         name, description, subject, body, job_description, variables, document_ids, created_by, version, family_id
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        nextName,
+        description !== undefined ? description : source.description,
+        nextSubject,
+        nextBody,
+        job_description !== undefined ? job_description : source.job_description,
+        JSON.stringify(variables ?? source.variables),
+        await liveDocumentIds(document_ids ?? source.document_ids ?? []),
+        source.created_by ?? req.user!.id,
+        nextVersion,
+        source.family_id,
+      ]
+    );
+    res.json({ data: inserted.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:id/older-versions', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { sql, value } = ownerFilter(req.user!, 'email_templates', 2);
+    const ownerWhere = sql ? `AND ${sql}` : '';
+    const params: unknown[] = [id];
+    if (value) params.push(value);
+
+    const source = await pool.query<{ family_id: string }>(
+      `SELECT family_id FROM email_templates WHERE id = $1 ${ownerWhere}`,
+      params
+    );
+    if (!source.rows[0]) {
+      res.status(404).json({ error: 'Template not found' });
+      return;
+    }
+
+    const familyId = source.rows[0].family_id;
+    const { sql: delSql, value: delValue } = ownerFilter(req.user!, 'email_templates', 2);
+    const delOwner = delSql ? `AND ${delSql}` : '';
+    const delParams: unknown[] = [familyId];
+    if (delValue) delParams.push(delValue);
+
+    const result = await pool.query<{ id: string }>(
+      `UPDATE email_templates
+       SET deleted_at = NOW(), updated_at = NOW()
+       WHERE family_id = $1
+         AND deleted_at IS NULL
+         AND version < (
+           SELECT MAX(version) FROM email_templates
+           WHERE family_id = $1 AND deleted_at IS NULL
+         )
+         ${delOwner}
+       RETURNING id`,
+      delParams
+    );
+    res.json({ data: { ids: result.rows.map((row) => row.id) } });
   } catch (err) {
     next(err);
   }
@@ -130,7 +207,10 @@ router.delete('/:id', async (req, res, next) => {
     if (value) params.push(value);
 
     const result = await pool.query<{ id: string }>(
-      `DELETE FROM email_templates WHERE id = $1 ${ownerWhere} RETURNING id`,
+      `UPDATE email_templates
+       SET deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL ${ownerWhere}
+       RETURNING id`,
       params
     );
     if (!result.rows[0]) {

@@ -12,7 +12,7 @@ router.get('/', async (req, res, next) => {
     const result = await pool.query(
       `SELECT es.*,
               json_build_object('name', c.name) AS company,
-              json_build_object('name', t.name) AS template,
+              json_build_object('name', t.name, 'version', t.version, 'deleted_at', t.deleted_at) AS template,
               CASE WHEN j.id IS NOT NULL THEN
                 json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url)
               ELSE NULL END AS job
@@ -40,7 +40,7 @@ router.get('/:id', async (req, res, next) => {
     const result = await pool.query(
       `SELECT es.*,
               json_build_object('name', c.name) AS company,
-              json_build_object('name', t.name, 'subject', t.subject) AS template,
+              json_build_object('name', t.name, 'subject', t.subject, 'version', t.version, 'deleted_at', t.deleted_at) AS template,
               CASE WHEN j.id IS NOT NULL THEN
                 json_build_object('id', j.id, 'title', j.title, 'job_url', j.job_url)
               ELSE NULL END AS job

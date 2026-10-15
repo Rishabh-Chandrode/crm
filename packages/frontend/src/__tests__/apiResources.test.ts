@@ -80,6 +80,33 @@ describe('Frontend API Client Resource Domains', () => {
   });
 
   describe('Templates Resource', () => {
+    it('api.templates.list requests every version when all is set', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
+
+      await api.templates.list({ all: true });
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/templates?all=true'),
+        expect.anything()
+      );
+    });
+
+    it('api.templates.deleteOlderVersions sends DELETE /templates/:id/older-versions', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { ids: ['t-1'] } }),
+      });
+
+      const res = await api.templates.deleteOlderVersions('t-2');
+      expect(res.data.ids).toEqual(['t-1']);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/templates/t-2/older-versions'),
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+
     it('api.templates.get sends GET /templates/:id', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -190,6 +217,20 @@ describe('Frontend API Client Resource Domains', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/documents/doc-1/sync'),
         expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it('api.documents.dailySync.set sends PUT /documents/daily-sync', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { enabled: true, last_synced_at: '2026-10-14T04:00:00.000Z' } }),
+      });
+
+      const res = await api.documents.dailySync.set(true);
+      expect(res.data.enabled).toBe(true);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/documents/daily-sync'),
+        expect.objectContaining({ method: 'PUT', body: JSON.stringify({ enabled: true }) })
       );
     });
   });

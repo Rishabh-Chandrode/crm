@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { formatTemplateLabel } from '@/lib/types';
 import type { EmailSchedule, EmailScheduleDetail } from '@/lib/types';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -170,7 +171,7 @@ function ScheduleRow({
               {schedule.status}
             </span>
             <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-              {schedule.template?.name ?? 'Quick Email / Template'}
+              {formatTemplateLabel(schedule.template) || 'Quick Email / Template'}
             </span>
             {schedule.company?.name && (
               <>
@@ -242,7 +243,7 @@ function ScheduleRow({
               <div className="space-y-3">
                 <div>
                   <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Template</p>
-                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{detail.template?.name ?? '—'}</p>
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{formatTemplateLabel(detail.template) || '—'}</p>
                   {detail.template?.subject && (
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">Subject: {detail.template.subject}</p>
                   )}

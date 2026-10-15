@@ -9,6 +9,7 @@ import {
   type JobStatus,
   type VariableSource,
   type Document,
+  type DocumentDailySync,
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
@@ -135,6 +136,12 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(doc.name).toBe('My Resume');
     expect(doc.drive_url).toBe('https://docs.google.com/document/d/123/edit');
     expect(doc.size).toBe(1024);
+  });
+
+  it('describes the daily document refetch preference', () => {
+    const pref: DocumentDailySync = { enabled: false, last_synced_at: null };
+    expect(pref.enabled).toBe(false);
+    expect(pref.last_synced_at).toBeNull();
   });
 
   it('validates Job and JobStatus contracts', () => {

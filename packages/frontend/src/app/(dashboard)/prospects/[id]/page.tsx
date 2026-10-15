@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { prospectFullName } from '@/lib/types';
+import { prospectFullName, formatTemplateLabel } from '@/lib/types';
 import type { Prospect, Company, EmailSend } from '@/lib/types';
 
 interface ProspectFormData {
@@ -270,7 +270,7 @@ export default function ProspectDetailPage() {
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{e.subject ?? '(no subject)'}</div>
                 <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
-                  {e.template?.name && <span className="font-semibold text-slate-600 dark:text-slate-300">{e.template.name}</span>}
+                  {e.template?.name && <span className="font-semibold text-slate-600 dark:text-slate-300">{formatTemplateLabel(e.template)}</span>}
                   <span>·</span>
                   <span>{formatDate(e.created_at)}</span>
                   {e.open_count > 0 && (

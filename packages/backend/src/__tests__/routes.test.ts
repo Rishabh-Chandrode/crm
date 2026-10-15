@@ -92,6 +92,170 @@ describe('Backend API Feature Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('error');
     });
+
+    it('creates version 1 of a new template family', async () => {
+      const spy = vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rows: [{ id: 't-1', family_id: 't-1', name: 'referral', version: 1, subject: 'Hi', body: 'Hello' }],
+      } as any);
+
+      const res = await request(app)
+        .post('/api/templates')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ name: 'referral', subject: 'Hi', body: 'Hello' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.version).toBe(1);
+      expect(String(spy.mock.calls[0]?.[0])).toContain('family_id');
+      expect(String(spy.mock.calls[0]?.[0])).toContain(', 1');
+    });
+
+    it('inserts the next version instead of overwriting on update', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 't-1',
+            family_id: 'fam-1',
+            name: 'referral',
+            subject: 'Hi',
+            body: 'Hello',
+            description: null,
+            job_description: null,
+            variables: [],
+            document_ids: [],
+            created_by: 'u-1',
+            deleted_at: null,
+            version: 1,
+          }],
+        } as any)
+        .mockResolvedValueOnce({ rows: [{ version: 2 }] } as any)
+        .mockResolvedValueOnce({
+          rows: [{ id: 't-2', family_id: 'fam-1', name: 'referral', version: 2, subject: 'Hi there', body: 'Hello again' }],
+        } as any);
+
+      const res = await request(app)
+        .patch('/api/templates/t-1')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ name: 'referral', subject: 'Hi there', body: 'Hello again' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.id).toBe('t-2');
+      expect(res.body.data.version).toBe(2);
+      expect(String(vi.mocked(pool.query).mock.calls[2]?.[0])).toContain('INSERT INTO email_templates');
+    });
+
+    it('rejects edits to a deleted template', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rows: [{
+          id: 't-1',
+          family_id: 'fam-1',
+          name: 'referral',
+          subject: 'Hi',
+          body: 'Hello',
+          deleted_at: new Date().toISOString(),
+          version: 1,
+          variables: [],
+          document_ids: [],
+        }],
+      } as any);
+
+      const res = await request(app)
+        .patch('/api/templates/t-1')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ name: 'referral', subject: 'Hi', body: 'Hello again' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/deleted/i);
+    });
+
+    it('soft-deletes one template version', async () => {
+      const spy = vi.spyOn(pool, 'query').mockResolvedValueOnce({ rows: [{ id: 't-1' }] } as any);
+
+      const res = await request(app)
+        .delete('/api/templates/t-1')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.id).toBe('t-1');
+      expect(String(spy.mock.calls[0]?.[0])).toContain('deleted_at = NOW()');
+      expect(String(spy.mock.calls[0]?.[0])).not.toContain('DELETE FROM');
+    });
+
+    it('soft-deletes older versions and leaves the latest live', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ family_id: 'fam-1' }] } as any)
+        .mockResolvedValueOnce({ rows: [{ id: 't-1' }] } as any);
+
+      const res = await request(app)
+        .delete('/api/templates/t-2/older-versions')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.ids).toEqual(['t-1']);
+      const sql = String(vi.mocked(pool.query).mock.calls[1]?.[0]);
+      expect(sql).toContain('version <');
+      expect(sql).toContain('MAX(version)');
+    });
+
+    it('lists only the latest live version by default', async () => {
+      const spy = vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [] } as any)
+        .mockResolvedValueOnce({ rows: [] } as any)
+        .mockResolvedValueOnce({
+          rows: [{ id: 't-2', name: 'referral', version: 2, deleted_at: null }],
+        } as any);
+
+      const res = await request(app)
+        .get('/api/templates')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(String(spy.mock.calls[0]?.[0])).toContain('UPDATE email_templates');
+      expect(String(spy.mock.calls[2]?.[0])).toContain('DISTINCT ON (family_id)');
+      expect(String(spy.mock.calls[2]?.[0])).toContain('deleted_at IS NULL');
+      expect(res.body.data[0].version).toBe(2);
+    });
+
+    it('drops document ids that no longer exist when creating a template', async () => {
+      const spy = vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 'doc-live' }] } as any)
+        .mockResolvedValueOnce({
+          rows: [{ id: 't-1', family_id: 't-1', name: 'referral', version: 1, document_ids: ['doc-live'] }],
+        } as any);
+
+      const res = await request(app)
+        .post('/api/templates')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          name: 'referral',
+          subject: 'Hi',
+          body: 'Hello',
+          document_ids: ['doc-gone', 'doc-live'],
+        });
+
+      expect(res.status).toBe(201);
+      expect(String(spy.mock.calls[0]?.[0])).toContain('FROM documents');
+      expect(spy.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([['doc-live']]));
+    });
+
+    it('lists every version including deleted ones when all=true', async () => {
+      const spy = vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [] } as any)
+        .mockResolvedValueOnce({ rows: [] } as any)
+        .mockResolvedValueOnce({
+          rows: [
+            { id: 't-2', name: 'referral', version: 2, deleted_at: null },
+            { id: 't-1', name: 'referral', version: 1, deleted_at: '2026-01-01' },
+          ],
+        } as any);
+
+      const res = await request(app)
+        .get('/api/templates?all=true')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(String(spy.mock.calls[2]?.[0])).toContain('version DESC');
+      expect(res.body.data).toHaveLength(2);
+    });
   });
 
   describe('Job Applications API (/api/applications)', () => {
@@ -261,6 +425,10 @@ describe('Backend API Feature Routes', () => {
   describe('Stats API (/api/stats)', () => {
     it('returns dashboard statistics including readyToApply metrics', async () => {
       vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rowCount: 0 } as any) // link unassigned sends
+        .mockResolvedValueOnce({ rowCount: 0 } as any) // mark jobs referral_requested
+        .mockResolvedValueOnce({ rowCount: 0 } as any) // create missing applications
+        .mockResolvedValueOnce({ rowCount: 0 } as any) // promote saved apps that already have sends
         .mockResolvedValueOnce({ rows: [{ companies: '5', prospects: '20', templates: '3', applications: '8' }] } as any) // counts
         .mockResolvedValueOnce({ rows: [{ status: 'sent', count: '10', opened: '4' }] } as any) // emailStats
         .mockResolvedValueOnce({ rows: [{ category: 'engineer', count: '15' }] } as any) // category
@@ -282,6 +450,17 @@ describe('Backend API Feature Routes', () => {
             },
           ],
         } as any) // readyToApply
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'app-sent-1',
+              company_name: 'Notion',
+              job_title: 'Product Engineer',
+              status: 'referral_requested',
+              email_count: 5,
+            },
+          ],
+        } as any) // referralSent within 2 days
         .mockResolvedValueOnce({
           rows: [
             {
@@ -324,6 +503,8 @@ describe('Backend API Feature Routes', () => {
       expect(res.body).toHaveProperty('readyToApplyCount', 1);
       expect(res.body.readyToApplyApplications).toHaveLength(1);
       expect(res.body.readyToApplyApplications[0].job_title).toBe('Staff Engineer');
+      expect(res.body).toHaveProperty('referralSentCount', 1);
+      expect(res.body.referralSentApplications[0].email_count).toBe(5);
       expect(res.body).toHaveProperty('notAppliedCount', 1);
       expect(res.body.notAppliedApplications).toHaveLength(1);
       expect(res.body.notAppliedApplications[0].job_title).toBe('Design Technologist');
@@ -359,6 +540,24 @@ describe('Backend API Feature Routes', () => {
   });
 
   describe('Documents API (/api/documents)', () => {
+    it('DELETE /api/documents/:id removes the file and detaches it from templates and schedules', async () => {
+      const spy = vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ path: 'missing.pdf' }] } as any)
+        .mockResolvedValueOnce({ rows: [] } as any)
+        .mockResolvedValueOnce({ rows: [] } as any);
+
+      const res = await request(app)
+        .delete('/api/documents/doc-1')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ id: 'doc-1' });
+      expect(String(spy.mock.calls[0]?.[0])).toContain('DELETE FROM documents');
+      expect(String(spy.mock.calls[1]?.[0])).toContain('email_templates');
+      expect(String(spy.mock.calls[2]?.[0])).toContain('email_schedules');
+      expect(spy.mock.calls[1]?.[1]).toEqual(['doc-1']);
+    });
+
     it('POST /api/documents/:id/sync returns 404 when document is not found', async () => {
       vi.spyOn(pool, 'query').mockResolvedValueOnce({ rows: [] } as any);
 
@@ -381,6 +580,76 @@ describe('Backend API Feature Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('error', 'Document is not linked to Google Drive');
+    });
+
+    it('GET /api/documents/daily-sync returns 401 without a token', async () => {
+      const res = await request(app).get('/api/documents/daily-sync');
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /api/documents/daily-sync returns the signed-in user preference', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rows: [{ daily_document_sync: false, daily_document_synced_at: null }],
+      } as any);
+
+      const res = await request(app)
+        .get('/api/documents/daily-sync')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ enabled: false, last_synced_at: null });
+    });
+
+    it('PUT /api/documents/daily-sync returns 400 when enabled is not a boolean', async () => {
+      const res = await request(app)
+        .put('/api/documents/daily-sync')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ enabled: 'yes' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('error', 'enabled must be a boolean');
+    });
+
+    it('PUT /api/documents/daily-sync turns daily refetch on and refreshes that user', async () => {
+      const query = vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] } as any)
+        .mockResolvedValueOnce({ rows: [] } as any)
+        .mockResolvedValueOnce({
+          rows: [{ daily_document_synced_at: '2026-10-14T04:00:00.000Z' }],
+        } as any);
+
+      const res = await request(app)
+        .put('/api/documents/daily-sync')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ enabled: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        enabled: true,
+        last_synced_at: '2026-10-14T04:00:00.000Z',
+      });
+      expect(String(query.mock.calls[0]?.[0])).toContain('daily_document_sync = TRUE');
+      expect(String(query.mock.calls[1]?.[0])).toContain('created_by = $1');
+      expect(query.mock.calls[1]?.[1]).toEqual(['u-1']);
+    });
+
+    it('PUT /api/documents/daily-sync turns daily refetch off without downloading files', async () => {
+      const query = vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rows: [{ daily_document_synced_at: '2026-10-13T04:00:00.000Z' }],
+      } as any);
+
+      const res = await request(app)
+        .put('/api/documents/daily-sync')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ enabled: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        enabled: false,
+        last_synced_at: '2026-10-13T04:00:00.000Z',
+      });
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(String(query.mock.calls[0]?.[0])).toContain('daily_document_sync = FALSE');
     });
   });
 });

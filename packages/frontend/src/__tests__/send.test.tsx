@@ -116,6 +116,66 @@ describe('SendPage', () => {
     vi.mocked(api.documents.list).mockResolvedValue({ data: [] as any });
   });
 
+  it('picks a template and defaults the version dropdown to the latest version', async () => {
+    vi.mocked(api.templates.list).mockResolvedValue({
+      data: [
+        {
+          id: 't-1',
+          family_id: 'fam-1',
+          name: 'Referral Request',
+          version: 1,
+          subject: 'Old subject',
+          body: 'Old body',
+          variables: [],
+          document_ids: [],
+          deleted_at: null,
+        },
+        {
+          id: 't-2',
+          family_id: 'fam-1',
+          name: 'Referral Request',
+          version: 2,
+          subject: 'New subject',
+          body: 'New body',
+          variables: [],
+          document_ids: [],
+          deleted_at: null,
+        },
+        {
+          id: 't-3',
+          family_id: 'fam-2',
+          name: 'Follow Up',
+          version: 1,
+          subject: 'Following up',
+          body: 'Hello',
+          variables: [],
+          document_ids: [],
+          deleted_at: null,
+        },
+      ] as any,
+    });
+
+    render(<SendPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Choose a template…')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Choose a template…'));
+    expect(screen.getByRole('option', { name: 'Follow Up' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Referral Request v2' })).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Referral Request' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('v2')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Subject: New subject')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('v2'));
+    fireEvent.mouseDown(screen.getByRole('option', { name: /^v1/ }));
+    expect(screen.getByText('Subject: Old subject')).toBeInTheDocument();
+  });
+
   it('renders send page with mode switch and form fields', async () => {
     render(<SendPage />);
 
@@ -147,6 +207,41 @@ describe('SendPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('Stripe').length).toBeGreaterThan(0);
     });
+  });
+
+  it('checks every prospect when All is selected by default', async () => {
+    mockSearchParams.set('companyId', 'comp-1');
+    vi.mocked(api.prospects.list).mockResolvedValue({
+      data: [
+        { id: 'p1', first_name: 'Ada', last_name: 'Lovelace', email: 'ada@airtel.in', role_category: 'engineer' },
+        { id: 'p2', first_name: 'Grace', last_name: 'Hopper', email: 'grace@airtel.in', role_category: 'hr' },
+      ] as any,
+      total: 2,
+    });
+
+    render(<SendPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'All (2)' })).toBeInTheDocument();
+    });
+
+    const boxes = screen.getAllByRole('checkbox');
+    expect(boxes).toHaveLength(2);
+    expect(boxes.every((box) => (box as HTMLInputElement).checked)).toBe(true);
+    expect(screen.getByText(/Sending to all 2 prospects/)).toBeInTheDocument();
+
+    fireEvent.click(boxes[0]);
+    await waitFor(() => {
+      expect(screen.getByText('1 of 2 selected')).toBeInTheDocument();
+    });
+    expect((boxes[0] as HTMLInputElement).checked).toBe(false);
+    expect((boxes[1] as HTMLInputElement).checked).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All (2)' }));
+    await waitFor(() => {
+      expect(screen.getByText(/Sending to all 2 prospects/)).toBeInTheDocument();
+    });
+    expect(screen.getAllByRole('checkbox').every((box) => (box as HTMLInputElement).checked)).toBe(true);
   });
 
   it('switches to Quick Email mode and renders distinct Subject and Body inputs', async () => {

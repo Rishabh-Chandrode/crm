@@ -335,6 +335,13 @@ export async function migrate(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_job_applications_applied_at ON job_applications(applied_at DESC);
   `);
   await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_document_sync BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_document_synced_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_access_token TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_access_token_expires_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_token_error TEXT;
+  `);
+  await pool.query(`
     ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_url        TEXT;
     ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_file_id    TEXT;
     ALTER TABLE documents ADD COLUMN IF NOT EXISTS drive_synced_at  TIMESTAMPTZ;
@@ -373,6 +380,14 @@ export async function migrate(): Promise<void> {
   await pool.query(`
     ALTER TABLE email_schedules ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS idx_email_schedules_job_id ON email_schedules(job_id);
+  `);
+  await pool.query(`
+    ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS family_id UUID;
+    ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    UPDATE email_templates SET family_id = id WHERE family_id IS NULL;
+    ALTER TABLE email_templates ALTER COLUMN family_id SET NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_email_templates_family_version ON email_templates(family_id, version);
   `);
   await pool.query(`
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS gender VARCHAR(50);

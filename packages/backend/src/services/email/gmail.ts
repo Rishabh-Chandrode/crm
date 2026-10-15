@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import type { EmailProvider, SendEmailOptions, SendEmailResult } from './types.js';
 import { CONFIG } from '../../config.js';
+import { exchangeGmailRefreshToken, type GmailTokenUpdate } from './gmailToken.js';
 
 const STALE_CONNECTION_CODES = new Set(['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ESOCKET']);
 
@@ -10,6 +11,8 @@ export interface GmailCredentials {
   gmailUser: string;
   refreshToken: string;
   fromName: string;
+  accessToken?: string;
+  onTokenRefreshed?: (token: GmailTokenUpdate) => Promise<void>;
 }
 
 export class GmailEmailProvider implements EmailProvider {
@@ -161,53 +164,54 @@ export class GmailRestApiProvider implements EmailProvider {
     };
   }
 
-  async send(options: SendEmailOptions): Promise<SendEmailResult> {
-    const mailOptions = this.buildMailOptions(options);
-    const info = await this.mailBuilder.sendMail(mailOptions);
-    const rawBuffer = info.message as Buffer;
-    const rawBase64Url = rawBuffer.toString('base64url');
+  private async refreshAccessToken(): Promise<string> {
+    const fresh = await exchangeGmailRefreshToken(this.credentials.refreshToken);
+    this.credentials.refreshToken = fresh.refreshToken;
+    this.credentials.accessToken = fresh.accessToken;
+    await this.credentials.onTokenRefreshed?.(fresh);
+    return fresh.accessToken;
+  }
 
-    // Fetch fresh access token using the refresh token
-    const tokenParams = new URLSearchParams({
-      client_id: CONFIG.googleClientId.trim(),
-      client_secret: CONFIG.googleClientSecret.trim(),
-      refresh_token: (this.credentials.refreshToken || '').trim(),
-      grant_type: 'refresh_token',
-    });
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenParams.toString(),
-    });
-
-    if (!tokenRes.ok) {
-      const errText = await tokenRes.text();
-      throw new Error(`Failed to refresh Google access token: ${errText}`);
-    }
-
-    const tokenData = await tokenRes.json() as { access_token: string };
-    const accessToken = tokenData.access_token;
-
-    // Send the raw email via Gmail REST API
+  private async postRaw(accessToken: string, rawBase64Url: string): Promise<{ id: string; threadId?: string }> {
     const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        raw: rawBase64Url,
-      }),
+      body: JSON.stringify({ raw: rawBase64Url }),
     });
+
+    if (sendRes.status === 401) {
+      const err = new Error('Gmail access token rejected') as Error & { status: number };
+      err.status = 401;
+      throw err;
+    }
 
     if (!sendRes.ok) {
       const errText = await sendRes.text();
       throw new Error(`Gmail API sending failed: ${errText}`);
     }
 
-    const sendData = await sendRes.json() as { id: string; threadId?: string };
-    return { id: sendData.threadId || sendData.id };
+    return sendRes.json() as Promise<{ id: string; threadId?: string }>;
+  }
+
+  async send(options: SendEmailOptions): Promise<SendEmailResult> {
+    const mailOptions = this.buildMailOptions(options);
+    const info = await this.mailBuilder.sendMail(mailOptions);
+    const rawBuffer = info.message as Buffer;
+    const rawBase64Url = rawBuffer.toString('base64url');
+
+    let accessToken = this.credentials.accessToken ?? await this.refreshAccessToken();
+    try {
+      const sendData = await this.postRaw(accessToken, rawBase64Url);
+      return { id: sendData.threadId || sendData.id };
+    } catch (err) {
+      if ((err as { status?: number }).status !== 401) throw err;
+      accessToken = await this.refreshAccessToken();
+      const sendData = await this.postRaw(accessToken, rawBase64Url);
+      return { id: sendData.threadId || sendData.id };
+    }
   }
 }
 

@@ -11,8 +11,8 @@ Manifest V3 Chrome side panel extension. Scrapes contact info from LinkedIn prof
 - **LinkedIn scraper** — click **Scrape LinkedIn** from any LinkedIn profile tab. The content script is completely passive on load and will never scroll or scrape automatically. When the user explicitly clicks the button, the extension sends a `SCRAPE_PAGE` message to trigger incremental scrolling for lazy-loading the experience section and extracts name, job title, company, pronouns/gender, contact email (if available), and LinkedIn URL.
 
 - **Quick-add to CRM** — review the extracted (or manually entered) data including gender / salutation base and save it as a new prospect via `POST /api/prospects/quick-add`.
-- **Form autofiller** — click **Autofill This Page** to fill any job application form (Greenhouse, Lever, Workday, Google Forms, or generic) with your CRM profile data. Optionally select a resume from the picker to attach it to file upload inputs. After you submit the form, the extension auto-records the application in the CRM dashboard.
-- **Compose email** — select a template and send an email to a prospect without leaving the side panel.
+- **Form autofiller** — click **Autofill** to fill any job application form (Greenhouse, Lever, Workday, Google Forms, or generic) with your CRM profile data. Optionally select a document from **Profile → Documents** to attach it to file upload inputs. After you submit the form, the extension auto-records the application in the CRM dashboard.
+- **Compose email** — select a template (the latest live version, labeled `name vN`) and send an email to a prospect without leaving the side panel.
 - **Modern UI & Dark Mode** — built with the Apple and shadcn/ui-inspired Zinc design tokens (`zinc-50` through `zinc-950`), custom segmented pill controls, glassmorphic header, and automatic light/dark/system theme synchronization.
 - **JWT auth** — authenticates via the CRM backend and stores the token in `chrome.storage.sync`. A login gate shows automatically when the token is missing or expired.
 
@@ -83,7 +83,7 @@ If a prospect is found, a green **Already in CRM** card appears above the form s
 ## Form autofill flow
 
 1. User clicks **Autofill This Page** in the side panel.
-2. If a resume is selected in the picker, the popup downloads it from `GET /api/documents/:id/download` and converts it to base64.
+2. If a document is selected in the picker, the popup downloads it from `GET /api/documents/:id/download` and converts it to base64. The picker is filled from **Profile → Documents** (`GET /api/documents`). Drive-linked files stay current when daily refetch is turned on there.
 3. Profile and resume data are stored in `chrome.storage.local` under `autofillProfile` and `autofillResume`.
 4. `chrome.scripting.executeScript` injects `dist/formFiller/index.js` into the active tab (all frames).
 5. The form filler detects the platform (Greenhouse, Lever, Workday, Google Forms, or Generic) by hostname/path and picks the matching strategy.

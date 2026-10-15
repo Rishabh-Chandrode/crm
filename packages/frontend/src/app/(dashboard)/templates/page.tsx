@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { Document, EmailTemplate, TemplateVariable, VariablePreset, VariableSource } from '@/lib/types';
 import { PROSPECT_FIELDS, COMPANY_FIELDS, SENDER_FIELDS, buildVariableFromKey } from '@/lib/types';
+import { attachedDocumentIds } from '@/lib/attachedDocuments';
+import { latestTemplateCards, templateFamilyId, versionsInFamily } from '@/lib/templateVersions';
 
 interface TemplateForm {
   name: string;
@@ -47,7 +49,7 @@ export default function TemplatesPage() {
 
   async function load() {
     const [tRes, pRes, dRes] = await Promise.all([
-      api.templates.list(),
+      api.templates.list({ all: true }),
       api.variablePresets.list(),
       api.documents.list(),
     ]);
@@ -75,7 +77,7 @@ export default function TemplatesPage() {
       subject: t.subject,
       body: t.body,
       variables: t.variables,
-      document_ids: t.document_ids ?? [],
+      document_ids: attachedDocumentIds(t.document_ids, documents),
     });
     setError('');
     setShowEditor(true);
@@ -154,7 +156,7 @@ export default function TemplatesPage() {
         subject: form.subject.trim(),
         body: form.body,
         variables: form.variables,
-        document_ids: form.document_ids,
+        document_ids: attachedDocumentIds(form.document_ids, documents),
       };
       if (editing) {
         await api.templates.update(editing.id, payload);
@@ -171,9 +173,24 @@ export default function TemplatesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this template?')) return;
+    if (!confirm('Delete this template version? It will stay visible as deleted.')) return;
     await api.templates.delete(id);
     void load();
+  }
+
+  async function handleDeleteOlder(id: string) {
+    if (!confirm('Delete older versions of this template? They will stay visible as deleted.')) return;
+    await api.templates.deleteOlderVersions(id);
+    void load();
+  }
+
+  const templateCards = latestTemplateCards(templates);
+  const editorVersions = editing ? versionsInFamily(templates, templateFamilyId(editing)) : [];
+
+  function hasOlderLiveVersion(t: EmailTemplate): boolean {
+    return versionsInFamily(templates, templateFamilyId(t)).some(
+      (other) => !other.deleted_at && (other.version || 1) < (t.version || 1),
+    );
   }
 
   function getFieldOptions(source: VariableSource) {
@@ -215,17 +232,47 @@ export default function TemplatesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {templates.map((t) => (
-            <div key={t.id} className="card p-4 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col justify-between">
+          {templateCards.map((t) => {
+            const attachments = attachedDocumentIds(t.document_ids, documents);
+            return (
+            <div
+              key={t.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => openEdit(t)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openEdit(t);
+                }
+              }}
+              className="card p-4 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col justify-between cursor-pointer"
+            >
               <div>
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">{t.name}</h3>
+                    <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm flex items-center gap-2 flex-wrap">
+                      <span>{t.name}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                        v{t.version || 1}
+                      </span>
+                      {t.deleted_at && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20">
+                          Deleted
+                        </span>
+                      )}
+                    </h3>
                     {t.description && <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-0.5">{t.description}</p>}
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => openEdit(t)} className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:underline">Edit</button>
-                    <button onClick={() => void handleDelete(t.id)} className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline">Delete</button>
+                  <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {!t.deleted_at && hasOlderLiveVersion(t) && (
+                      <button onClick={() => void handleDeleteOlder(t.id)} className="text-xs font-semibold text-amber-700 dark:text-amber-300 hover:underline">
+                        Delete older versions
+                      </button>
+                    )}
+                    {!t.deleted_at && (
+                      <button onClick={() => void handleDelete(t.id)} className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline">Delete</button>
+                    )}
                   </div>
                 </div>
 
@@ -246,18 +293,19 @@ export default function TemplatesPage() {
                       {`{{${v.key}}}`}
                     </span>
                   ))}
-                  {(t.document_ids ?? []).length > 0 && (
+                  {attachments.length > 0 && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[10px] rounded font-medium">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                       </svg>
-                      {t.document_ids.length} attachment{t.document_ids.length !== 1 ? 's' : ''}
+                      {attachments.length} attachment{attachments.length !== 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 
@@ -275,6 +323,26 @@ export default function TemplatesPage() {
             </div>
 
             <div className="p-5 space-y-4">
+              {editing && editorVersions.length > 0 && (
+                <div>
+                  <label className="form-label text-xs" htmlFor="template-version">Version</label>
+                  <select
+                    id="template-version"
+                    className="form-select text-xs"
+                    value={editing.id}
+                    onChange={(e) => {
+                      const next = editorVersions.find((version) => version.id === e.target.value);
+                      if (next) openEdit(next);
+                    }}
+                  >
+                    {editorVersions.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        v{version.version || 1}{version.deleted_at ? ' · Deleted' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="form-label text-xs">Template Name *</label>
@@ -502,7 +570,7 @@ export default function TemplatesPage() {
                   </div>
                 ) : (
                   <p className="text-xs text-zinc-400 text-center py-3 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
-                    No documents uploaded. Add resume files in Settings → Documents.
+                    No documents uploaded. Add them in Profile → Documents.
                   </p>
                 )}
               </div>
@@ -512,7 +580,7 @@ export default function TemplatesPage() {
 
             <div className="px-5 py-3.5 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 bg-zinc-50/50 dark:bg-zinc-950/30">
               <button onClick={() => setShowEditor(false)} className="btn-ghost">Cancel</button>
-              <button onClick={() => void handleSave()} disabled={saving} className="btn-primary">
+              <button onClick={() => void handleSave()} disabled={saving || !!editing?.deleted_at} className="btn-primary">
                 {saving ? 'Saving…' : editing ? 'Update Template' : 'Create Template'}
               </button>
             </div>

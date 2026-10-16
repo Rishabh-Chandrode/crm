@@ -77,7 +77,7 @@ JWT-based. Every protected route requires `Authorization: Bearer <token>`.
 | POST | `/api/auth/login` | public | `{ username, password }` → `{ token, user }` |
 | POST | `/api/auth/signup` | public | `{ username, password, email? }` → `{ token, user }` |
 | GET | `/api/auth/me` | required | Returns current user with all profile fields |
-| PATCH | `/api/auth/profile` | required | Update profile — accepts `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `city`, `state`, `country`, `address_line1`, `postal_code`, `location`, `hometown`, `work_authorization`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `linkedin_url`, `github_url`, `website`, `bio`, `gender`, `veteran_status`, `skills`, `projects`, `work_experiences`, `from_name`, `reply_to_email` |
+| PATCH | `/api/auth/profile` | required | Update profile — accepts `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `city`, `state`, `country`, `address_line1`, `postal_code`, `location`, `hometown`, `work_authorization`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `linkedin_url`, `github_url`, `website`, `bio`, `gender`, `veteran_status`, `skills`, `target_roles`, `projects`, `work_experiences`, `from_name`, `reply_to_email` |
 
 ### Google sign-in (login / signup)
 
@@ -143,7 +143,7 @@ All authenticated endpoints scope data by `created_by` for non-admin users (see 
 | `POST` | `/api/auth/login` | public | `{ username: string, password: string }` | `{ token, user: { id, username, email, role } }` |
 | `POST` | `/api/auth/signup` | public | `{ username: string, password: string, email?: string }` — password min 8 chars, username min 3 chars | `{ token, user: { id, username, email, role } }` — `201` |
 | `GET` | `/api/auth/me` | required | — | `{ user: CrmUser }` — full user object with all profile fields, `has_gmail_configured`, `has_gmail_app_password` |
-| `PATCH` | `/api/auth/profile` | required | Any subset of: `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `website`, `bio`, `linkedin_url`, `github_url`, `city`, `state`, `country`, `address_line1`, `postal_code`, `work_authorization`, `location`, `hometown`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `gender`, `veteran_status`, `skills` (string[]), `projects` (Project[]), `work_experiences` (WorkExperience[]), `from_name`, `reply_to_email` | `{ user: CrmUser }` — Validates email format, phone format, URL format, gender/veteran enum values, field lengths. Returns `400` with `{ error, fields: Record<string, string> }` on validation failure |
+| `PATCH` | `/api/auth/profile` | required | Any subset of: `first_name`, `last_name`, `email`, `current_company`, `job_title`, `phone`, `phone_country_code`, `website`, `bio`, `linkedin_url`, `github_url`, `city`, `state`, `country`, `address_line1`, `postal_code`, `work_authorization`, `location`, `hometown`, `years_of_experience`, `notice_period`, `current_ctc`, `expected_ctc`, `education`, `college_name`, `graduation_year`, `gender`, `veteran_status`, `skills` (string[]), `target_roles` (string[]), `projects` (Project[]), `work_experiences` (WorkExperience[]), `from_name`, `reply_to_email` | `{ user: CrmUser }` — Validates email format, phone format, URL format, gender/veteran enum values, field lengths. Returns `400` with `{ error, fields: Record<string, string> }` on validation failure |
 
 ### Auth — Google Sign-In
 
@@ -359,7 +359,7 @@ users (id UUID PK, username, email, password_hash, role, is_active,
        education, college_name, graduation_year,
        linkedin_url, github_url, website, bio,
        gender, veteran_status,
-       skills JSONB, projects JSONB, work_experiences JSONB,
+       skills JSONB, target_roles JSONB, projects JSONB, work_experiences JSONB,
        google_id,                          -- links Google OAuth account
        gmail_user, gmail_refresh_token,    -- per-user Gmail OAuth2 credentials
        gmail_access_token, gmail_access_token_expires_at, gmail_token_error,

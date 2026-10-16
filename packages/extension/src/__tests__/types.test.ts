@@ -110,6 +110,7 @@ describe('Extension Data Shapes & Message Contracts', () => {
       gender: null,
       veteran_status: null,
       skills: ['TypeScript', 'React'],
+      target_roles: ['SDE'],
       projects: null,
       work_experiences: null,
     };

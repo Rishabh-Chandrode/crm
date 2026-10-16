@@ -47,6 +47,7 @@ const user = {
   first_name: 'Ada',
   last_name: 'Lovelace',
   skills: [],
+  target_roles: [],
   projects: [],
   work_experiences: [],
 };
@@ -127,5 +128,19 @@ describe('ProfilePage documents', () => {
     });
     expect(await screen.findByText(/Daily refetch is on/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Turn off daily refetch' })).toBeInTheDocument();
+  });
+
+  it('saves target roles typed as a comma-separated list', async () => {
+    nav.tab = 'work';
+    vi.mocked(api.auth.updateProfile).mockResolvedValue({ user } as never);
+    render(<ProfilePage />);
+
+    const input = await screen.findByLabelText('Target roles');
+    fireEvent.change(input, { target: { value: 'SDE, SDE1' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(api.auth.updateProfile).toHaveBeenCalledWith({ target_roles: ['SDE', 'SDE1'] });
+    });
   });
 });

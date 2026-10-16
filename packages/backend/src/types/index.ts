@@ -10,6 +10,7 @@ export interface User {
   last_name: string | null;
   current_company: string | null;
   job_title: string | null;
+  target_roles: string[];
   phone: string | null;
   phone_country_code: string | null;
   website: string | null;

@@ -98,6 +98,7 @@ export interface UserProfile {
   gender: string | null;
   veteran_status: string | null;
   skills: string[] | null;
+  target_roles: string[] | null;
   projects: Project[] | null;
   work_experiences: WorkExperience[] | null;
 }

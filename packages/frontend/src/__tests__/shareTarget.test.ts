@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inferJobFromUrl, postLoginPath, resolveSharedLink, safeNextPath } from '../lib/shareTarget';
+import { companyOptionsFromShare, inferJobFromUrl, postLoginPath, resolveSharedLink, safeNextPath } from '../lib/shareTarget';
 
 describe('resolveSharedLink', () => {
   it('prefers an http url field over text', () => {
@@ -53,6 +53,23 @@ describe('inferJobFromUrl', () => {
       platform: 'Generic',
       company_name: 'Example',
     });
+  });
+});
+
+describe('companyOptionsFromShare', () => {
+  it('title-cases a Greenhouse board slug', () => {
+    expect(companyOptionsFromShare('https://boards.greenhouse.io/acme-corp/jobs/1')).toEqual(['Acme Corp']);
+  });
+
+  it('reads the company after at and skips a board name', () => {
+    expect(companyOptionsFromShare(
+      'https://www.linkedin.com/jobs/view/1',
+      'Engineer at Stripe | LinkedIn',
+    )).toEqual(['Stripe']);
+  });
+
+  it('uses the registrable host label for a generic careers site', () => {
+    expect(companyOptionsFromShare('https://careers.example.com/jobs/1')).toEqual(['Example']);
   });
 });
 

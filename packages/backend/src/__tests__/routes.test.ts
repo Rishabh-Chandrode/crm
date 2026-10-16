@@ -688,5 +688,37 @@ describe('Backend API Feature Routes', () => {
       expect(String(query.mock.calls[0]?.[0])).toContain('daily_document_sync = FALSE');
     });
   });
+
+  describe('Auth profile (/api/auth)', () => {
+    it('PATCH /api/auth/profile stores trimmed unique target roles', async () => {
+      const query = vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rows: [{ id: 'u-1', target_roles: ['SDE', 'SDE1'] }],
+      } as any);
+
+      const res = await request(app)
+        .patch('/api/auth/profile')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ target_roles: [' SDE ', 'SDE1', 'sde', '', '  '] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.user.target_roles).toEqual(['SDE', 'SDE1']);
+      expect(String(query.mock.calls[0]?.[0])).toContain('target_roles');
+      expect(query.mock.calls[0]?.[1]?.[0]).toBe(JSON.stringify(['SDE', 'SDE1']));
+    });
+
+    it('GET /api/auth/me returns target roles', async () => {
+      const query = vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rows: [{ id: 'u-1', username: 'user1', target_roles: ['Backend Developer'] }],
+      } as any);
+
+      const res = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.user.target_roles).toEqual(['Backend Developer']);
+      expect(String(query.mock.calls[0]?.[0])).toContain('target_roles');
+    });
+  });
 });
 

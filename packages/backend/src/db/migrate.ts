@@ -305,6 +305,7 @@ export async function migrate(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS college_name        VARCHAR(255);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS graduation_year     VARCHAR(10);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS skills              JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS target_roles        JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS projects            JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS work_experiences    JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS gender              VARCHAR(50);

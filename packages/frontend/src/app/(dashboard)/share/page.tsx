@@ -1,10 +1,10 @@
 'use client';
 
-import { FormEvent, Suspense, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { inferJobFromUrl, resolveSharedLink } from '@/lib/shareTarget';
+import { companyOptionsFromShare, inferJobFromUrl, resolveSharedLink } from '@/lib/shareTarget';
 
 const PLATFORM_OPTIONS = [
   'Greenhouse',
@@ -34,6 +34,39 @@ function formatLabel(status: string): string {
   return status.replace(/_/g, ' ');
 }
 
+function OptionChips({
+  options,
+  selected,
+  onSelect,
+}: {
+  options: string[];
+  selected: string;
+  onSelect: (value: string) => void;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {options.map((option) => {
+        const active = option.toLowerCase() === selected.trim().toLowerCase();
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onSelect(option)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+              active
+                ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100'
+                : 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700'
+            }`}
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ShareForm() {
   const searchParams = useSearchParams();
   const sharedUrl = resolveSharedLink(searchParams.get('url'), searchParams.get('text'));
@@ -48,6 +81,19 @@ function ShareForm() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedCompany, setSavedCompany] = useState('');
+  const [targetRoles, setTargetRoles] = useState<string[]>([]);
+
+  const companyOptions = companyOptionsFromShare(
+    jobUrl,
+    searchParams.get('title') ?? '',
+    searchParams.get('text') ?? '',
+  );
+
+  useEffect(() => {
+    api.auth.me()
+      .then((res) => setTargetRoles(res.user.target_roles ?? []))
+      .catch(() => setTargetRoles([]));
+  }, []);
 
   function applyUrl(nextUrl: string) {
     setJobUrl(nextUrl);
@@ -146,6 +192,7 @@ function ShareForm() {
             className="form-input text-sm"
             required
           />
+          <OptionChips options={companyOptions} selected={company} onSelect={setCompany} />
         </div>
 
         <div>
@@ -159,6 +206,14 @@ function ShareForm() {
             className="form-input text-sm"
             required
           />
+          {targetRoles.length > 0 ? (
+            <OptionChips options={targetRoles} selected={jobTitle} onSelect={setJobTitle} />
+          ) : (
+            <p className="text-[11px] text-zinc-400 mt-2">
+              Add target roles on your{' '}
+              <Link href="/profile?tab=work" className="underline">Profile</Link>.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

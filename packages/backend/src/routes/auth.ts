@@ -99,7 +99,7 @@ router.get('/me', authMiddleware, async (req, res) => {
             first_name, last_name, current_company, job_title, phone, phone_country_code, website, bio,
             linkedin_url, github_url, city, state, country, address_line1, postal_code, work_authorization, location,
             hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
-            education, college_name, graduation_year, skills, projects, work_experiences,
+            education, college_name, graduation_year, skills, target_roles, projects, work_experiences,
             gender, veteran_status,
             gmail_user, from_name, reply_to_email,
             (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,
@@ -128,7 +128,7 @@ router.patch('/profile', authMiddleware, async (req, res) => {
     hometown?: unknown; years_of_experience?: unknown; notice_period?: unknown;
     current_ctc?: unknown; expected_ctc?: unknown;
     education?: unknown; college_name?: unknown;
-    graduation_year?: unknown; skills?: unknown; projects?: unknown; work_experiences?: unknown;
+    graduation_year?: unknown; skills?: unknown; target_roles?: unknown; projects?: unknown; work_experiences?: unknown;
     gender?: unknown; veteran_status?: unknown;
     from_name?: unknown; reply_to_email?: unknown;
   };
@@ -263,6 +263,19 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   if (body.gender !== undefined)          add('gender',          typeof body.gender === 'string' ? body.gender.trim() || null : null);
   if (body.veteran_status !== undefined)  add('veteran_status',  typeof body.veteran_status === 'string' ? body.veteran_status.trim() || null : null);
   if (body.skills !== undefined && Array.isArray(body.skills))                   add('skills',            JSON.stringify(body.skills));
+  if (body.target_roles !== undefined && Array.isArray(body.target_roles)) {
+    const seen = new Set<string>();
+    const roles: string[] = [];
+    for (const role of body.target_roles) {
+      if (typeof role !== 'string') continue;
+      const trimmed = role.trim();
+      const key = trimmed.toLowerCase();
+      if (!trimmed || seen.has(key)) continue;
+      seen.add(key);
+      roles.push(trimmed);
+    }
+    add('target_roles', JSON.stringify(roles));
+  }
   if (body.projects !== undefined && Array.isArray(body.projects))               add('projects',          JSON.stringify(body.projects));
   if (body.work_experiences !== undefined && Array.isArray(body.work_experiences)) add('work_experiences', JSON.stringify(body.work_experiences));
   if (body.from_name !== undefined)        add('from_name',         typeof body.from_name === 'string' ? body.from_name.trim() || null : null);
@@ -282,7 +295,7 @@ router.patch('/profile', authMiddleware, async (req, res) => {
                first_name, last_name, current_company, job_title, phone, phone_country_code, website, bio,
                linkedin_url, github_url, city, state, country, address_line1, postal_code, work_authorization, location,
                hometown, years_of_experience, notice_period, current_ctc, expected_ctc,
-               education, college_name, graduation_year, skills, projects, work_experiences,
+               education, college_name, graduation_year, skills, target_roles, projects, work_experiences,
                gender, veteran_status,
                gmail_user, from_name, reply_to_email,
                (gmail_refresh_token IS NOT NULL) AS has_gmail_configured,

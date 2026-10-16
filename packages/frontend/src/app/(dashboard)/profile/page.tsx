@@ -535,6 +535,7 @@ function WorkTab({ user }: { user: CrmUser }) {
             {jobInp('current_company', 'Current company', 'Acme Inc.')}
             {jobInp('job_title',       'Current job title', 'Software Engineer')}
           </div>
+          <TargetRolesEditor initialRoles={user.target_roles ?? []} />
           {jobInp('years_of_experience', 'Total years of experience', '5')}
           {jobInp('notice_period', 'Notice period', 'Immediate · 30 days · 60 days')}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1088,6 +1089,72 @@ function ProjectsTab({ initialProjects }: { initialProjects: Project[] }) {
           Add Project
         </button>
       )}
+    </div>
+  );
+}
+
+function TargetRolesEditor({ initialRoles }: { initialRoles: string[] }) {
+  const [roles, setRoles] = useState<string[]>(initialRoles);
+  const [input, setInput] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => { setRoles(initialRoles); }, [initialRoles]);
+
+  async function persist(updated: string[]) {
+    setSaving(true);
+    setError('');
+    try {
+      await api.auth.updateProfile({ target_roles: updated });
+      setRoles(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addRoles() {
+    const next = input
+      .split(/[,;]+/)
+      .map((role) => role.trim())
+      .filter((role) => role && !roles.some((existing) => existing.toLowerCase() === role.toLowerCase()));
+    setInput('');
+    if (!next.length) return;
+    void persist([...roles, ...next]);
+  }
+
+  return (
+    <div>
+      <label className="form-label text-xs" htmlFor="target-roles-input">Target roles</label>
+      <div className="flex flex-wrap gap-1.5 mb-2 min-h-[36px]">
+        {roles.map((role) => (
+          <span
+            key={role}
+            className="flex items-center gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-medium px-2.5 py-0.5 rounded-full"
+          >
+            {role}
+            <button
+              type="button"
+              onClick={() => void persist(roles.filter((item) => item !== role))}
+              className="text-zinc-400 hover:text-rose-500 transition-colors ml-0.5 cursor-pointer"
+              aria-label={`Remove ${role}`}
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        id="target-roles-input"
+        className="form-input text-xs"
+        placeholder="SDE, SDE1, backend developer"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRoles(); } }}
+        disabled={saving}
+      />
+      {error && <p className="text-xs text-rose-500 mt-1">{error}</p>}
     </div>
   );
 }

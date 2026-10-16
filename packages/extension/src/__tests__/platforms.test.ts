@@ -32,6 +32,7 @@ describe('Job Application Platform Form Fillers', () => {
     gender: null,
     veteran_status: null,
     skills: ['Node.js', 'React'],
+    target_roles: null,
     projects: null,
     work_experiences: null,
   };

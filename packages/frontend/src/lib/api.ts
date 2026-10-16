@@ -69,7 +69,7 @@ export const api = {
       notice_period?: string | null; current_ctc?: string | null; expected_ctc?: string | null;
       education?: string | null; college_name?: string | null;
       graduation_year?: string | null;
-      skills?: string[]; projects?: import('./types').Project[];
+      skills?: string[]; target_roles?: string[]; projects?: import('./types').Project[];
       work_experiences?: import('./types').WorkExperience[];
       from_name?: string | null; reply_to_email?: string | null;
     }) =>

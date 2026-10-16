@@ -62,6 +62,54 @@ export function inferJobFromUrl(jobUrl: string, title = ''): InferredJob {
   return { company_name: company, job_title: jobTitle, job_url: jobUrl, platform };
 }
 
+const COMPANY_SKIP = new Set([
+  'jobs', 'job', 'careers', 'apply', 'app', 'hire', 'work', 'www',
+  'linkedin', 'greenhouse', 'lever', 'workday', 'ashby', 'smartrecruiters',
+  'opening', 'openings', 'search', 'view',
+]);
+
+function titleCaseWords(value: string): string {
+  return value
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function phraseCompanies(source: string): string[] {
+  const trimmed = source.trim();
+  if (!trimmed) return [];
+  const found: string[] = [];
+  const atMatch = trimmed.match(/\bat\s+(.+)$/i);
+  if (atMatch?.[1]) {
+    const beforeBoard = atMatch[1].split(/\s*(?:\||·|—|-)\s*/)[0]?.trim() ?? '';
+    if (beforeBoard) found.push(beforeBoard);
+  }
+  const parts = trimmed.split(/\s*(?:\||·|—|-)\s*/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) found.push(parts[parts.length - 1] ?? '');
+  return found;
+}
+
+/** Possible company names from a shared job link, title, and message. */
+export function companyOptionsFromShare(url: string, title = '', text = ''): string[] {
+  const options: string[] = [];
+  const push = (raw: string) => {
+    const label = titleCaseWords(raw);
+    if (label.length < 2 || COMPANY_SKIP.has(label.toLowerCase())) return;
+    if (options.some((existing) => existing.toLowerCase() === label.toLowerCase())) return;
+    options.push(label);
+  };
+
+  push(inferJobFromUrl(url, title).company_name);
+  for (const source of [title, text]) {
+    for (const piece of phraseCompanies(source)) push(piece);
+  }
+  return options.slice(0, 6);
+}
+
 /** Internal path + query only. Rejects protocol-relative and external targets. */
 export function safeNextPath(next: string | null | undefined): string | null {
   if (!next) return null;

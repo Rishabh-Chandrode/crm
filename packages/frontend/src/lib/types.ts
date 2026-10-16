@@ -51,6 +51,7 @@ export interface CrmUser {
   college_name: string | null;
   graduation_year: string | null;
   skills: string[];
+  target_roles: string[];
   projects: Project[];
   work_experiences: WorkExperience[];
   gmail_user: string | null;

@@ -16,6 +16,9 @@ vi.mock('../lib/api', () => ({
     applications: {
       create: vi.fn(),
     },
+    auth: {
+      me: vi.fn(),
+    },
   },
 }));
 
@@ -23,6 +26,7 @@ describe('SharePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     search.value = '';
+    vi.mocked(api.auth.me).mockResolvedValue({ user: { target_roles: [] } } as never);
   });
 
   it('fills the form from a link shared in the text field', () => {
@@ -53,5 +57,23 @@ describe('SharePage', () => {
       }));
     });
     expect(await screen.findByText('Example is in your applications.')).toBeInTheDocument();
+  });
+
+  it('fills company and role from chips', async () => {
+    search.value = `url=${encodeURIComponent('https://boards.greenhouse.io/acme-corp/jobs/1')}&title=${encodeURIComponent('Engineer at Stripe | LinkedIn')}`;
+    vi.mocked(api.auth.me).mockResolvedValue({
+      user: { target_roles: ['SDE', 'Backend Developer'] },
+    } as never);
+    render(<SharePage />);
+
+    expect(screen.getByRole('button', { name: 'Acme Corp' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stripe' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'SDE' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Acme Corp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'SDE' }));
+
+    expect(screen.getByLabelText('Company *')).toHaveValue('Acme Corp');
+    expect(screen.getByLabelText('Role *')).toHaveValue('SDE');
   });
 });

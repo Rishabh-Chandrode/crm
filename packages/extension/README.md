@@ -46,7 +46,7 @@ extension/
 │       ├── index.ts                # Orchestrator — platform detection, field loop, resume injection
 │       ├── detector.ts             # Label-based field detection: getLabelText, PATTERNS, classifyElement, detectAllFields
 │       ├── filler.ts               # Low-level fill helpers: simulateInput, fillSelect, iti phone, resume file
-│       ├── types.ts                # FieldType union, UserProfile, FillResult, ALL_FIELD_TYPES
+│       ├── types.ts                # FieldType union, UserProfile (includes target_roles), FillResult, ALL_FIELD_TYPES
 │       └── platforms/              # Per-platform custom fill logic
 │           ├── generic.ts          # Generic fallback — detectAllFields() + fillElement()
 │           ├── greenhouse.ts       # Greenhouse-specific custom fill logic

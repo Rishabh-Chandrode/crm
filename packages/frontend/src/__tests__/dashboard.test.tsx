@@ -403,4 +403,67 @@ describe('DashboardPage Priority Action Center', () => {
     expect(localStorage.getItem('crm_dismissed_failed_sends')).toBeNull();
     expect(screen.queryByText('fail@test.com')).not.toBeInTheDocument();
   });
+
+  it('renders and dismisses manual prospect items in Priority Action Center', async () => {
+    vi.mocked(api.stats.dismiss).mockResolvedValue({ closed: 0, dismissed: 1 });
+    vi.mocked(api.stats.get).mockResolvedValue({
+      companies: 1,
+      prospects: 1,
+      templates: 1,
+      applications: 1,
+      emails: { total: 0, sent: 0, failed: 0, pending: 0, opened: 0, openRate: 0 },
+      readyToApplyApplications: [],
+      readyToApplyCount: 0,
+      notAppliedApplications: [],
+      notAppliedCount: 0,
+      activeInterviewApplications: [],
+      activeInterviewCount: 0,
+      failedSends: [],
+      recentSends: [],
+      recentApplications: [],
+      upcomingSchedules: [],
+      pendingProspects: [
+        {
+          id: 'pending-test-1',
+          user_id: 'u1',
+          first_name: 'Sarah',
+          last_name: 'Connor',
+          company_name: 'Cyberdyne',
+          job_title: 'Security Lead',
+          linkedin_url: 'https://linkedin.com/in/sarah-connor',
+          dismissed_at: null,
+          created_at: new Date().toISOString(),
+        },
+      ],
+      pendingProspectCount: 1,
+    } as any);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Manual Prospects (1)')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
+    expect(screen.getByText('Cyberdyne')).toBeInTheDocument();
+    expect(screen.getByText('Security Lead')).toBeInTheDocument();
+    expect(screen.getByText('Manual Prospect Entry')).toBeInTheDocument();
+
+    const enterDetailsBtn = screen.getByRole('link', { name: 'Enter Details' });
+    expect(enterDetailsBtn).toHaveAttribute(
+      'href',
+      expect.stringContaining('/prospects?new=true')
+    );
+    expect(enterDetailsBtn).toHaveAttribute(
+      'href',
+      expect.stringContaining('Sarah')
+    );
+
+    fireEvent.click(screen.getByTitle('Dismiss from action queue'));
+
+    await waitFor(() => {
+      expect(api.stats.dismiss).toHaveBeenCalledWith([], [], ['pending-test-1']);
+    });
+    expect(screen.queryByText('Sarah Connor')).not.toBeInTheDocument();
+  });
 });

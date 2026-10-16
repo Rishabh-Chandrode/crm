@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { canAskReferral } from '@/lib/applications';
 import { getGmailSearchUrl } from '@/lib/types';
 import type { JobApplication, EmailSend, Company } from '@/lib/types';
 import CompanyAutocomplete from '@/components/CompanyAutocomplete';
@@ -74,7 +75,7 @@ function isReadyToApply(app: JobApplication): boolean {
 function getDaysSinceReferral(app: JobApplication): number | null {
   if (app.referral_requested_at) {
     const diff = Date.now() - new Date(app.referral_requested_at).getTime();
-    return Math.max(0, Math.floor(diff / (24 * 60 * 60 * 1000)));
+    return Math.floor(diff / (24 * 60 * 60 * 1000));
   }
   return null;
 }
@@ -403,7 +404,8 @@ export default function ApplicationsPage() {
     }
   }
 
-  function handleAskReferral(app: JobApplication) {
+  function handleAskReferral(app: JobApplication | null) {
+    if (!app) return;
     const params = new URLSearchParams();
     params.set('jobId', app.job_id ?? app.id);
     if (app.company_id) {
@@ -691,7 +693,7 @@ export default function ApplicationsPage() {
 
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {app.status !== 'applied' && app.status !== 'interview' && app.status !== 'offer' && (
+                          {canAskReferral(app.status) && (
                             <button
                               onClick={() => handleAskReferral(app)}
                               className="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2 py-1 rounded transition-colors"
@@ -994,16 +996,18 @@ export default function ApplicationsPage() {
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
                   No outreach emails linked to this role yet.
                 </p>
-                <button
-                  onClick={() => {
-                    const target = activeOutreachApp;
-                    setActiveOutreachApp(null);
-                    handleAskReferral(target);
-                  }}
-                  className="btn-primary text-xs py-1.5 px-3"
-                >
-                  Send Referral Request
-                </button>
+                {canAskReferral(activeOutreachApp?.status) && (
+                  <button
+                    onClick={() => {
+                      const target = activeOutreachApp;
+                      setActiveOutreachApp(null);
+                      handleAskReferral(target);
+                    }}
+                    className="btn-primary text-xs py-1.5 px-3"
+                  >
+                    Send Referral Request
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -1090,19 +1094,21 @@ export default function ApplicationsPage() {
             )}
 
             <div className="flex items-center justify-between pt-4 mt-5 border-t border-zinc-100 dark:border-zinc-800">
-              <button
-                onClick={() => {
-                  const target = activeOutreachApp;
-                  setActiveOutreachApp(null);
-                  handleAskReferral(target);
-                }}
-                className="btn-primary text-xs py-1.5 px-3"
-              >
-                + Reach Out to More Contacts
-              </button>
+              {canAskReferral(activeOutreachApp?.status) && (
+                <button
+                  onClick={() => {
+                    const target = activeOutreachApp;
+                    setActiveOutreachApp(null);
+                    handleAskReferral(target);
+                  }}
+                  className="btn-primary text-xs py-1.5 px-3"
+                >
+                  + Reach Out to More Contacts
+                </button>
+              )}
               <button
                 onClick={() => setActiveOutreachApp(null)}
-                className="btn-ghost text-xs"
+                className="btn-ghost text-xs ml-auto"
               >
                 Close
               </button>

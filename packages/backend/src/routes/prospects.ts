@@ -8,6 +8,7 @@ import { CONFIG } from '../config.js';
 import { getEnrichmentService } from '../services/enrichment/index.js';
 import { discoverPeople } from '../services/discoverPeople.js';
 import { createProspectFromLinkedIn, LinkedInProfileError } from '../services/prospectFromLinkedIn.js';
+import { findMatchingPendingProspect, dismissPendingProspect, dismissMatchingPendingProspects } from '../services/pendingProspects.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -123,6 +124,14 @@ router.post('/', async (req, res, next) => {
         req.user!.id,
       ]
     );
+
+    // If this prospect was pending in Priority Action Center, dismiss it
+    await dismissMatchingPendingProspects(req.user!.id, {
+      linkedin_url,
+      first_name,
+      last_name,
+    });
+
     res.status(201).json({ data: result.rows[0] });
   } catch (err) {
     if ((err as { code?: string }).code === '23505') {
@@ -152,30 +161,50 @@ router.post('/quick-add', async (req, res, next) => {
     const normalizedEmail = email.trim().toLowerCase();
     const userId = req.user!.id;
 
+    // Check if this prospect matches any active pending prospect in the Priority Action Center
+    const matchingPending = await findMatchingPendingProspect(userId, {
+      linkedin_url,
+      first_name,
+      last_name,
+      company_name,
+    });
+
     // Check for duplicate email scoped to this user
-    const existing = await pool.query<{ id: string }>(
-      'SELECT id FROM prospects WHERE email = $1 AND created_by = $2',
+    const existing = await pool.query<Prospect>(
+      'SELECT * FROM prospects WHERE email = $1 AND created_by = $2',
       [normalizedEmail, userId]
     );
     if (existing.rows[0]) {
-      res.status(200).json({ data: { id: existing.rows[0].id }, existed: true });
+      if (matchingPending) {
+        await dismissPendingProspect(userId, matchingPending.id);
+      }
+      res.status(200).json({
+        data: existing.rows[0],
+        existed: true,
+        pending_dismissed: Boolean(matchingPending),
+      });
       return;
     }
 
+    // Inherit / merge details from pending prospect if not provided in quick-add
+    const resolvedCompany = company_name?.trim() || matchingPending?.company_name || null;
+    const resolvedTitle = job_title?.trim() || matchingPending?.job_title || null;
+    const resolvedLinkedin = linkedin_url?.trim() || matchingPending?.linkedin_url || null;
+    const resolvedNotes = matchingPending?.notes || null;
+
     // Resolve or create company (scoped to this user)
     let companyId: string | null = null;
-    if (company_name?.trim()) {
-      const name = company_name.trim();
+    if (resolvedCompany) {
       const companyRes = await pool.query<{ id: string }>(
         'SELECT id FROM companies WHERE LOWER(name) = LOWER($1) AND created_by = $2 LIMIT 1',
-        [name, userId]
+        [resolvedCompany, userId]
       );
       if (companyRes.rows[0]) {
         companyId = companyRes.rows[0].id;
       } else {
         const newCompany = await pool.query<{ id: string }>(
           'INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id',
-          [name, userId]
+          [resolvedCompany, userId]
         );
         companyId = newCompany.rows[0]?.id ?? null;
       }
@@ -184,12 +213,34 @@ router.post('/quick-add', async (req, res, next) => {
     const resolvedGender = gender?.trim() || inferProspectGender({ firstName: first_name });
 
     const result = await pool.query(
-      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, gender, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [companyId, first_name.trim(), last_name?.trim() ?? null, normalizedEmail, job_title ?? null, inferRoleCategory(job_title), linkedin_url ?? null, resolvedGender ?? null, userId]
+      `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, gender, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [
+        companyId,
+        first_name.trim(),
+        last_name?.trim() ?? null,
+        normalizedEmail,
+        resolvedTitle,
+        inferRoleCategory(resolvedTitle),
+        resolvedLinkedin,
+        resolvedGender ?? null,
+        resolvedNotes,
+        userId,
+      ]
     );
 
-    res.status(201).json({ data: result.rows[0] });
+    // Dismiss the pending prospect from Priority Action Center
+    let pendingDismissed = false;
+    if (matchingPending) {
+      await dismissPendingProspect(userId, matchingPending.id);
+      pendingDismissed = true;
+    }
+    if (resolvedLinkedin) {
+      const count = await dismissMatchingPendingProspects(userId, { linkedin_url: resolvedLinkedin });
+      if (count > 0) pendingDismissed = true;
+    }
+
+    res.status(201).json({ data: result.rows[0], pending_dismissed: pendingDismissed });
   } catch (err) {
     next(err);
   }
@@ -227,11 +278,14 @@ router.get('/lookup', async (req, res, next) => {
       values
     );
 
-    if (!result.rows[0]) {
-      res.json({ data: null });
+    if (result.rows[0]) {
+      res.json({ data: result.rows[0], pending: null });
       return;
     }
-    res.json({ data: result.rows[0] });
+
+    // Check if there is an active pending prospect in Priority Action Center
+    const pending = await findMatchingPendingProspect(userId, { linkedin_url });
+    res.json({ data: null, pending });
   } catch (err) {
     next(err);
   }
@@ -444,6 +498,12 @@ router.post('/bulk-import', async (req, res, next) => {
 
       if (insertRes.rows[0]) {
         imported.push(insertRes.rows[0]);
+        await dismissMatchingPendingProspects(userId, {
+          linkedin_url: item.linkedin_url,
+          first_name: item.first_name,
+          last_name: item.last_name,
+          company_name: item.company_name,
+        });
       }
     }
 

@@ -94,7 +94,8 @@ function ProspectsContent() {
   const [error, setError] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [showDiscover, setShowDiscover] = useState(false);
-
+  const [pendingIdToDismiss, setPendingIdToDismiss] = useState<string | null>(null);
+  const hasPrefilledRef = useRef(false);
 
   // Filters & sort
   const [search, setSearch] = useState(initialSearch);
@@ -138,6 +139,38 @@ function ProspectsContent() {
 
   useEffect(() => { void load(); }, [filterCompany, filterCategory, debouncedSearch, sortBy, sortDir, page]);
 
+  useEffect(() => {
+    if (hasPrefilledRef.current) return;
+    const isNew = searchParams?.get('new') === 'true';
+    if (!isNew || loading) return;
+
+    hasPrefilledRef.current = true;
+    const qFirstName = searchParams?.get('firstName') || '';
+    const qLastName = searchParams?.get('lastName') || '';
+    const qCompanyName = searchParams?.get('companyName') || '';
+    const qJobTitle = searchParams?.get('jobTitle') || '';
+    const qLinkedinUrl = searchParams?.get('linkedinUrl') || '';
+    const qPendingId = searchParams?.get('pendingId') || '';
+
+    const matched = companies.find(
+      (c) => c.name.toLowerCase() === qCompanyName.trim().toLowerCase()
+    );
+
+    setEditing(null);
+    setPendingIdToDismiss(qPendingId || null);
+    setForm({
+      ...EMPTY,
+      company_id: matched ? matched.id : '',
+      first_name: qFirstName,
+      last_name: qLastName,
+      job_title: qJobTitle,
+      role_category: inferCategory(qJobTitle),
+      linkedin_url: qLinkedinUrl,
+    });
+    setError('');
+    setShowForm(true);
+  }, [searchParams, loading, companies]);
+
   function handleSort(col: SortCol) {
     if (sortBy === col) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -150,6 +183,7 @@ function ProspectsContent() {
 
   function openCreate() {
     setEditing(null);
+    setPendingIdToDismiss(null);
     setForm(EMPTY);
     setError('');
     setShowForm(true);
@@ -157,6 +191,7 @@ function ProspectsContent() {
 
   function openEdit(p: Prospect) {
     setEditing(p);
+    setPendingIdToDismiss(null);
     setForm({
       company_id: p.company_id ?? '',
       first_name: p.first_name,
@@ -193,6 +228,14 @@ function ProspectsContent() {
         await api.prospects.update(editing.id, payload);
       } else {
         await api.prospects.create(payload);
+        if (pendingIdToDismiss) {
+          try {
+            await api.stats.dismiss([], [], [pendingIdToDismiss]);
+          } catch {
+            // ignore dismissal error
+          }
+          setPendingIdToDismiss(null);
+        }
       }
       setShowForm(false);
       void load();

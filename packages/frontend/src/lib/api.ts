@@ -185,7 +185,7 @@ export const api = {
         body: JSON.stringify(body),
       }),
     fromLinkedIn: (body: { linkedin_url: string }) =>
-      request<{ data: import('./types').Prospect; created: boolean }>('/prospects/from-linkedin', {
+      request<import('./types').LinkedInProspectResult>('/prospects/from-linkedin', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -413,18 +413,21 @@ export const api = {
         activeInterviewApplications?: import('./types').JobApplication[];
         activeInterviewCount?: number;
         failedSends?: import('./types').EmailSend[];
+        pendingProspects?: import('./types').PendingProspect[];
+        pendingProspectCount?: number;
         prospectsByCategory: { category: string; count: number }[];
         topCompanies: { name: string; count: number }[];
         recentSends: import('./types').EmailSend[];
         upcomingSchedules: import('./types').EmailSchedule[];
         dailyActivity: { day: string; sent: number; failed: number }[];
       }>('/stats', { cache: 'no-store' }),
-    dismiss: (applicationIds: string[], failedSendIds: string[]) =>
+    dismiss: (applicationIds: string[], failedSendIds: string[], pendingProspectIds?: string[]) =>
       request<{ closed: number; dismissed: number }>('/stats/dismissals', {
         method: 'POST',
         body: JSON.stringify({
           application_ids: applicationIds,
           failed_send_ids: failedSendIds,
+          pending_prospect_ids: pendingProspectIds ?? [],
         }),
       }),
   },

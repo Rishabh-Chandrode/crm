@@ -195,10 +195,10 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `GET` | `/api/prospects` | **Query:** `company_id?`, `role_category?`, `search?` (searches first_name, last_name, email, job_title), `sort_by?` (`first_name` \| `last_name` \| `email` \| `job_title` \| `company_name` \| `created_at`), `sort_dir?` (`asc` \| `desc`), `limit?` (1–100, default 25), `offset?` | `{ data: Prospect[], total: number }` — each prospect includes `company_name` and `gender` |
-| `POST` | `/api/prospects` | `{ first_name: string, email: string, company_id?, last_name?, job_title?, role_category?, gender?, linkedin_url?, phone?, notes? }` — auto-infers `role_category` and auto-infers `gender` (from name / pronouns) if not provided | `{ data: Prospect }` — `201`. `409` if email duplicate |
-| `POST` | `/api/prospects/quick-add` | `{ first_name: string, email: string, last_name?, company_name?, job_title?, gender?, linkedin_url? }` — resolves or creates company by name (scoped to user). Auto-infers `gender` if omitted. Returns existing if email already exists. | `{ data: Prospect, existed?: true }` — used by the Chrome extension |
-| `GET` | `/api/prospects/lookup` | **Query:** `linkedin_url?`, `email?` — at least one required. Normalizes LinkedIn URL (strips query params, trailing slashes). | `{ data: Prospect \| null }` — returns first match for current user. Used by extension match card. |
-| `POST` | `/api/prospects/from-linkedin` | `{ linkedin_url: string }` | `{ data: Prospect, created: boolean }` — `201` when created, `200` when that profile is already saved for the current user (no enrichment credit is spent). `400` if the URL is not a LinkedIn profile (`/in/` or `/pub/`) or enrichment returns no first name. `409` if the enriched email already belongs to another prospect. `services/prospectFromLinkedIn.ts` enriches with the active provider, finds or creates the company by name, and uses a `name@company.crm.local` placeholder when the provider has no email. |
+| `POST` | `/api/prospects` | `{ first_name: string, email: string, company_id?, last_name?, job_title?, role_category?, gender?, linkedin_url?, phone?, notes? }` — auto-infers `role_category` and auto-infers `gender` (from name / pronouns) if not provided. Automatically dismisses matching pending prospects in Priority Action Center. | `{ data: Prospect }` — `201`. `409` if email duplicate |
+| `POST` | `/api/prospects/quick-add` | `{ first_name: string, email: string, last_name?, company_name?, job_title?, gender?, linkedin_url? }` — resolves or creates company by name (scoped to user). Auto-infers `gender` if omitted. Automatically checks for matching pending prospect in `pending_prospects` (by LinkedIn slug, normalized URL, or name + company), inherits missing fields, saves the prospect to CRM, and dismisses the pending prospect from the Priority Action Center. | `{ data: Prospect, existed?: true, pending_dismissed?: boolean }` — used by the Chrome extension |
+| `GET` | `/api/prospects/lookup` | **Query:** `linkedin_url?`, `email?` — at least one required. Normalizes LinkedIn URL (strips query params, trailing slashes). Checks `prospects` first; if not found, checks for active matching `pending_prospects`. | `{ data: Prospect \| null, pending?: PendingProspect \| null }` — returns first match from prospects, or matching pending prospect from `pending_prospects` for current user. Used by extension match cards. |
+| `POST` | `/api/prospects/from-linkedin` | `{ linkedin_url: string }` | `{ data?: Prospect, pendingProspect?: PendingProspect, created: boolean, manual_required?: boolean, message?: string }` — `201` when created, `200` when that profile is already saved or already pending. First attempts enrichment with Prospeo, then falls back to Apollo if Prospeo yields no email. If neither API returns an email, does NOT create a dummy email or prospect record; instead creates or returns an entry in `pending_prospects` for manual entry in the Priority Action Center. |
 | `POST` | `/api/prospects/enrich` | `{ first_name?, last_name?, company_name?, linkedin_url? }` | Enrichment result from the active provider (Apollo/Prospeo), including `first_name` and `last_name` when the provider returns them. Apollo accepts a LinkedIn URL without a first name. |
 | `GET` | `/api/prospects/enrich/credits` | — | `{ credits: number \| null, provider: string }` |
 | `POST` | `/api/prospects/discover` | `{ company_name?, company_domain?, role_category?, job_titles?, seniorities?, limit?, page? }` | Discovers decision makers & recruiters at a company via Prospeo/Apollo, cross-referencing against user CRM for duplicate tagging. |
@@ -315,8 +315,8 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. `Cache-Control: no-store`. Before returning, links unassigned sends to the user's only open job at that company and counts **sent** emails. `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. `failedSends` omits rows with `dismissed_at` set. |
-| `POST` | `/api/stats/dismissals` | `{ application_ids: uuid[], failed_send_ids: uuid[] }` | `{ closed, dismissed }` — closes the caller's applications and sets `dismissed_at` on the caller's failed sends. Other users' ids are ignored. |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, pendingProspects, pendingProspectCount, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. `Cache-Control: no-store`. Before returning, links unassigned sends to the user's only open job at that company and counts **sent** emails. `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. `failedSends` and `pendingProspects` omit rows with `dismissed_at` set. |
+| `POST` | `/api/stats/dismissals` | `{ application_ids?: uuid[], failed_send_ids?: uuid[], pending_prospect_ids?: uuid[] }` | `{ closed, dismissed, pending_dismissed }` — closes the caller's applications, sets `dismissed_at` on the caller's failed sends, and sets `dismissed_at` on the caller's pending prospects. Other users' ids are ignored. |
 
 ---
 
@@ -400,6 +400,8 @@ documents       (id, name, filename, path, size,
                  created_by→users, created_at)
 variable_presets (id, key, label, source, field, default_value, male_value, female_value,
                   created_by→users, created_at, updated_at)
+pending_prospects (id, user_id→users, linkedin_url, first_name, last_name, company_name, job_title, notes,
+                   dismissed_at, created_at, updated_at)
 ```
 
 ### Migrations
@@ -458,6 +460,17 @@ Each Drive-linked file can be refreshed on demand with **Re-fetch** (`POST /api/
 - **`fetchAndSaveFile(driveUrl, existingPath?)`** — downloads the file. If `existingPath` is provided and exists on disk/storage, it overwrites that path (no orphaned files). Handles Google's virus-scan confirmation redirect for large files.
 - **`syncDriveDocuments(userId?)`** — refreshes documents with a `drive_url`. Pass a user id to limit the refresh to that user's files. If Drive says the file is gone, the document row is deleted and that id is removed from template and schedule attachments.
 
+---
+
+## Pending prospects & Priority Action Center synchronization
+
+`services/pendingProspects.ts` links the mobile share flow (where un-enriched profiles are parked in `pending_prospects` for manual email entry) with the Chrome extension and manual prospect creation:
+
+- **`extractLinkedInSlug(url)`** — extracts canonical LinkedIn profile slug (`/in/<slug>` or `/pub/<slug>`), ignoring regional subdomains (`in.linkedin.com`), trailing slashes, and tracking query params (`?trk=...`).
+- **`normalizeLinkedInUrl(url)`** — strips query strings, trailing slashes, and normalizes casing.
+- **`findMatchingPendingProspect(userId, criteria)`** — searches `pending_prospects` where `dismissed_at IS NULL` matching by LinkedIn slug, normalized URL, or first + last name and company.
+- **`dismissPendingProspect(userId, pendingId)`** — marks `dismissed_at = NOW()` on the pending record so it leaves the Priority Action Center.
+- **`dismissMatchingPendingProspects(userId, criteria)`** — finds and dismisses matching pending records during quick-add, standard creation, or bulk import.
 
 ---
 

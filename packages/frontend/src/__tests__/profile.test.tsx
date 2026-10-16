@@ -127,7 +127,7 @@ describe('ProfilePage documents', () => {
       expect(api.documents.dailySync.set).toHaveBeenCalledWith(true);
     });
     expect(await screen.findByText(/Daily refetch is on/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Turn off daily refetch' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Turn off daily refetch' })).toBeInTheDocument();
   });
 
   it('saves target roles typed as a comma-separated list', async () => {

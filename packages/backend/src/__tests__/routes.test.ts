@@ -495,7 +495,20 @@ describe('Backend API Feature Routes', () => {
               error_message: 'Invalid recipient',
             },
           ],
-        } as any); // failedSends
+        } as any) // failedSends
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'pending-1',
+              user_id: 'u-1',
+              first_name: 'Jane',
+              last_name: 'Doe',
+              company_name: 'Acme',
+              job_title: 'Recruiter',
+              linkedin_url: 'https://linkedin.com/in/jane',
+            },
+          ],
+        } as any); // pendingProspects
 
       const res = await request(app)
         .get('/api/stats')
@@ -515,25 +528,34 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.activeInterviewApplications).toHaveLength(1);
       expect(res.body.activeInterviewApplications[0].job_title).toBe('Software Engineer III');
       expect(res.body.failedSends).toHaveLength(1);
+      expect(res.body).toHaveProperty('pendingProspectCount', 1);
+      expect(res.body.pendingProspects).toHaveLength(1);
+      expect(res.body.pendingProspects[0].job_title).toBe('Recruiter');
       expect(res.headers['cache-control']).toBe('no-store');
       const sql = vi.mocked(pool.query).mock.calls.map((call) => String(call[0])).join('\n');
       expect(sql).toContain('es.dismissed_at IS NULL');
     });
 
-    it('closes owned applications and stamps dismissed_at on owned failed sends', async () => {
+    it('closes owned applications, stamps dismissed_at on owned failed sends and pending prospects', async () => {
       const applicationId = '11111111-1111-4111-8111-111111111111';
       const sendId = '22222222-2222-4222-8222-222222222222';
+      const pendingId = '33333333-3333-4333-8333-333333333333';
       vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rowCount: 1 } as any)
         .mockResolvedValueOnce({ rowCount: 1 } as any)
         .mockResolvedValueOnce({ rowCount: 1 } as any);
 
       const res = await request(app)
         .post('/api/stats/dismissals')
         .set('Authorization', `Bearer ${userToken}`)
-        .send({ application_ids: [applicationId], failed_send_ids: [sendId] });
+        .send({
+          application_ids: [applicationId],
+          failed_send_ids: [sendId],
+          pending_prospect_ids: [pendingId],
+        });
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ closed: 1, dismissed: 1 });
+      expect(res.body).toEqual({ closed: 1, dismissed: 2 });
 
       const calls = vi.mocked(pool.query).mock.calls;
       expect(String(calls[0][0])).toContain('user_id = $2');
@@ -541,6 +563,9 @@ describe('Backend API Feature Routes', () => {
       expect(String(calls[1][0])).toContain('created_by = $2');
       expect(String(calls[1][0])).toContain('dismissed_at IS NULL');
       expect(calls[1][1]).toEqual([[sendId], 'u-1']);
+      expect(String(calls[2][0])).toContain('pending_prospects');
+      expect(String(calls[2][0])).toContain('dismissed_at IS NULL');
+      expect(calls[2][1]).toEqual([[pendingId], 'u-1']);
     });
 
     it('rejects dismissals that are not uuids', async () => {

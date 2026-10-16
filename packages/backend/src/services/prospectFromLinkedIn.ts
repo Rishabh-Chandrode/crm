@@ -1,6 +1,8 @@
 import { pool } from '../db/index.js';
-import type { Prospect } from '../types/index.js';
-import { getEnrichmentService } from './enrichment/index.js';
+import type { Prospect, PendingProspect } from '../types/index.js';
+import { ProspeoProvider } from './enrichment/providers/prospeo.js';
+import { ApolloProvider } from './enrichment/providers/apollo.js';
+import type { EnrichmentResult } from './enrichment/types.js';
 import { inferProspectGender } from './genderInference.js';
 import { inferRoleCategory } from './roleCategory.js';
 
@@ -12,6 +14,14 @@ export class LinkedInProfileError extends Error {
 }
 
 export type LinkedInProspect = Prospect & { company_name: string | null };
+
+export type CreateProspectFromLinkedInResult = {
+  data?: LinkedInProspect;
+  pendingProspect?: PendingProspect;
+  created: boolean;
+  manual_required?: boolean;
+  message?: string;
+};
 
 /** LinkedIn person profiles (`/in/{slug}` and `/pub/{slug}`). */
 export function isLinkedInProfileUrl(url: string): boolean {
@@ -29,11 +39,29 @@ export function normalizeLinkedInUrl(url: string): string {
   return url.trim().split('?')[0]!.toLowerCase().replace(/\/+$/, '');
 }
 
-function placeholderEmail(firstName: string, lastName: string | undefined, companyName: string | undefined): string {
-  const cleanFirst = firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanLast = (lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanCompany = (companyName || 'contact').toLowerCase().replace(/[^a-z0-9]/g, '');
-  return `${cleanFirst}${cleanLast ? '.' + cleanLast : ''}@${cleanCompany || 'company'}.crm.local`;
+export function extractNameFromSlug(url: string): { first_name?: string; last_name?: string } {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/^\/(?:in|pub)\/([^/]+)/i);
+    if (match?.[1]) {
+      const parts = match[1]
+        .replace(/[-_.]/g, ' ')
+        .replace(/\d+/g, '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      if (parts.length > 0 && parts[0]) {
+        const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+        return {
+          first_name: cap(parts[0]),
+          last_name: parts.slice(1).map(cap).join(' ') || undefined,
+        };
+      }
+    }
+  } catch {
+    // Ignore invalid url
+  }
+  return {};
 }
 
 async function findByLinkedIn(userId: string, normalizedUrl: string): Promise<LinkedInProspect | null> {
@@ -68,7 +96,7 @@ async function resolveCompanyId(userId: string, companyName: string | undefined)
 export async function createProspectFromLinkedIn(
   userId: string,
   linkedinUrl: string,
-): Promise<{ data: LinkedInProspect; created: boolean }> {
+): Promise<CreateProspectFromLinkedInResult> {
   const trimmed = linkedinUrl.trim();
   if (!isLinkedInProfileUrl(trimmed)) {
     throw new LinkedInProfileError('A LinkedIn profile URL is required', 400);
@@ -80,14 +108,97 @@ export async function createProspectFromLinkedIn(
     return { data: existing, created: false };
   }
 
-  let enriched;
+  let enriched: EnrichmentResult | null = null;
+
+  // 1. First try with Prospeo
   try {
-    enriched = await getEnrichmentService().enrich({ linkedin_url: normalized });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to enrich prospect';
-    throw new LinkedInProfileError(message, 400);
+    const prospeo = new ProspeoProvider();
+    const res = await prospeo.enrich({ linkedin_url: normalized });
+    if (res && (res.first_name || res.email || res.company_name || res.job_title)) {
+      enriched = res;
+    }
+  } catch {
+    // Prospeo enrichment failed or threw, fall through to Apollo
   }
 
+  // 2. If Prospeo did not give an email, try with Apollo
+  if (!enriched?.email?.trim()) {
+    try {
+      const apollo = new ApolloProvider();
+      const apolloRes = await apollo.enrich({
+        linkedin_url: normalized,
+        first_name: enriched?.first_name,
+        last_name: enriched?.last_name,
+        company_name: enriched?.company_name,
+      });
+
+      if (apolloRes) {
+        if (apolloRes.email?.trim()) {
+          enriched = {
+            email: apolloRes.email.trim(),
+            first_name: apolloRes.first_name?.trim() || enriched?.first_name,
+            last_name: apolloRes.last_name?.trim() || enriched?.last_name,
+            job_title: apolloRes.job_title?.trim() || enriched?.job_title,
+            company_name: apolloRes.company_name?.trim() || enriched?.company_name,
+            linkedin_url: apolloRes.linkedin_url?.trim() || enriched?.linkedin_url || normalized,
+          };
+        } else if (!enriched) {
+          enriched = apolloRes;
+        }
+      }
+    } catch {
+      // Apollo enrichment failed or threw
+    }
+  }
+
+  const email = enriched?.email?.trim()?.toLowerCase();
+
+  // 3. If both APIs don't give the email:
+  // "if both api don't give the email of the person then don't add it to prospect instead make a entry in priority section to manually enter the prospect. don't add the dummy email if email not found in all the apis"
+  if (!enriched || !email) {
+    let firstName = enriched?.first_name?.trim() || null;
+    let lastName = enriched?.last_name?.trim() || null;
+    if (!firstName) {
+      const fromSlug = extractNameFromSlug(normalized);
+      firstName = fromSlug.first_name || null;
+      lastName = lastName || fromSlug.last_name || null;
+    }
+    const companyName = enriched?.company_name?.trim() || null;
+    const jobTitle = enriched?.job_title?.trim() || null;
+
+    // Check if already in pending_prospects
+    const existingPending = await pool.query<PendingProspect>(
+      `SELECT * FROM pending_prospects
+       WHERE user_id = $1 AND LOWER(TRIM(TRAILING '/' FROM linkedin_url)) = $2 AND dismissed_at IS NULL
+       LIMIT 1`,
+      [userId, normalized],
+    );
+
+    if (existingPending.rows[0]) {
+      return {
+        pendingProspect: existingPending.rows[0],
+        created: false,
+        manual_required: true,
+        message: 'Email not found via Prospeo or Apollo. An entry is already in your Priority Action Center for manual entry.',
+      };
+    }
+
+    const insertedPending = await pool.query<PendingProspect>(
+      `INSERT INTO pending_prospects (user_id, linkedin_url, first_name, last_name, company_name, job_title)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [userId, normalized, firstName, lastName, companyName, jobTitle],
+    );
+
+    return {
+      pendingProspect: insertedPending.rows[0],
+      created: true,
+      manual_required: true,
+      message: 'Email not found via Prospeo or Apollo. Added to Priority Action Center to manually enter prospect.',
+    };
+  }
+
+  // 4. Email was found by one of the APIs! Add to prospects
   const firstName = enriched.first_name?.trim();
   if (!firstName) {
     throw new LinkedInProfileError('Enrichment did not return a name for this profile', 400);
@@ -96,7 +207,6 @@ export async function createProspectFromLinkedIn(
   const lastName = enriched.last_name?.trim() || null;
   const companyName = enriched.company_name?.trim() || undefined;
   const jobTitle = enriched.job_title?.trim() || null;
-  const email = (enriched.email?.trim() || placeholderEmail(firstName, lastName ?? undefined, companyName)).toLowerCase();
   const companyId = await resolveCompanyId(userId, companyName);
   const roleCategory = inferRoleCategory(jobTitle);
   const gender = inferProspectGender({ firstName });
@@ -124,6 +234,14 @@ export async function createProspectFromLinkedIn(
     if (!row) {
       throw new LinkedInProfileError('Failed to create prospect', 400);
     }
+
+    // Dismiss any active pending prospect entry for this url if one existed
+    await pool.query(
+      `UPDATE pending_prospects SET dismissed_at = NOW()
+       WHERE user_id = $1 AND LOWER(TRIM(TRAILING '/' FROM linkedin_url)) = $2 AND dismissed_at IS NULL`,
+      [userId, normalized],
+    );
+
     return { data: { ...row, company_name: companyName ?? null }, created: true };
   } catch (err) {
     if (err instanceof LinkedInProfileError) throw err;

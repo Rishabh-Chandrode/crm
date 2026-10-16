@@ -41,7 +41,7 @@ extension/
 │   ├── popup.ts                    # Main logic — auth gate, tabs, API calls, match card, autofill
 │   ├── contentScript.ts            # Passive listener on linkedin.com/in/* — only scrolls/scrapes on explicit user request
 │   ├── background.ts               # Service worker — tab queries, scrape trigger, tab URL events
-│   ├── types.ts                    # Shared TypeScript interfaces. Email-send dismissals stay on the server.
+│   ├── types.ts                    # Shared TypeScript interfaces (including PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
 │   └── formFiller/                 # Form autofill subsystem
 │       ├── index.ts                # Orchestrator — platform detection, field loop, resume injection
 │       ├── detector.ts             # Label-based field detection: getLabelText, PATTERNS, classifyElement, detectAllFields
@@ -68,7 +68,7 @@ extension/
 
 ---
 
-## CRM match card
+## CRM & Priority Center match cards
 
 On every tab switch or panel open, the background sends the active tab URL to the side panel. If the URL matches `linkedin.com/in/*`, the panel calls:
 
@@ -76,7 +76,10 @@ On every tab switch or panel open, the background sends the active tab URL to th
 GET /api/prospects/lookup?linkedin_url=<url>
 ```
 
-If a prospect is found, a green **Already in CRM** card appears above the form showing name, job title, company, and email, with a **View →** link to the prospects list. The card hides when you navigate away from a LinkedIn profile or the profile is not in the CRM.
+- **Already in CRM:** If a matching prospect is already saved in the database, a green **Already in CRM** card (`#matchCard`) appears above the form showing name, job title, company, and email, with a **View →** link to the CRM prospects list.
+- **Pending in Priority Center:** If the prospect is not yet in the CRM but exists in `pending_prospects` (e.g. from the mobile share flow where email enrichment had failed), an amber **Pending in Priority Center** card (`#pendingProspectCard`) appears. The extension pre-fills the form with known fields (name, title, company, LinkedIn URL) and prompts the user to enter their email. When the user clicks **Add to CRM**, the contact is saved to the database and automatically cleared from the Priority Action Center.
+
+Both cards hide automatically when navigating away from a LinkedIn profile or when no match exists.
 
 ---
 
@@ -218,5 +221,5 @@ Test suites live in `src/__tests__/`:
 - `platforms.test.ts` — ATS platform detector and selectors
 - `profileSearch.test.ts` — Profile field search filtering and match highlighting
 - `theme.test.ts` — Light/Dark/System theme switching and root class management
-- `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts, Job, JobApplication, VariableSource, getGmailSearchUrl utility (direct #all/<threadId> and rfc822msgid search), and Type Trinity synchronization
+- `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts, Job, JobApplication, VariableSource, PendingProspect, LinkedInProspectResult, getGmailSearchUrl utility (direct #all/<threadId> and rfc822msgid search), and Type Trinity synchronization
 

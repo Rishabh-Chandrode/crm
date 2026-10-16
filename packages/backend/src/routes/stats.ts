@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/index.js';
 import { syncOutreachForDashboard } from '../services/jobs.js';
+import type { PendingProspect } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -34,6 +35,7 @@ router.get('/', async (req, res, next) => {
       notAppliedAppsRes,
       activeInterviewsRes,
       failedSendsRes,
+      pendingProspectsRes,
     ] = await Promise.all([
       pool.query<{ companies: string; prospects: string; templates: string; applications: string }>(
         isAdmin
@@ -209,6 +211,14 @@ router.get('/', async (req, res, next) => {
          LIMIT 3`,
         p
       ),
+      pool.query<PendingProspect>(
+        `SELECT * FROM pending_prospects
+         WHERE dismissed_at IS NULL
+         ${isAdmin ? '' : 'AND user_id = $1'}
+         ORDER BY created_at DESC
+         LIMIT 10`,
+        p
+      ),
     ]);
 
     const counts = countsRes.rows[0] ?? { companies: '0', prospects: '0', templates: '0', applications: '0' };
@@ -246,6 +256,8 @@ router.get('/', async (req, res, next) => {
       activeInterviewApplications: activeInterviewsRes.rows,
       activeInterviewCount: activeInterviewsRes.rows.length,
       failedSends: failedSendsRes.rows,
+      pendingProspects: pendingProspectsRes.rows,
+      pendingProspectCount: pendingProspectsRes.rows.length,
       prospectsByCategory: categoryRes.rows.map((r) => ({
         category: r.category ?? 'unknown',
         count: parseInt(r.count, 10),
@@ -270,6 +282,7 @@ router.get('/', async (req, res, next) => {
 const DismissalsSchema = z.object({
   application_ids: z.array(z.string().uuid()).max(200).default([]),
   failed_send_ids: z.array(z.string().uuid()).max(200).default([]),
+  pending_prospect_ids: z.array(z.string().uuid()).max(200).default([]),
 });
 
 router.post('/dismissals', async (req, res, next) => {
@@ -281,7 +294,7 @@ router.post('/dismissals', async (req, res, next) => {
     }
 
     const userId = req.user!.id;
-    const { application_ids, failed_send_ids } = parsed.data;
+    const { application_ids, failed_send_ids, pending_prospect_ids } = parsed.data;
     let closed = 0;
     let dismissed = 0;
 
@@ -305,7 +318,19 @@ router.post('/dismissals', async (req, res, next) => {
            AND dismissed_at IS NULL`,
         [failed_send_ids, userId],
       );
-      dismissed = result.rowCount ?? 0;
+      dismissed += result.rowCount ?? 0;
+    }
+
+    if (pending_prospect_ids.length > 0) {
+      const result = await pool.query(
+        `UPDATE pending_prospects
+         SET dismissed_at = NOW()
+         WHERE id = ANY($1::uuid[])
+           AND user_id = $2
+           AND dismissed_at IS NULL`,
+        [pending_prospect_ids, userId],
+      );
+      dismissed += result.rowCount ?? 0;
     }
 
     res.json({ closed, dismissed });

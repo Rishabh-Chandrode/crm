@@ -51,6 +51,9 @@ const matchNameEl           = $<HTMLDivElement>('matchName');
 const matchMetaEl           = $<HTMLDivElement>('matchMeta');
 const matchViewLinkEl       = $<HTMLAnchorElement>('matchViewLink');
 const matchSendEmailBtn     = $<HTMLButtonElement>('matchSendEmailBtn');
+const pendingProspectCard   = $<HTMLDivElement>('pendingProspectCard');
+const pendingMatchNameEl    = $<HTMLDivElement>('pendingMatchName');
+const pendingMatchMetaEl    = $<HTMLDivElement>('pendingMatchMeta');
 const pasteBtn       = $<HTMLButtonElement>('pasteBtn');
 const enrichBtn      = $<HTMLButtonElement>('enrichBtn');
 const enrichCredits  = $<HTMLDivElement>('enrichCredits');
@@ -526,7 +529,38 @@ function showExistingProspect(p: ProspectMatch): void {
 }
 
 function hideExistingProspect(): void {
-  existingProspectCard.style.display = 'none';
+  if (existingProspectCard) existingProspectCard.style.display = 'none';
+}
+
+interface PendingProspectMatch {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  job_title?: string | null;
+  company_name?: string | null;
+  linkedin_url?: string | null;
+}
+
+function showPendingProspect(p: PendingProspectMatch): void {
+  if (!pendingProspectCard) return;
+  const name = [p.first_name, p.last_name].filter(Boolean).join(' ');
+  const meta = [p.job_title, p.company_name].filter(Boolean).join(' · ');
+  if (pendingMatchNameEl) pendingMatchNameEl.textContent = name;
+  if (pendingMatchMetaEl) pendingMatchMetaEl.textContent = meta;
+  pendingProspectCard.style.display = 'block';
+
+  // If form fields are empty, prefill with pending prospect's known fields
+  const current = getFormData();
+  if (!current.firstName && p.first_name && firstNameEl) firstNameEl.value = p.first_name;
+  if (!current.lastName && p.last_name && lastNameEl)   lastNameEl.value = p.last_name;
+  if (!current.company && p.company_name && companyEl)   companyEl.value = p.company_name;
+  if (!current.jobTitle && p.job_title && jobTitleEl)   jobTitleEl.value = p.job_title;
+  if (!current.linkedinUrl && p.linkedin_url && linkedinUrlEl) linkedinUrlEl.value = p.linkedin_url;
+  persistForm();
+}
+
+function hidePendingProspect(): void {
+  if (pendingProspectCard) pendingProspectCard.style.display = 'none';
 }
 
 async function lookupProspect(linkedinUrl: string, email: string): Promise<void> {
@@ -539,9 +573,17 @@ async function lookupProspect(linkedinUrl: string, email: string): Promise<void>
       headers: { Authorization: `Bearer ${currentToken}` },
     });
     if (!res.ok) return;
-    const json = await res.json() as { data: ProspectMatch | null };
-    if (json.data) showExistingProspect(json.data);
-    else hideExistingProspect();
+    const json = await res.json() as { data: ProspectMatch | null; pending?: PendingProspectMatch | null };
+    if (json.data) {
+      showExistingProspect(json.data);
+      hidePendingProspect();
+    } else if (json.pending) {
+      hideExistingProspect();
+      showPendingProspect(json.pending);
+    } else {
+      hideExistingProspect();
+      hidePendingProspect();
+    }
   } catch {
     // non-fatal
   }
@@ -553,6 +595,7 @@ function handleTabUrl(url: string): void {
     void lookupProspect(cleanUrl, '');
   } else {
     hideExistingProspect();
+    hidePendingProspect();
   }
 }
 
@@ -985,13 +1028,20 @@ addBtn.addEventListener('click', async () => {
 
     if (res.status === 401) { chrome.storage.sync.remove('auth'); showLoginGate(); return; }
 
-    const json = await res.json() as { existed?: boolean; error?: string };
+    const json = await res.json() as { existed?: boolean; pending_dismissed?: boolean; error?: string };
     if (!res.ok) { showContactStatus(json.error ?? `Error ${res.status}`, 'error'); return; }
 
     if (json.existed) {
       showContactStatus('Already in CRM', 'info');
+      hidePendingProspect();
+    } else if (json.pending_dismissed) {
+      showContactStatus('Prospect added & cleared from Priority Center ✓', 'success');
+      hidePendingProspect();
+      chrome.storage.sync.remove(STORAGE_KEYS);
+      setFormData({ firstName: '', lastName: '', email: '', company: '', jobTitle: '', gender: '', linkedinUrl: '' });
     } else {
       showContactStatus('Prospect added ✓', 'success');
+      hidePendingProspect();
       chrome.storage.sync.remove(STORAGE_KEYS);
       setFormData({ firstName: '', lastName: '', email: '', company: '', jobTitle: '', gender: '', linkedinUrl: '' });
     }
@@ -1008,6 +1058,7 @@ clearBtn.addEventListener('click', () => {
   setFormData({ firstName: '', lastName: '', email: '', company: '', jobTitle: '', gender: '', linkedinUrl: '' });
   statusEl.style.display = 'none';
   hideExistingProspect();
+  hidePendingProspect();
 });
 
 // ── Apply / Autofill tab ─────────────────────────────────────────────────────

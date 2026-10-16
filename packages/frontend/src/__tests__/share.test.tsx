@@ -84,7 +84,7 @@ describe('SharePage', () => {
     expect(screen.getByLabelText('Role *')).toHaveValue('SDE');
   });
 
-  it('adds a LinkedIn profile as a prospect', async () => {
+  it('adds a LinkedIn profile as a prospect when email is found', async () => {
     search.value = `url=${encodeURIComponent('https://www.linkedin.com/in/jane-doe')}`;
     vi.mocked(api.prospects.fromLinkedIn).mockResolvedValue({
       created: true,
@@ -92,7 +92,7 @@ describe('SharePage', () => {
         id: 'p-1',
         first_name: 'Jane',
         last_name: 'Doe',
-        email: 'jane.doe@contact.crm.local',
+        email: 'jane@acme.com',
         job_title: 'Recruiter',
         company_name: 'Acme',
       },
@@ -109,8 +109,41 @@ describe('SharePage', () => {
       });
     });
     expect(await screen.findByText('Jane Doe is in your prospects.')).toBeInTheDocument();
-    expect(screen.getByText('The enrichment provider did not return an email.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View prospect' })).toHaveAttribute('href', '/prospects/p-1');
+  });
+
+  it('routes to manual entry and Priority Action Center when neither API returns an email', async () => {
+    search.value = `url=${encodeURIComponent('https://www.linkedin.com/in/jane-doe')}`;
+    vi.mocked(api.prospects.fromLinkedIn).mockResolvedValue({
+      created: true,
+      manual_required: true,
+      message: 'Email not found via Prospeo or Apollo. Added to Priority Action Center to manually enter prospect.',
+      pendingProspect: {
+        id: 'pend-1',
+        user_id: 'u-1',
+        linkedin_url: 'https://www.linkedin.com/in/jane-doe',
+        first_name: 'Jane',
+        last_name: 'Doe',
+        company_name: 'Acme',
+        job_title: 'Recruiter',
+        dismissed_at: null,
+        created_at: new Date().toISOString(),
+      },
+    } as never);
+    render(<SharePage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add prospect' }));
+
+    expect(await screen.findByRole('heading', { name: /Manual Entry Required/i })).toBeInTheDocument();
+    expect(screen.getByText(/Email could not be found via Prospeo or Apollo/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Manually Enter Prospect Now' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/prospects?new=true')
+    );
+    expect(screen.getByRole('link', { name: 'View Priority Action Center' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    );
   });
 
   it('says the profile is already a prospect', async () => {

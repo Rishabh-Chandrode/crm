@@ -799,6 +799,28 @@ textarea.input {
   color: var(--text-primary);
 }
 
+.match-card--pending {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.match-badge--pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+:root.dark .match-badge--pending {
+  color: #fbbf24;
+}
+
+.match-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
 /* Recipient card inside Send Email */
 .recipient-card {
   display: flex;

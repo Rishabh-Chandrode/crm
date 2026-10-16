@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import ApplicationsPage from '../app/(dashboard)/applications/page';
+import { canAskReferral } from '../lib/applications';
 import { api } from '../lib/api';
 import type { JobApplication } from '../lib/types';
 
@@ -36,6 +37,26 @@ vi.mock('../lib/api', () => ({
 describe('ApplicationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('canAskReferral', () => {
+    it('allows referral for applied, interview, offer, screening, referral_requested, and not_applied', () => {
+      expect(canAskReferral('applied')).toBe(true);
+      expect(canAskReferral('interview')).toBe(true);
+      expect(canAskReferral('offer')).toBe(true);
+      expect(canAskReferral('screening')).toBe(true);
+      expect(canAskReferral('referral_requested')).toBe(true);
+      expect(canAskReferral('not_applied')).toBe(true);
+      expect(canAskReferral(null)).toBe(true);
+      expect(canAskReferral(undefined)).toBe(true);
+    });
+
+    it('disallows referral for rejected, closed, or expired jobs', () => {
+      expect(canAskReferral('rejected')).toBe(false);
+      expect(canAskReferral('REJECTED')).toBe(false);
+      expect(canAskReferral('closed')).toBe(false);
+      expect(canAskReferral('expired')).toBe(false);
+    });
   });
 
   const mockApps: JobApplication[] = [
@@ -138,6 +159,48 @@ describe('ApplicationsPage', () => {
     fireEvent.click(askBtns[0]!);
 
     expect(mockPush).toHaveBeenCalledWith('/send?jobId=job-1&companyName=Stripe');
+  });
+
+  it('shows Ask Referral button for applied jobs and hides it for rejected or expired jobs', async () => {
+    const variedApps: JobApplication[] = [
+      {
+        ...mockApps[0]!,
+        id: 'app-applied',
+        company_name: 'Applied Co',
+        status: 'applied',
+      },
+      {
+        ...mockApps[0]!,
+        id: 'app-rejected',
+        company_name: 'Rejected Co',
+        status: 'rejected',
+      },
+      {
+        ...mockApps[0]!,
+        id: 'app-closed',
+        company_name: 'Closed Co',
+        status: 'closed',
+      },
+    ];
+
+    vi.mocked(api.applications.list).mockResolvedValue({
+      applications: variedApps,
+      total: 3,
+    });
+
+    render(<ApplicationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Applied Co')).toBeInTheDocument();
+      expect(screen.getByText('Rejected Co')).toBeInTheDocument();
+      expect(screen.getByText('Closed Co')).toBeInTheDocument();
+    });
+
+    const askBtns = screen.getAllByText('Ask Referral');
+    expect(askBtns).toHaveLength(1);
+
+    fireEvent.click(askBtns[0]!);
+    expect(mockPush).toHaveBeenCalledWith(expect.stringMatching(/companyName=Applied(\+|%20)Co/));
   });
 
   it('opens outreach history modal when clicking on sent emails count', async () => {

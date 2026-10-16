@@ -44,4 +44,38 @@ describe('Backend Types & Utilities', () => {
       expect(getGmailSearchUrl({})).toBe('https://mail.google.com/mail/u/0/#search/');
     });
   });
+
+  describe('Prospect Contracts', () => {
+    it('validates ProspectLookupResult and QuickAddProspectResult structures', () => {
+      const lookup: import('../types/index.js').ProspectLookupResult = {
+        data: null,
+        pending: {
+          id: 'pend-1',
+          user_id: 'u-1',
+          linkedin_url: 'https://linkedin.com/in/jane',
+          first_name: 'Jane',
+          last_name: 'Doe',
+          company_name: 'Acme',
+          job_title: 'Recruiter',
+          notes: null,
+          dismissed_at: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      };
+      expect(lookup.pending?.id).toBe('pend-1');
+
+      const quickAdd: import('../types/index.js').QuickAddProspectResult = {
+        data: {
+          id: 'p-1',
+          first_name: 'Jane',
+          email: 'jane@acme.com',
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+        pending_dismissed: true,
+      };
+      expect(quickAdd.pending_dismissed).toBe(true);
+    });
+  });
 });

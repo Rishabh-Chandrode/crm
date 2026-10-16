@@ -422,6 +422,24 @@ export async function migrate(): Promise<void> {
     }
   }
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pending_prospects (
+      id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id       UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      linkedin_url  VARCHAR(500) NOT NULL,
+      first_name    VARCHAR(255),
+      last_name     VARCHAR(255),
+      company_name  VARCHAR(255),
+      job_title     VARCHAR(255),
+      notes         TEXT,
+      dismissed_at  TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_pending_prospects_user_id ON pending_prospects(user_id);
+    CREATE INDEX IF NOT EXISTS idx_pending_prospects_dismissed_at ON pending_prospects(dismissed_at);
+  `);
+
   console.log('Database migration completed successfully');
 }
 

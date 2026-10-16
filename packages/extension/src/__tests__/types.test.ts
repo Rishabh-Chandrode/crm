@@ -36,6 +36,49 @@ describe('Extension Data Shapes & Message Contracts', () => {
     const src: VariableSource = 'sender';
     expect(src).toBe('sender');
   });
+
+  it('validates PendingProspect and LinkedInProspectResult contracts', () => {
+    const pending: extensionTypes.PendingProspect = {
+      id: 'p-1',
+      user_id: 'u-1',
+      linkedin_url: 'https://linkedin.com/in/test',
+      first_name: 'Test',
+      last_name: 'User',
+      company_name: 'Acme',
+      job_title: 'Engineer',
+      notes: null,
+      dismissed_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const result: extensionTypes.LinkedInProspectResult = {
+      pendingProspect: pending,
+      created: true,
+      manual_required: true,
+      message: 'Manual entry required',
+    };
+    expect(result.manual_required).toBe(true);
+    expect(result.pendingProspect?.first_name).toBe('Test');
+
+    const lookupRes: extensionTypes.ProspectLookupResult = {
+      data: null,
+      pending,
+    };
+    expect(lookupRes.pending?.id).toBe('p-1');
+
+    const quickAddRes: extensionTypes.QuickAddProspectResult = {
+      data: {
+        id: 'p-new',
+        first_name: 'Test',
+        last_name: 'User',
+        email: 'test@acme.com',
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      pending_dismissed: true,
+    };
+    expect(quickAddRes.pending_dismissed).toBe(true);
+  });
   it('validates ScrapeMessage structure', () => {
     const msg: ScrapeMessage = {
       action: 'scraped',

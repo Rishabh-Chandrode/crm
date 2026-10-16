@@ -118,6 +118,39 @@ export function prospectFullName(p: Pick<Prospect, 'first_name' | 'last_name'>):
   return [p.first_name, p.last_name].filter(Boolean).join(' ');
 }
 
+export interface PendingProspect {
+  id: string;
+  user_id: string;
+  linkedin_url: string;
+  first_name: string | null;
+  last_name: string | null;
+  company_name: string | null;
+  job_title: string | null;
+  notes: string | null;
+  dismissed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LinkedInProspectResult {
+  data?: Prospect & { company_name?: string | null };
+  pendingProspect?: PendingProspect;
+  created: boolean;
+  manual_required?: boolean;
+  message?: string;
+}
+
+export interface ProspectLookupResult {
+  data: (Prospect & { company_name?: string | null }) | null;
+  pending?: PendingProspect | null;
+}
+
+export interface QuickAddProspectResult {
+  data: Prospect | (Partial<Prospect> & { id: string });
+  existed?: boolean;
+  pending_dismissed?: boolean;
+}
+
 export function formatTemplateLabel(
   template: { name: string; version?: number | null; deleted_at?: string | Date | null } | null | undefined,
 ): string {

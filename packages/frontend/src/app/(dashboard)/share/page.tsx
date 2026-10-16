@@ -4,7 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { prospectFullName, type Prospect } from '@/lib/types';
+import { prospectFullName, type Prospect, type LinkedInProspectResult } from '@/lib/types';
 import { companyOptionsFromShare, inferJobFromUrl, isLinkedInProfileUrl, resolveSharedLink } from '@/lib/shareTarget';
 
 const PLATFORM_OPTIONS = [
@@ -83,7 +83,7 @@ function ShareForm() {
   const [saving, setSaving] = useState(false);
   const [savedCompany, setSavedCompany] = useState('');
   const [savedJobId, setSavedJobId] = useState<string | null>(null);
-  const [savedProspect, setSavedProspect] = useState<{ data: Prospect; created: boolean } | null>(null);
+  const [savedProspect, setSavedProspect] = useState<LinkedInProspectResult | null>(null);
   const [targetRoles, setTargetRoles] = useState<string[]>([]);
   const profileMode = isLinkedInProfileUrl(jobUrl);
 
@@ -154,38 +154,72 @@ function ShareForm() {
   }
 
   if (savedProspect) {
-    const name = prospectFullName(savedProspect.data);
-    const companyName = savedProspect.data.company_name?.trim() ?? '';
-    const placeholderEmail = savedProspect.data.email.endsWith('.crm.local');
-    return (
-      <div className="p-4 md:p-8 max-w-lg mx-auto">
-        <div className="card p-6 space-y-4">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Saved</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
-            {savedProspect.created
-              ? `${name} is in your prospects.`
-              : `${name} is already in your prospects.`}
-          </p>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
-            {savedProspect.data.job_title ? <p>{savedProspect.data.job_title}</p> : null}
-            {companyName ? <p>{companyName}</p> : null}
-            <p>{savedProspect.data.email}</p>
-            {placeholderEmail ? <p>The enrichment provider did not return an email.</p> : null}
-          </div>
-          <div className="flex flex-col gap-2">
-            <Link href={`/prospects/${savedProspect.data.id}`} className="btn-primary text-xs py-2.5 justify-center">
-              View prospect
-            </Link>
-            <Link
-              href={companyName ? `/send?companyName=${encodeURIComponent(companyName)}` : '/send'}
-              className="btn-secondary text-xs py-2.5 justify-center"
-            >
-              Send email
-            </Link>
+    if (savedProspect.manual_required || savedProspect.pendingProspect) {
+      const p = savedProspect.pendingProspect;
+      const name = p ? [p.first_name, p.last_name].filter(Boolean).join(' ') || 'LinkedIn Contact' : 'LinkedIn Contact';
+      const companyName = p?.company_name?.trim() ?? '';
+      const enterUrl = `/prospects?new=true&firstName=${encodeURIComponent(p?.first_name || '')}&lastName=${encodeURIComponent(p?.last_name || '')}&companyName=${encodeURIComponent(companyName)}&jobTitle=${encodeURIComponent(p?.job_title || '')}&linkedinUrl=${encodeURIComponent(p?.linkedin_url || jobUrl.trim())}${p?.id ? `&pendingId=${p.id}` : ''}`;
+      return (
+        <div className="p-4 md:p-8 max-w-lg mx-auto">
+          <div className="card p-6 space-y-4 border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-500 text-lg">⚡</span>
+              <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Manual Entry Required</h1>
+            </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">
+              Email could not be found via Prospeo or Apollo. An entry was added to your Priority Action Center to manually enter this prospect.
+            </p>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
+              <p className="font-semibold text-zinc-900 dark:text-zinc-100">{name}</p>
+              {p?.job_title ? <p>{p.job_title}</p> : null}
+              {companyName ? <p>{companyName}</p> : null}
+              <p className="text-zinc-400 break-all">{p?.linkedin_url || jobUrl.trim()}</p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <Link href={enterUrl} className="btn-primary text-xs py-2.5 justify-center">
+                Manually Enter Prospect Now
+              </Link>
+              <Link href="/dashboard" className="btn-secondary text-xs py-2.5 justify-center">
+                View Priority Action Center
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    if (savedProspect.data) {
+      const name = prospectFullName(savedProspect.data);
+      const companyName = savedProspect.data.company_name?.trim() ?? '';
+      return (
+        <div className="p-4 md:p-8 max-w-lg mx-auto">
+          <div className="card p-6 space-y-4">
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Saved</h1>
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">
+              {savedProspect.created
+                ? `${name} is in your prospects.`
+                : `${name} is already in your prospects.`}
+            </p>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
+              {savedProspect.data.job_title ? <p>{savedProspect.data.job_title}</p> : null}
+              {companyName ? <p>{companyName}</p> : null}
+              <p>{savedProspect.data.email}</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Link href={`/prospects/${savedProspect.data.id}`} className="btn-primary text-xs py-2.5 justify-center">
+                View prospect
+              </Link>
+              <Link
+                href={companyName ? `/send?companyName=${encodeURIComponent(companyName)}` : '/send'}
+                className="btn-secondary text-xs py-2.5 justify-center"
+              >
+                Send email
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
   }
 
   if (savedCompany) {

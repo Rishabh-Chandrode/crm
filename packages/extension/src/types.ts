@@ -244,6 +244,39 @@ export interface Prospect {
   company?: Company;
 }
 
+export interface PendingProspect {
+  id: string;
+  user_id: string;
+  linkedin_url: string;
+  first_name: string | null;
+  last_name: string | null;
+  company_name: string | null;
+  job_title: string | null;
+  notes: string | null;
+  dismissed_at: string | Date | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+export interface LinkedInProspectResult {
+  data?: Prospect & { company_name?: string | null };
+  pendingProspect?: PendingProspect;
+  created: boolean;
+  manual_required?: boolean;
+  message?: string;
+}
+
+export interface ProspectLookupResult {
+  data: (Prospect & { company_name?: string | null }) | null;
+  pending?: PendingProspect | null;
+}
+
+export interface QuickAddProspectResult {
+  data: Prospect | (Partial<Prospect> & { id: string });
+  existed?: boolean;
+  pending_dismissed?: boolean;
+}
+
 // Enrichment
 export interface EnrichmentResult {
   email?: string;

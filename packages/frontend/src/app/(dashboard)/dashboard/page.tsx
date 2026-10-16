@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { prospectFullName, getGmailSearchUrl, formatTemplateLabel } from '@/lib/types';
-import type { EmailSend, EmailSchedule, JobApplication } from '@/lib/types';
+import type { EmailSend, EmailSchedule, JobApplication, PendingProspect } from '@/lib/types';
 
 interface ExtendedStats {
   companies: number;
@@ -30,6 +30,8 @@ interface ExtendedStats {
   activeInterviewApplications?: JobApplication[];
   activeInterviewCount?: number;
   failedSends?: EmailSend[];
+  pendingProspects?: PendingProspect[];
+  pendingProspectCount?: number;
   prospectsByCategory?: { category: string; count: number }[];
   topCompanies?: { name: string; count: number }[];
   recentSends: EmailSend[];
@@ -37,7 +39,7 @@ interface ExtendedStats {
   dailyActivity?: { day: string; sent: number; failed: number }[];
 }
 
-type ActionFilter = 'all' | 'referral_sent' | 'ready_to_apply' | 'not_applied' | 'interview' | 'failed';
+type ActionFilter = 'all' | 'manual_prospect' | 'referral_sent' | 'ready_to_apply' | 'not_applied' | 'interview' | 'failed';
 
 function readStoredIds(key: string): string[] {
   try {
@@ -155,8 +157,21 @@ export default function DashboardPage() {
   };
 
   // Handle removing/dismissing an action item from the priority queue
-  const handleDismissAction = async (type: 'ready' | 'referral_sent' | 'not_applied' | 'interview' | 'failed', id: string) => {
+  const handleDismissAction = async (type: 'ready' | 'referral_sent' | 'not_applied' | 'interview' | 'failed' | 'manual_prospect', id: string) => {
     try {
+      if (type === 'manual_prospect') {
+        await api.stats.dismiss([], [], [id]);
+        setStats((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            pendingProspects: prev.pendingProspects?.filter((p) => p.id !== id),
+            pendingProspectCount: Math.max(0, (prev.pendingProspectCount ?? 1) - 1),
+          };
+        });
+        return;
+      }
+
       if (type === 'failed') {
         await api.stats.dismiss([], [id]);
         setStats((prev) => {
@@ -193,12 +208,13 @@ export default function DashboardPage() {
   };
 
   // Action items counts
+  const pendingCount = stats?.pendingProspectCount ?? stats?.pendingProspects?.length ?? 0;
   const readyCount = stats?.readyToApplyCount ?? stats?.readyToApplyApplications?.length ?? 0;
   const referralSentCount = stats?.referralSentCount ?? stats?.referralSentApplications?.length ?? 0;
   const notAppliedCount = stats?.notAppliedCount ?? stats?.notAppliedApplications?.length ?? 0;
   const interviewCount = stats?.activeInterviewCount ?? stats?.activeInterviewApplications?.length ?? 0;
   const failedCount = stats?.failedSends?.length ?? (stats?.emails?.failed ? Math.min(stats.emails.failed, 3) : 0);
-  const totalActionCount = readyCount + referralSentCount + notAppliedCount + interviewCount + (stats?.failedSends?.length ?? 0);
+  const totalActionCount = pendingCount + readyCount + referralSentCount + notAppliedCount + interviewCount + (stats?.failedSends?.length ?? 0);
 
   if (loading) {
     return (
@@ -249,6 +265,20 @@ export default function DashboardPage() {
             >
               All Actions ({totalActionCount})
             </button>
+
+            {pendingCount > 0 && (
+              <button
+                onClick={() => setActionFilter('manual_prospect')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  actionFilter === 'manual_prospect'
+                    ? 'bg-white dark:bg-zinc-900 text-amber-800 dark:text-amber-200 shadow-2xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Manual Prospects ({pendingCount})
+              </button>
+            )}
 
             {referralSentCount > 0 && (
               <button
@@ -320,6 +350,78 @@ export default function DashboardPage() {
 
         {/* Action Items List */}
         <div className="space-y-3">
+          {/* Manual Prospect Entries (Missing Email from LinkedIn Share) */}
+          {(actionFilter === 'all' || actionFilter === 'manual_prospect') &&
+            stats.pendingProspects &&
+            stats.pendingProspects.map((pending) => {
+              const fullName = [pending.first_name, pending.last_name].filter(Boolean).join(' ') || 'LinkedIn Contact';
+              const enterUrl = `/prospects?new=true&firstName=${encodeURIComponent(pending.first_name || '')}&lastName=${encodeURIComponent(pending.last_name || '')}&companyName=${encodeURIComponent(pending.company_name || '')}&jobTitle=${encodeURIComponent(pending.job_title || '')}&linkedinUrl=${encodeURIComponent(pending.linkedin_url || '')}&pendingId=${pending.id}`;
+              return (
+                <div
+                  key={`pending-${pending.id}`}
+                  className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-amber-500/60 relative group"
+                >
+                  <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{fullName}</span>
+                      {pending.company_name && (
+                        <>
+                          <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{pending.company_name}</span>
+                        </>
+                      )}
+                      {pending.job_title && (
+                        <>
+                          <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                          <span className="text-xs text-zinc-600 dark:text-zinc-400">{pending.job_title}</span>
+                        </>
+                      )}
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                        Manual Prospect Entry
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      <span>Email not found via Prospeo or Apollo · Manual entry needed</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {pending.linkedin_url && (
+                      <a
+                        href={pending.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                      >
+                        Open LinkedIn
+                        <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                    <Link
+                      href={enterUrl}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Enter Details
+                    </Link>
+                    <button
+                      onClick={() => handleDismissAction('manual_prospect', pending.id)}
+                      disabled={actioningId === pending.id}
+                      className="absolute top-3 right-3 z-10 md:static text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
+                      title="Dismiss from action queue"
+                      aria-label="Dismiss action"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
           {/* Referral emails sent in the last 2 days */}
           {(actionFilter === 'all' || actionFilter === 'referral_sent') &&
             stats.referralSentApplications &&

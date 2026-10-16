@@ -355,6 +355,9 @@ export async function migrate(): Promise<void> {
     ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS job_url TEXT;
   `);
   await pool.query(`
+    ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS jobs (
       id          UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
       company_id  UUID         REFERENCES companies(id) ON DELETE SET NULL,

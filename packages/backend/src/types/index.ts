@@ -130,6 +130,7 @@ export interface EmailSend {
   opened_at: Date | null;
   open_count: number;
   job_url: string | null;
+  dismissed_at: Date | null;
   created_at: Date;
   prospect?: Pick<Prospect, 'first_name' | 'last_name' | 'email'>;
   company?: Pick<Company, 'name'>;

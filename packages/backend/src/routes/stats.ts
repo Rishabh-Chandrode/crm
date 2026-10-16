@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { pool } from '../db/index.js';
 import { syncOutreachForDashboard } from '../services/jobs.js';
 
@@ -202,6 +203,7 @@ router.get('/', async (req, res, next) => {
          LEFT JOIN companies c ON c.id = es.company_id
          LEFT JOIN email_templates t ON t.id = es.template_id
          WHERE es.status = 'failed'
+           AND es.dismissed_at IS NULL
          ${isAdmin ? '' : 'AND es.created_by = $1'}
          ORDER BY es.created_at DESC
          LIMIT 3`,
@@ -223,6 +225,7 @@ router.get('/', async (req, res, next) => {
     const openRate =
       emailStats.sent > 0 ? Math.round((emailStats.opened / emailStats.sent) * 1000) / 10 : 0;
 
+    res.set('Cache-Control', 'no-store');
     res.json({
       companies: parseInt(counts.companies, 10),
       prospects: parseInt(counts.prospects, 10),
@@ -259,6 +262,53 @@ router.get('/', async (req, res, next) => {
         failed: parseInt(r.failed, 10),
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const DismissalsSchema = z.object({
+  application_ids: z.array(z.string().uuid()).max(200).default([]),
+  failed_send_ids: z.array(z.string().uuid()).max(200).default([]),
+});
+
+router.post('/dismissals', async (req, res, next) => {
+  try {
+    const parsed = DismissalsSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Validation failed' });
+      return;
+    }
+
+    const userId = req.user!.id;
+    const { application_ids, failed_send_ids } = parsed.data;
+    let closed = 0;
+    let dismissed = 0;
+
+    if (application_ids.length > 0) {
+      const result = await pool.query(
+        `UPDATE job_applications
+         SET status = 'closed', updated_at = NOW()
+         WHERE id = ANY($1::uuid[]) AND user_id = $2`,
+        [application_ids, userId],
+      );
+      closed = result.rowCount ?? 0;
+    }
+
+    if (failed_send_ids.length > 0) {
+      const result = await pool.query(
+        `UPDATE email_sends
+         SET dismissed_at = NOW()
+         WHERE id = ANY($1::uuid[])
+           AND created_by = $2
+           AND status = 'failed'
+           AND dismissed_at IS NULL`,
+        [failed_send_ids, userId],
+      );
+      dismissed = result.rowCount ?? 0;
+    }
+
+    res.json({ closed, dismissed });
   } catch (err) {
     next(err);
   }

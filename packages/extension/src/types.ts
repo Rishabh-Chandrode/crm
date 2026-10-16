@@ -312,3 +312,6 @@ export interface BulkImportProspectsResponse {
   skipped_count: number;
   total: number;
 }
+
+// Failed-send dismissals use email_sends.dismissed_at on the server.
+// The extension does not read email sends.

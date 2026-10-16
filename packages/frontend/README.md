@@ -17,7 +17,7 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Priority Action Center first (recent referral send counts, then feeds)
+│       ├── dashboard/page.tsx     # Priority Action Center. Dismissals are stored on the server; a one-time upload copies any ids still in localStorage.
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
@@ -215,7 +215,7 @@ pnpm test:watch
 ```
 
 Test suites live in `src/__tests__/`:
-- `dashboard.test.tsx` — Priority Action Center rendering, filters, dismissals, loading skeletons, and empty states
+- `dashboard.test.tsx` — Priority Action Center rendering, filters, server dismissals, one-time localStorage upload, loading skeletons, and empty states
 - `applications.test.tsx` — Applications tracker page, status summary cards, interactive status filters, full application editing modal, manual application creation, and referral outreach email history modal with Send History and Gmail navigation
 - `history.test.tsx` — Email history log viewer, status filter pills, search query parameter support, Open in Gmail integration, and delivery retry
 - `jobs.test.tsx` — Jobs & referral outreach tracker, KPI summary cards, status filters, create/edit modals, and email history drawer

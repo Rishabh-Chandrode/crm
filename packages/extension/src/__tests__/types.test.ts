@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as extensionTypes from '../types';
 import {
   getGmailSearchUrl,
   type ScrapeMessage,
@@ -13,6 +14,10 @@ import {
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
+  it('leaves failed-send dismissals on the server', () => {
+    expect('EmailSend' in extensionTypes).toBe(false);
+  });
+
   it('validates VariableSource contract including sender', () => {
     const src: VariableSource = 'sender';
     expect(src).toBe('sender');

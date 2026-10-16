@@ -208,6 +208,7 @@ export interface EmailSend {
   opened_at: string | null;
   open_count: number;
   job_url: string | null;
+  dismissed_at: string | null;
   created_at: string;
   prospect?: { first_name: string; last_name: string | null; email: string; job_title?: string | null };
   company?: { name: string };

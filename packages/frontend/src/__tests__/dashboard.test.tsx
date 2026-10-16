@@ -9,6 +9,7 @@ vi.mock('../lib/api', () => ({
   api: {
     stats: {
       get: vi.fn(),
+      dismiss: vi.fn(),
     },
     applications: {
       update: vi.fn(),
@@ -333,25 +334,49 @@ describe('DashboardPage Priority Action Center', () => {
     expect(screen.getByText('No job applications recorded yet.')).toBeInTheDocument();
   });
 
-  it('persists dismissed action items in localStorage so they do not reappear after reload/refetch', async () => {
-    const mockStats = {
+  it('uploads dismissals stored in this browser before loading the server list', async () => {
+    localStorage.setItem('crm_dismissed_actions', JSON.stringify(['app-old']));
+    localStorage.setItem('crm_dismissed_failed_sends', JSON.stringify(['send-old']));
+    vi.mocked(api.stats.dismiss).mockResolvedValue({ closed: 1, dismissed: 1 });
+    vi.mocked(api.stats.get).mockResolvedValue({
+      companies: 1,
+      prospects: 1,
+      templates: 1,
+      applications: 1,
+      emails: { total: 1, sent: 1, failed: 0, pending: 0, opened: 0, openRate: 0 },
+      readyToApplyApplications: [],
+      readyToApplyCount: 0,
+      notAppliedApplications: [],
+      notAppliedCount: 0,
+      activeInterviewApplications: [],
+      activeInterviewCount: 0,
+      failedSends: [],
+      recentSends: [],
+      recentApplications: [],
+      upcomingSchedules: [],
+    } as any);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(api.stats.dismiss).toHaveBeenCalledWith(['app-old'], ['send-old']);
+    });
+    expect(localStorage.getItem('crm_dismissed_actions')).toBeNull();
+    expect(localStorage.getItem('crm_dismissed_failed_sends')).toBeNull();
+    expect(api.stats.get).toHaveBeenCalled();
+    expect(await screen.findByText('All caught up! No urgent action items.')).toBeInTheDocument();
+  });
+
+  it('dismisses a failed send through the server instead of this browser', async () => {
+    vi.mocked(api.stats.dismiss).mockResolvedValue({ closed: 0, dismissed: 1 });
+    vi.mocked(api.stats.get).mockResolvedValue({
       companies: 1,
       prospects: 1,
       templates: 1,
       applications: 1,
       emails: { total: 1, sent: 1, failed: 1, pending: 0, opened: 0, openRate: 0 },
-      readyToApplyApplications: [
-        {
-          id: 'app-dismiss-test',
-          user_id: 'u1',
-          company_name: 'DismissMe Inc',
-          job_title: 'Software Engineer',
-          status: 'referral_requested',
-          referral_requested_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-          applied_at: new Date().toISOString(),
-        },
-      ],
-      readyToApplyCount: 1,
+      readyToApplyApplications: [],
+      readyToApplyCount: 0,
       notAppliedApplications: [],
       notAppliedCount: 0,
       activeInterviewApplications: [],
@@ -360,38 +385,20 @@ describe('DashboardPage Priority Action Center', () => {
       recentSends: [],
       recentApplications: [],
       upcomingSchedules: [],
-    };
-
-    vi.mocked(api.stats.get).mockResolvedValue(mockStats as any);
-
-    // Initial render
-    const { unmount } = render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('DismissMe Inc')).toBeInTheDocument();
-      expect(screen.getByText('fail@test.com')).toBeInTheDocument();
-    });
-
-    // Dismiss the application action item
-    const dismissBtn = screen.getByTitle('Dismiss from action queue');
-    fireEvent.click(dismissBtn);
-
-    // Dismiss the failed alert
-    const dismissAlertBtn = screen.getByTitle('Dismiss alert');
-    fireEvent.click(dismissAlertBtn);
-
-    // Unmount and simulate page reload (re-render component which calls api.stats.get again)
-    unmount();
+    } as any);
 
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
+      expect(screen.getByText('fail@test.com')).toBeInTheDocument();
     });
 
-    // Verify dismissed items do NOT reappear
-    expect(screen.queryByText('DismissMe Inc')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTitle('Dismiss alert'));
+
+    await waitFor(() => {
+      expect(api.stats.dismiss).toHaveBeenCalledWith([], ['send-failed-test']);
+    });
+    expect(localStorage.getItem('crm_dismissed_failed_sends')).toBeNull();
     expect(screen.queryByText('fail@test.com')).not.toBeInTheDocument();
-    expect(screen.getByText('All caught up! No urgent action items.')).toBeInTheDocument();
   });
 });

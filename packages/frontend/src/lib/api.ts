@@ -413,7 +413,15 @@ export const api = {
         recentSends: import('./types').EmailSend[];
         upcomingSchedules: import('./types').EmailSchedule[];
         dailyActivity: { day: string; sent: number; failed: number }[];
-      }>('/stats'),
+      }>('/stats', { cache: 'no-store' }),
+    dismiss: (applicationIds: string[], failedSendIds: string[]) =>
+      request<{ closed: number; dismissed: number }>('/stats/dismissals', {
+        method: 'POST',
+        body: JSON.stringify({
+          application_ids: applicationIds,
+          failed_send_ids: failedSendIds,
+        }),
+      }),
   },
 
   import: {

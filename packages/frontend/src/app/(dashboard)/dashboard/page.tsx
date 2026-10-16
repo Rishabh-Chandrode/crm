@@ -39,6 +39,16 @@ interface ExtendedStats {
 
 type ActionFilter = 'all' | 'referral_sent' | 'ready_to_apply' | 'not_applied' | 'interview' | 'failed';
 
+function readStoredIds(key: string): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || '[]') as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 const STATUS_COLOR: Record<string, string> = {
   sent: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
   failed: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
@@ -66,41 +76,30 @@ export default function DashboardPage() {
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.stats.get()
-      .then((data) => {
-        const dismissed = typeof window !== 'undefined'
-          ? JSON.parse(localStorage.getItem('crm_dismissed_actions') || '[]') as string[]
-          : [];
-        const dismissedFailed = typeof window !== 'undefined'
-          ? JSON.parse(localStorage.getItem('crm_dismissed_failed_sends') || '[]') as string[]
-          : [];
+    let cancelled = false;
 
-        const extended = data as unknown as ExtendedStats;
-        if (dismissed.length > 0) {
-          if (extended.readyToApplyApplications) {
-            extended.readyToApplyApplications = extended.readyToApplyApplications.filter((a) => !dismissed.includes(a.id));
-            extended.readyToApplyCount = extended.readyToApplyApplications.length;
-          }
-          if (extended.referralSentApplications) {
-            extended.referralSentApplications = extended.referralSentApplications.filter((a) => !dismissed.includes(a.id));
-            extended.referralSentCount = extended.referralSentApplications.length;
-          }
-          if (extended.notAppliedApplications) {
-            extended.notAppliedApplications = extended.notAppliedApplications.filter((a) => !dismissed.includes(a.id));
-            extended.notAppliedCount = extended.notAppliedApplications.length;
-          }
-          if (extended.activeInterviewApplications) {
-            extended.activeInterviewApplications = extended.activeInterviewApplications.filter((a) => !dismissed.includes(a.id));
-            extended.activeInterviewCount = extended.activeInterviewApplications.length;
-          }
+    async function load() {
+      try {
+        const applicationIds = readStoredIds('crm_dismissed_actions');
+        const failedSendIds = readStoredIds('crm_dismissed_failed_sends');
+        if (applicationIds.length > 0 || failedSendIds.length > 0) {
+          await api.stats.dismiss(applicationIds, failedSendIds);
+          localStorage.removeItem('crm_dismissed_actions');
+          localStorage.removeItem('crm_dismissed_failed_sends');
         }
-        if (dismissedFailed.length > 0 && extended.failedSends) {
-          extended.failedSends = extended.failedSends.filter((s) => !dismissedFailed.includes(s.id));
-        }
-        setStats(extended);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+        const data = await api.stats.get();
+        if (!cancelled) setStats(data as unknown as ExtendedStats);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Handle 1-click status upgrade to 'applied'
@@ -134,12 +133,6 @@ export default function DashboardPage() {
     try {
       setActioningId(id);
       await api.applications.update(id, { status: 'closed' });
-      if (typeof window !== 'undefined') {
-        const dismissed = JSON.parse(localStorage.getItem('crm_dismissed_actions') || '[]') as string[];
-        if (!dismissed.includes(id)) {
-          localStorage.setItem('crm_dismissed_actions', JSON.stringify([...dismissed, id]));
-        }
-      }
       setStats((prev) => {
         if (!prev) return null;
         return {
@@ -165,12 +158,7 @@ export default function DashboardPage() {
   const handleDismissAction = async (type: 'ready' | 'referral_sent' | 'not_applied' | 'interview' | 'failed', id: string) => {
     try {
       if (type === 'failed') {
-        if (typeof window !== 'undefined') {
-          const dismissedFailed = JSON.parse(localStorage.getItem('crm_dismissed_failed_sends') || '[]') as string[];
-          if (!dismissedFailed.includes(id)) {
-            localStorage.setItem('crm_dismissed_failed_sends', JSON.stringify([...dismissedFailed, id]));
-          }
-        }
+        await api.stats.dismiss([], [id]);
         setStats((prev) => {
           if (!prev) return null;
           return {
@@ -183,12 +171,6 @@ export default function DashboardPage() {
 
       setActioningId(id);
       await api.applications.update(id, { status: 'closed' });
-      if (typeof window !== 'undefined') {
-        const dismissed = JSON.parse(localStorage.getItem('crm_dismissed_actions') || '[]') as string[];
-        if (!dismissed.includes(id)) {
-          localStorage.setItem('crm_dismissed_actions', JSON.stringify([...dismissed, id]));
-        }
-      }
       setStats((prev) => {
         if (!prev) return null;
         return {

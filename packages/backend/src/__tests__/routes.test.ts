@@ -512,6 +512,42 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.activeInterviewApplications).toHaveLength(1);
       expect(res.body.activeInterviewApplications[0].job_title).toBe('Software Engineer III');
       expect(res.body.failedSends).toHaveLength(1);
+      expect(res.headers['cache-control']).toBe('no-store');
+      const sql = vi.mocked(pool.query).mock.calls.map((call) => String(call[0])).join('\n');
+      expect(sql).toContain('es.dismissed_at IS NULL');
+    });
+
+    it('closes owned applications and stamps dismissed_at on owned failed sends', async () => {
+      const applicationId = '11111111-1111-4111-8111-111111111111';
+      const sendId = '22222222-2222-4222-8222-222222222222';
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rowCount: 1 } as any);
+
+      const res = await request(app)
+        .post('/api/stats/dismissals')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ application_ids: [applicationId], failed_send_ids: [sendId] });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ closed: 1, dismissed: 1 });
+
+      const calls = vi.mocked(pool.query).mock.calls;
+      expect(String(calls[0][0])).toContain('user_id = $2');
+      expect(calls[0][1]).toEqual([[applicationId], 'u-1']);
+      expect(String(calls[1][0])).toContain('created_by = $2');
+      expect(String(calls[1][0])).toContain('dismissed_at IS NULL');
+      expect(calls[1][1]).toEqual([[sendId], 'u-1']);
+    });
+
+    it('rejects dismissals that are not uuids', async () => {
+      const res = await request(app)
+        .post('/api/stats/dismissals')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ application_ids: ['not-a-uuid'], failed_send_ids: [] });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('error', 'Validation failed');
     });
   });
 

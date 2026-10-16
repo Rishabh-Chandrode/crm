@@ -314,7 +314,8 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. Before returning, links unassigned sends to the user's only open job at that company and counts **sent** emails. `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. `Cache-Control: no-store`. Before returning, links unassigned sends to the user's only open job at that company and counts **sent** emails. `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. `failedSends` omits rows with `dismissed_at` set. |
+| `POST` | `/api/stats/dismissals` | `{ application_ids: uuid[], failed_send_ids: uuid[] }` | `{ closed, dismissed }` — closes the caller's applications and sets `dismissed_at` on the caller's failed sends. Other users' ids are ignored. |
 
 ---
 
@@ -385,7 +386,7 @@ email_templates (id, family_id, version, name, description, subject, body, job_d
                  created_by→users, created_at, updated_at)
 email_sends     (id, template_id, prospect_id, company_id, subject, body,
                  status, resend_id, sent_at, error_message, opened_at, open_count,
-                 job_url, job_id→jobs, created_by→users, created_at)
+                 job_url, job_id→jobs, dismissed_at, created_by→users, created_at)
 email_schedules (id, template_id, company_id, prospect_ids UUID[],
                  custom_values JSONB, scheduled_for, status,
                  total_prospects, sent_count, failed_count, document_ids UUID[],

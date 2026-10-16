@@ -103,4 +103,23 @@ describe('Sidebar Component', () => {
 
     expect(mockPush).toHaveBeenCalledWith('/login');
   });
+
+  it('places the mobile close control beside the theme toggle', async () => {
+    vi.mocked(api.auth.me).mockResolvedValue({
+      user: { username: 'testuser', role: 'user' } as any,
+    });
+
+    render(
+      <ThemeProvider>
+        <Sidebar />
+      </ThemeProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    const close = screen.getByRole('button', { name: 'Close menu' });
+    const theme = close.parentElement?.querySelector('[aria-label="Toggle color theme"]');
+
+    expect(theme).toBeTruthy();
+    expect(close.className).not.toContain('absolute');
+  });
 });

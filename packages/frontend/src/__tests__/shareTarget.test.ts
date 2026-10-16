@@ -71,6 +71,12 @@ describe('companyOptionsFromShare', () => {
   it('uses the registrable host label for a generic careers site', () => {
     expect(companyOptionsFromShare('https://careers.example.com/jobs/1')).toEqual(['Example']);
   });
+
+  it('includes the company subdomain ahead of the site name', () => {
+    expect(companyOptionsFromShare(
+      'https://travclan.turbohire.co/job/publicjobs/f8b1cd9a-cfa0-4254-8f4c-81dd3ce53cb9?utm_source=CareerPage',
+    )).toEqual(['Travclan', 'Turbohire']);
+  });
 });
 
 describe('safeNextPath', () => {

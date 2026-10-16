@@ -63,10 +63,28 @@ export function inferJobFromUrl(jobUrl: string, title = ''): InferredJob {
 }
 
 const COMPANY_SKIP = new Set([
-  'jobs', 'job', 'careers', 'apply', 'app', 'hire', 'work', 'www',
+  'jobs', 'job', 'careers', 'apply', 'app', 'hire', 'work', 'www', 'boards',
   'linkedin', 'greenhouse', 'lever', 'workday', 'ashby', 'smartrecruiters',
   'opening', 'openings', 'search', 'view',
 ]);
+
+const SECOND_LEVEL_SUFFIXES = new Set(['co', 'com', 'org', 'net', 'ac', 'gov']);
+
+function hostCompanyLabels(url: string): string[] {
+  let hostname = '';
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return [];
+  }
+  const parts = hostname.split('.').filter(Boolean);
+  if (parts.length < 2) return [];
+  let labels = parts.slice(0, -1);
+  if (labels.length >= 2 && SECOND_LEVEL_SUFFIXES.has(labels[labels.length - 1] ?? '')) {
+    labels = labels.slice(0, -1);
+  }
+  return labels.filter((label) => label.length >= 2 && !/\d/.test(label));
+}
 
 function titleCaseWords(value: string): string {
   return value
@@ -103,6 +121,7 @@ export function companyOptionsFromShare(url: string, title = '', text = ''): str
     options.push(label);
   };
 
+  for (const label of hostCompanyLabels(url)) push(label);
   push(inferJobFromUrl(url, title).company_name);
   for (const source of [title, text]) {
     for (const piece of phraseCompanies(source)) push(piece);

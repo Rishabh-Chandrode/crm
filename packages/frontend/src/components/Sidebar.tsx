@@ -151,7 +151,7 @@ function QuickThemeToggle() {
   );
 }
 
-function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
+function SidebarContent({ onNavClick, onClose }: { onNavClick?: () => void; onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string } | null>(null);
@@ -182,7 +182,21 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">Job Outreach</span>
           </div>
         </Link>
-        <QuickThemeToggle />
+        <div className="flex items-center gap-0.5 shrink-0">
+          <QuickThemeToggle />
+          {onClose && (
+            <button
+              onClick={onClose}
+              type="button"
+              className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 p-1.5 rounded-lg"
+              aria-label="Close menu"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation list */}
@@ -304,19 +318,8 @@ export default function Sidebar() {
             className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="relative w-64 bg-white dark:bg-zinc-950 flex flex-col h-full shadow-xl border-r border-zinc-200 dark:border-zinc-800">
-            <div className="absolute top-3 right-3">
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 p-1 rounded-lg"
-                aria-label="Close menu"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <SidebarContent onNavClick={() => setMobileOpen(false)} />
+          <aside className="relative w-64 max-w-[85vw] bg-white dark:bg-zinc-950 flex flex-col h-full shadow-xl border-r border-zinc-200 dark:border-zinc-800">
+            <SidebarContent onNavClick={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} />
           </aside>
         </div>
       )}

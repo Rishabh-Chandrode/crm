@@ -211,7 +211,7 @@ function ShareForm() {
           ) : (
             <p className="text-[11px] text-zinc-400 mt-2">
               Add target roles on your{' '}
-              <Link href="/profile?tab=work" className="underline">Profile</Link>.
+              <Link href="/profile?tab=preferences" className="underline">Profile</Link>.
             </p>
           )}
         </div>

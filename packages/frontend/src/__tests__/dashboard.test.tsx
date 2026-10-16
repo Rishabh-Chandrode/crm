@@ -223,6 +223,8 @@ describe('DashboardPage Priority Action Center', () => {
     // Test Dismiss action button
     const dismissButtons = screen.getAllByTitle('Dismiss from action queue');
     expect(dismissButtons.length).toBeGreaterThan(0);
+    expect(dismissButtons[0]?.className).toContain('absolute');
+    expect(dismissButtons[0]?.className).toContain('md:static');
     fireEvent.click(dismissButtons[0]);
     await waitFor(() => {
       expect(api.applications.update).toHaveBeenCalledWith('app-sent-1', { status: 'closed' });

@@ -131,7 +131,7 @@ describe('ProfilePage documents', () => {
   });
 
   it('saves target roles typed as a comma-separated list', async () => {
-    nav.tab = 'work';
+    nav.tab = 'preferences';
     vi.mocked(api.auth.updateProfile).mockResolvedValue({ user } as never);
     render(<ProfilePage />);
 

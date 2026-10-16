@@ -7,12 +7,16 @@ import type { CrmUser, Document, DocumentDailySync, Project, WorkExperience } fr
 
 // ─── types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'personal' | 'work' | 'education' | 'documents' | 'projects' | 'skills';
+type Tab = 'personal' | 'preferences' | 'work' | 'education' | 'documents' | 'projects' | 'skills';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   {
     id: 'personal', label: 'Personal Info',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+  },
+  {
+    id: 'preferences', label: 'Job Search',
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></svg>,
   },
   {
     id: 'work', label: 'Work Experience',
@@ -375,8 +379,7 @@ function ExpForm({
   );
 }
 
-function WorkTab({ user }: { user: CrmUser }) {
-  const [experiences, setExperiences] = useState<WorkExperience[]>(user.work_experiences ?? []);
+function JobSearchTab({ user }: { user: CrmUser }) {
   const [jobForm, setJobForm] = useState({
     current_company:     user.current_company     ?? '',
     job_title:           user.job_title           ?? '',
@@ -386,15 +389,10 @@ function WorkTab({ user }: { user: CrmUser }) {
     expected_ctc:        user.expected_ctc        ?? '',
   });
   const [savingJob, setSavingJob] = useState(false);
-  const [savingExp, setSavingExp] = useState(false);
-  const [error,   setError]   = useState('');
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [adding,  setAdding]  = useState(false);
-  const [draft,   setDraft]   = useState<WorkDraft>(EMPTY_WORK);
-  const [editId,  setEditId]  = useState<string | null>(null);
 
   useEffect(() => {
-    setExperiences(user.work_experiences ?? []);
     setJobForm({
       current_company:     user.current_company     ?? '',
       job_title:           user.job_title           ?? '',
@@ -404,17 +402,6 @@ function WorkTab({ user }: { user: CrmUser }) {
       expected_ctc:        user.expected_ctc        ?? '',
     });
   }, [user]);
-
-  async function persistExp(updated: WorkExperience[]) {
-    setSavingExp(true); setError(''); setSuccess('');
-    try {
-      await api.auth.updateProfile({ work_experiences: updated });
-      setExperiences(updated);
-      setSuccess('Work experience saved.');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
-    } finally { setSavingExp(false); }
-  }
 
   async function saveJob() {
     setSavingJob(true); setError(''); setSuccess('');
@@ -431,6 +418,74 @@ function WorkTab({ user }: { user: CrmUser }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally { setSavingJob(false); }
+  }
+
+  function jobInp(key: keyof typeof jobForm, label: string, placeholder?: string) {
+    return (
+      <div key={key}>
+        <label className="form-label text-xs">{label}</label>
+        <input
+          className="form-input text-xs" placeholder={placeholder}
+          value={jobForm[key]}
+          onChange={e => setJobForm(p => ({ ...p, [key]: e.target.value }))}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Job Search" description="Current role, target roles, and compensation — used to autofill job application forms." />
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {jobInp('current_company', 'Current company', 'Acme Inc.')}
+          {jobInp('job_title',       'Current job title', 'Software Engineer')}
+        </div>
+        <TargetRolesEditor initialRoles={user.target_roles ?? []} />
+        {jobInp('years_of_experience', 'Total years of experience', '5')}
+        {jobInp('notice_period', 'Notice period', 'Immediate · 30 days · 60 days')}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {jobInp('current_ctc',  'Current CTC / salary',  '$140,000')}
+          {jobInp('expected_ctc', 'Expected CTC / salary', '$175,000')}
+        </div>
+      </div>
+      <div className="mt-5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+        {error   && <Alert type="error"   message={error} />}
+        {success && <Alert type="success" message={success} />}
+        <button
+          onClick={() => void saveJob()}
+          disabled={savingJob}
+          className="btn-primary"
+        >
+          {savingJob ? 'Saving…' : 'Save Preferences'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WorkTab({ user }: { user: CrmUser }) {
+  const [experiences, setExperiences] = useState<WorkExperience[]>(user.work_experiences ?? []);
+  const [savingExp, setSavingExp] = useState(false);
+  const [error,   setError]   = useState('');
+  const [success, setSuccess] = useState('');
+  const [adding,  setAdding]  = useState(false);
+  const [draft,   setDraft]   = useState<WorkDraft>(EMPTY_WORK);
+  const [editId,  setEditId]  = useState<string | null>(null);
+
+  useEffect(() => {
+    setExperiences(user.work_experiences ?? []);
+  }, [user]);
+
+  async function persistExp(updated: WorkExperience[]) {
+    setSavingExp(true); setError(''); setSuccess('');
+    try {
+      await api.auth.updateProfile({ work_experiences: updated });
+      setExperiences(updated);
+      setSuccess('Work experience saved.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally { setSavingExp(false); }
   }
 
   function commitAdd() {
@@ -454,22 +509,9 @@ function WorkTab({ user }: { user: CrmUser }) {
 
   function cancelEdit() { setEditId(null); setAdding(false); setDraft(EMPTY_WORK); }
 
-  function jobInp(key: keyof typeof jobForm, label: string, placeholder?: string) {
-    return (
-      <div key={key}>
-        <label className="form-label text-xs">{label}</label>
-        <input
-          className="form-input text-xs" placeholder={placeholder}
-          value={jobForm[key]}
-          onChange={e => setJobForm(p => ({ ...p, [key]: e.target.value }))}
-        />
-      </div>
-    );
-  }
-
   return (
     <div>
-      <SectionHeader title="Work Experience" description="Your employment history and job search details — used to autofill job application forms." />
+      <SectionHeader title="Work Experience" description="Your employment history — used to autofill job application forms." />
 
       {/* Experience list */}
       <div className="space-y-2.5 mb-4">
@@ -526,35 +568,8 @@ function WorkTab({ user }: { user: CrmUser }) {
           Add Experience
         </button>
       )}
-
-      {/* Job search info */}
-      <div className="border-t border-zinc-100 dark:border-zinc-800 pt-5 mt-2">
-        <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">Job Search Preferences</h3>
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {jobInp('current_company', 'Current company', 'Acme Inc.')}
-            {jobInp('job_title',       'Current job title', 'Software Engineer')}
-          </div>
-          <TargetRolesEditor initialRoles={user.target_roles ?? []} />
-          {jobInp('years_of_experience', 'Total years of experience', '5')}
-          {jobInp('notice_period', 'Notice period', 'Immediate · 30 days · 60 days')}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {jobInp('current_ctc',  'Current CTC / salary',  '$140,000')}
-            {jobInp('expected_ctc', 'Expected CTC / salary', '$175,000')}
-          </div>
-        </div>
-        <div className="mt-5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-          {error   && <Alert type="error"   message={error} />}
-          {success && <Alert type="success" message={success} />}
-          <button
-            onClick={() => void saveJob()}
-            disabled={savingJob}
-            className="btn-primary"
-          >
-            {savingJob ? 'Saving…' : 'Save Preferences'}
-          </button>
-        </div>
-      </div>
+      {error   && <Alert type="error"   message={error} />}
+      {success && <Alert type="success" message={success} />}
     </div>
   );
 }
@@ -1307,8 +1322,9 @@ function ProfileContent() {
 
         {/* Content panel */}
         <div className="flex-1 card p-5 md:p-6 min-w-0 w-full">
-          {tab === 'personal'  && <PersonalTab  user={user} />}
-          {tab === 'work'      && <WorkTab      user={user} />}
+          {tab === 'personal'     && <PersonalTab    user={user} />}
+          {tab === 'preferences'  && <JobSearchTab   user={user} />}
+          {tab === 'work'         && <WorkTab        user={user} />}
           {tab === 'education' && <EducationTab user={user} />}
           {tab === 'documents' && <DocumentsTab />}
           {tab === 'projects'  && <ProjectsTab  initialProjects={user.projects ?? []} />}

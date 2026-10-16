@@ -371,7 +371,7 @@ export default function DashboardPage() {
                     <button
                       onClick={() => handleDismissAction('referral_sent', app.id)}
                       disabled={actioningId === app.id}
-                      className="text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
+                      className="absolute top-3 right-3 z-10 md:static text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
                       title="Dismiss from action queue"
                       aria-label="Dismiss action"
                     >
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                     <button
                       onClick={() => handleDismissAction('ready', app.id)}
                       disabled={actioningId === app.id}
-                      className="text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
+                      className="absolute top-3 right-3 z-10 md:static text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
                       title="Dismiss from action queue"
                       aria-label="Dismiss action"
                     >
@@ -550,7 +550,7 @@ export default function DashboardPage() {
                   <button
                     onClick={() => handleDismissAction('not_applied', app.id)}
                     disabled={actioningId === app.id}
-                    className="text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
+                    className="absolute top-3 right-3 z-10 md:static text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
                     title="Dismiss from action queue"
                     aria-label="Dismiss action"
                   >
@@ -606,7 +606,7 @@ export default function DashboardPage() {
                     <button
                       onClick={() => handleDismissAction('interview', app.id)}
                       disabled={actioningId === app.id}
-                      className="text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
+                      className="absolute top-3 right-3 z-10 md:static text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
                       title="Dismiss from action queue"
                       aria-label="Dismiss action"
                     >
@@ -655,7 +655,7 @@ export default function DashboardPage() {
                   </Link>
                   <button
                     onClick={() => handleDismissAction('failed', send.id)}
-                    className="text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
+                    className="absolute top-3 right-3 z-10 md:static text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors"
                     title="Dismiss alert"
                     aria-label="Dismiss alert"
                   >

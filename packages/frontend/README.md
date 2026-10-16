@@ -17,7 +17,7 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Priority Action Center. Dismissals are stored on the server; a one-time upload copies any ids still in localStorage.
+│       ├── dashboard/page.tsx     # Priority Action Center. On small screens the dismiss control sits at the card’s top-right. Dismissals are stored on the server; a one-time upload copies any ids still in localStorage.
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
@@ -28,11 +28,11 @@ src/
 │       ├── jobs/page.tsx          # Redirects /jobs → /applications
 │       ├── share/page.tsx         # Receives an Android share-target link, offers company and role chips, and saves an application
 │       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + waiting period + stages
-│       ├── profile/page.tsx       # Profile editor — personal, work (including target roles), education, documents, projects, skills
+│       ├── profile/page.tsx       # Profile editor — personal, job search (including target roles), work, education, documents, projects, skills
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/
-│   ├── Sidebar.tsx                # Left nav with user info, sign-out, & quick theme switcher
+│   ├── Sidebar.tsx                # Left nav with user info, sign-out, and theme switcher. The mobile close control sits beside the theme switcher.
 │   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
 │   ├── Combobox.tsx               # Searchable combobox dropdown with full dark mode support
@@ -86,7 +86,7 @@ The app supports a full dark theme with three selectable modes:
 
 The Vercel site can be installed from Brave or Chrome on Android (**Install app** in the browser menu). Install needs the web manifest (`src/app/manifest.ts`), the 192 and 512 icons in `public/`, and `public/sw.js`. `/manifest.webmanifest` and `/sw.js` stay public so the browser can read them before login.
 
-After install, sharing a link on Android lists Outreach CRM. The share opens `/share` with `title`, `text`, and `url`. The page takes the first `http` link from `url`, then from `text`, infers company and platform from the host, and saves through `api.applications.create`. Company chips come from that link and title (`companyOptionsFromShare`). Role chips are the signed-in user's `target_roles`, edited on Profile → Work. A signed-out share goes to `/login?next=` and returns to that same `/share` URL after sign-in. iPhone share sheets do not list websites.
+After install, sharing a link on Android lists Outreach CRM. The share opens `/share` with `title`, `text`, and `url`. The page takes the first `http` link from `url`, then from `text`, infers company and platform from the host, and saves through `api.applications.create`. Company chips come from that link and title (`companyOptionsFromShare`). Role chips are the signed-in user's `target_roles`, edited on Profile → Job Search. Company chips also include a left-hand hostname label, so `travclan.turbohire.co` offers Travclan and Turbohire. A signed-out share goes to `/login?next=` and returns to that same `/share` URL after sign-in. iPhone share sheets do not list websites.
 
 ---
 

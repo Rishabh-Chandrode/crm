@@ -11,9 +11,23 @@ import {
   type VariableSource,
   type Document,
   type DocumentDailySync,
+  type EnrichmentResult,
 } from '../types';
 
 describe('Extension Data Shapes & Message Contracts', () => {
+  it('keeps enrichment results able to carry a person name', () => {
+    const result: EnrichmentResult = {
+      first_name: 'Jane',
+      last_name: 'Doe',
+      email: 'jane@acme.com',
+      job_title: 'Recruiter',
+      company_name: 'Acme',
+      linkedin_url: 'https://www.linkedin.com/in/jane-doe',
+    };
+    expect(result.first_name).toBe('Jane');
+    expect(result.last_name).toBe('Doe');
+  });
+
   it('leaves failed-send dismissals on the server', () => {
     expect('EmailSend' in extensionTypes).toBe(false);
   });

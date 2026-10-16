@@ -237,6 +237,8 @@ export function getGmailSearchUrl(query: {
 // Enrichment
 export interface EnrichmentResult {
   email?: string;
+  first_name?: string;
+  last_name?: string;
   job_title?: string;
   company_name?: string;
   linkedin_url?: string;

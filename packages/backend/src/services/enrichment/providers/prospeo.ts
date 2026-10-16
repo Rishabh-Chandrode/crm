@@ -18,6 +18,37 @@ function getTargetTitles(roleCategory?: string, customTitles?: string[]): string
   }
 }
 
+interface ProspeoPerson {
+  email?: { email?: string } | string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  current_job_title?: string;
+  job_title?: string;
+  linkedin_url?: string;
+  linkedin?: string;
+  company?: { name?: string };
+}
+
+function prospeoEmail(person: ProspeoPerson): string | undefined {
+  if (typeof person.email === 'string') return person.email.trim() || undefined;
+  return person.email?.email?.trim() || undefined;
+}
+
+function prospeoName(person: ProspeoPerson): { first_name?: string; last_name?: string } {
+  let first = person.first_name?.trim();
+  let last = person.last_name?.trim();
+  if (!first && person.full_name?.trim()) {
+    const parts = person.full_name.trim().split(/\s+/);
+    first = parts[0];
+    last = last || parts.slice(1).join(' ') || undefined;
+  }
+  return {
+    first_name: first || undefined,
+    last_name: last || undefined,
+  };
+}
+
 export class ProspeoProvider implements EnrichmentProvider {
   async enrich(request: EnrichmentRequest): Promise<EnrichmentResult> {
     if (!CONFIG.prospeoApiKey) {
@@ -51,22 +82,39 @@ export class ProspeoProvider implements EnrichmentProvider {
       throw new Error(`Prospeo API Error: ${response.status}`);
     }
 
-    const data = await response.json() as { error?: boolean, error_code?: string, person?: { email?: { email?: string }, current_job_title?: string, company?: { name?: string } } };
-    
+    const data = await response.json() as {
+      error?: boolean;
+      error_code?: string;
+      person?: ProspeoPerson;
+      response?: ProspeoPerson;
+    };
+
     if (data.error) {
       console.error("Prospeo API Match Error:", data.error_code);
       throw new Error(`Prospeo API returned error code: ${data.error_code}`);
     }
 
-    if (!data.error && data.person?.email?.email) {
-      return {
-        email: data.person.email.email,
-        job_title: data.person.current_job_title,
-        company_name: data.person.company?.name,
-      };
+    const person = data.person ?? data.response;
+    if (!person) {
+      throw new Error('No person found for this prospect in Prospeo');
     }
 
-    throw new Error('No email found for this prospect in Prospeo');
+    const names = prospeoName(person);
+    const email = prospeoEmail(person);
+    const jobTitle = person.current_job_title?.trim() || person.job_title?.trim();
+    const companyName = person.company?.name?.trim();
+    if (!email && !names.first_name && !jobTitle && !companyName) {
+      throw new Error('No person found for this prospect in Prospeo');
+    }
+
+    return {
+      email,
+      first_name: names.first_name,
+      last_name: names.last_name,
+      job_title: jobTitle,
+      company_name: companyName,
+      linkedin_url: person.linkedin_url?.trim() || person.linkedin?.trim(),
+    };
   }
 
   async discoverPeople(request: DiscoverPeopleRequest): Promise<DiscoverPeopleResult> {

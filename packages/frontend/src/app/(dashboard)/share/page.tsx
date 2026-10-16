@@ -4,7 +4,8 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { companyOptionsFromShare, inferJobFromUrl, resolveSharedLink } from '@/lib/shareTarget';
+import { prospectFullName, type Prospect } from '@/lib/types';
+import { companyOptionsFromShare, inferJobFromUrl, isLinkedInProfileUrl, resolveSharedLink } from '@/lib/shareTarget';
 
 const PLATFORM_OPTIONS = [
   'Greenhouse',
@@ -81,7 +82,10 @@ function ShareForm() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedCompany, setSavedCompany] = useState('');
+  const [savedJobId, setSavedJobId] = useState<string | null>(null);
+  const [savedProspect, setSavedProspect] = useState<{ data: Prospect; created: boolean } | null>(null);
   const [targetRoles, setTargetRoles] = useState<string[]>([]);
+  const profileMode = isLinkedInProfileUrl(jobUrl);
 
   const companyOptions = companyOptionsFromShare(
     jobUrl,
@@ -96,10 +100,30 @@ function ShareForm() {
   }, []);
 
   function applyUrl(nextUrl: string) {
+    const wasProfile = isLinkedInProfileUrl(jobUrl);
     setJobUrl(nextUrl);
     const next = inferJobFromUrl(nextUrl, jobTitle);
     setPlatform(next.platform);
-    if (!company.trim()) setCompany(next.company_name);
+    if (!company.trim() || wasProfile) setCompany(next.company_name);
+  }
+
+  async function handleAddProspect(e: FormEvent) {
+    e.preventDefault();
+    if (!isLinkedInProfileUrl(jobUrl)) {
+      setError('A LinkedIn profile URL is required');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      const result = await api.prospects.fromLinkedIn({ linkedin_url: jobUrl.trim() });
+      setSavedProspect(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add prospect');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -111,7 +135,7 @@ function ShareForm() {
     setSaving(true);
     setError('');
     try {
-      await api.applications.create({
+      const created = await api.applications.create({
         company_name: company.trim(),
         job_title: jobTitle.trim(),
         job_url: jobUrl.trim(),
@@ -120,12 +144,48 @@ function ShareForm() {
         notes: notes.trim() || undefined,
         applied_at: new Date().toISOString(),
       });
+      setSavedJobId(created.job_id ?? null);
       setSavedCompany(company.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save application');
     } finally {
       setSaving(false);
     }
+  }
+
+  if (savedProspect) {
+    const name = prospectFullName(savedProspect.data);
+    const companyName = savedProspect.data.company_name?.trim() ?? '';
+    const placeholderEmail = savedProspect.data.email.endsWith('.crm.local');
+    return (
+      <div className="p-4 md:p-8 max-w-lg mx-auto">
+        <div className="card p-6 space-y-4">
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Saved</h1>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            {savedProspect.created
+              ? `${name} is in your prospects.`
+              : `${name} is already in your prospects.`}
+          </p>
+          <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
+            {savedProspect.data.job_title ? <p>{savedProspect.data.job_title}</p> : null}
+            {companyName ? <p>{companyName}</p> : null}
+            <p>{savedProspect.data.email}</p>
+            {placeholderEmail ? <p>The enrichment provider did not return an email.</p> : null}
+          </div>
+          <div className="flex flex-col gap-2">
+            <Link href={`/prospects/${savedProspect.data.id}`} className="btn-primary text-xs py-2.5 justify-center">
+              View prospect
+            </Link>
+            <Link
+              href={companyName ? `/send?companyName=${encodeURIComponent(companyName)}` : '/send'}
+              className="btn-secondary text-xs py-2.5 justify-center"
+            >
+              Send email
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (savedCompany) {
@@ -141,13 +201,57 @@ function ShareForm() {
               View applications
             </Link>
             <Link
-              href={`/send?companyName=${encodeURIComponent(savedCompany)}`}
+              href={savedJobId
+                ? `/send?jobId=${encodeURIComponent(savedJobId)}&companyName=${encodeURIComponent(savedCompany)}`
+                : `/send?companyName=${encodeURIComponent(savedCompany)}`}
               className="btn-secondary text-xs py-2.5 justify-center"
             >
               Send email
             </Link>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (profileMode) {
+    return (
+      <div className="p-4 md:p-8 max-w-lg mx-auto space-y-4">
+        <div className="pb-1 border-b border-zinc-200/80 dark:border-zinc-800/80">
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Shared profile</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-0.5">
+            Add this LinkedIn profile as a prospect. Name, title, company, and email come from enrichment.
+          </p>
+        </div>
+
+        <form onSubmit={(e) => void handleAddProspect(e)} className="card p-4 sm:p-5 space-y-3.5">
+          {error && (
+            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-200 dark:border-rose-900">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="form-label text-xs" htmlFor="share-url">Profile URL *</label>
+            <input
+              id="share-url"
+              type="url"
+              value={jobUrl}
+              onChange={(e) => applyUrl(e.target.value)}
+              placeholder="https://www.linkedin.com/in/"
+              className="form-input text-sm"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary w-full py-2.5 text-xs font-semibold justify-center"
+          >
+            {saving ? 'Adding…' : 'Add prospect'}
+          </button>
+        </form>
       </div>
     );
   }

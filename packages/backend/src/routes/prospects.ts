@@ -7,6 +7,7 @@ import type { Prospect, DiscoverPeopleRequest, BulkImportProspectsRequest } from
 import { CONFIG } from '../config.js';
 import { getEnrichmentService } from '../services/enrichment/index.js';
 import { discoverPeople } from '../services/discoverPeople.js';
+import { createProspectFromLinkedIn, LinkedInProfileError } from '../services/prospectFromLinkedIn.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -232,6 +233,25 @@ router.get('/lookup', async (req, res, next) => {
     }
     res.json({ data: result.rows[0] });
   } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/from-linkedin', async (req, res, next) => {
+  try {
+    const { linkedin_url } = req.body as { linkedin_url?: string };
+    if (!linkedin_url?.trim()) {
+      res.status(400).json({ error: 'linkedin_url is required' });
+      return;
+    }
+
+    const result = await createProspectFromLinkedIn(req.user!.id, linkedin_url);
+    res.status(result.created ? 201 : 200).json(result);
+  } catch (err) {
+    if (err instanceof LinkedInProfileError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     next(err);
   }
 });

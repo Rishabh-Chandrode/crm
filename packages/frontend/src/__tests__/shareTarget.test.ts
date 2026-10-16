@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { companyOptionsFromShare, inferJobFromUrl, postLoginPath, resolveSharedLink, safeNextPath } from '../lib/shareTarget';
+import { companyOptionsFromShare, inferJobFromUrl, isLinkedInProfileUrl, postLoginPath, resolveSharedLink, safeNextPath } from '../lib/shareTarget';
 
 describe('resolveSharedLink', () => {
   it('prefers an http url field over text', () => {
@@ -23,6 +23,22 @@ describe('resolveSharedLink', () => {
 
   it('returns an empty string when neither field has a link', () => {
     expect(resolveSharedLink('not a link', 'still not')).toBe('');
+  });
+});
+
+describe('isLinkedInProfileUrl', () => {
+  it('matches /in and /pub profile paths', () => {
+    expect(isLinkedInProfileUrl('https://www.linkedin.com/in/jane-doe')).toBe(true);
+    expect(isLinkedInProfileUrl('https://linkedin.com/in/jane-doe/')).toBe(true);
+    expect(isLinkedInProfileUrl('https://www.linkedin.com/in/jane-doe?trk=public')).toBe(true);
+    expect(isLinkedInProfileUrl('https://www.linkedin.com/pub/jane-doe/1/2/3')).toBe(true);
+  });
+
+  it('rejects job posts and other hosts', () => {
+    expect(isLinkedInProfileUrl('https://www.linkedin.com/jobs/view/1')).toBe(false);
+    expect(isLinkedInProfileUrl('https://www.linkedin.com/company/acme')).toBe(false);
+    expect(isLinkedInProfileUrl('https://jobs.lever.co/acme/1')).toBe(false);
+    expect(isLinkedInProfileUrl('not a url')).toBe(false);
   });
 });
 

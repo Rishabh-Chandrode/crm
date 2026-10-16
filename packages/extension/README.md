@@ -150,7 +150,7 @@ When the form is submitted, a `submit` or button-click listener fires `{ action:
    - **Accessibility & Link Attributes**: Extracts company logos from universal `img[alt*="logo"]` / `svg[aria-label*="logo"]` and stable `a[href*="/company/"]` hyperlinks.
    - **Content-based Text Classification**: Distinguishes job titles and company names from date/duration strings (`May 2026 - Present · 5 mos`), location tags (`Gurugram, Haryana, India · On-site`), and skill pills.
    - **Metadata Fallback**: Uses `document.title` (`Name - Job Title - Company | LinkedIn`) and OpenGraph/meta tags when section DOMs are missing.
-   - **Prospeo API Auto-Enrichment**: When the user clicks **Enrich** (or when verified emails/contacts are fetched), the backend Prospeo integration fills any missing company name or job title alongside verified work emails.
+   - **Prospeo API Auto-Enrichment**: When the user clicks **Enrich** (or when verified emails/contacts are fetched), the backend enrichment result can include first name, last name, company, job title, and a verified work email.
 6. Sends `{ action: 'scraped', ... }` to the background service worker, which forwards it to the side panel to populate the form fields.
 
 > Tab queries from the side panel are unreliable — that's why all tab operations go through the background service worker.

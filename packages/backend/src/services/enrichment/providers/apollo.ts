@@ -37,14 +37,12 @@ export class ApolloProvider implements EnrichmentProvider {
       throw new Error('Apollo API key not configured');
     }
 
-    if (!request.first_name) {
-      throw new Error('First name is required for Apollo enrichment');
+    if (!request.first_name?.trim() && !request.linkedin_url?.trim()) {
+      throw new Error('First name or LinkedIn URL is required for Apollo enrichment');
     }
 
-    const payload: Record<string, string> = {
-      first_name: request.first_name.trim(),
-    };
-
+    const payload: Record<string, string> = {};
+    if (request.first_name?.trim()) payload.first_name = request.first_name.trim();
     if (request.last_name?.trim()) payload.last_name = request.last_name.trim();
     if (request.company_name?.trim()) payload.organization_name = request.company_name.trim();
     if (request.linkedin_url?.trim()) payload.linkedin_url = request.linkedin_url.trim();
@@ -65,18 +63,33 @@ export class ApolloProvider implements EnrichmentProvider {
       throw new Error(`Apollo API Error: ${response.status}`);
     }
 
-    const data = await response.json() as { person?: { email?: string; title?: string; linkedin_url?: string; organization?: { name?: string } } };
-    
-    if (data.person && data.person.email) {
-      return {
-        email: data.person.email,
-        job_title: data.person.title,
-        linkedin_url: data.person.linkedin_url,
-        company_name: data.person.organization?.name,
+    const data = await response.json() as {
+      person?: {
+        first_name?: string;
+        last_name?: string;
+        email?: string;
+        title?: string;
+        linkedin_url?: string;
+        organization?: { name?: string };
       };
+    };
+
+    const person = data.person;
+    const hasIdentity = Boolean(
+      person?.email || person?.first_name || person?.last_name || person?.title || person?.organization?.name,
+    );
+    if (!person || !hasIdentity) {
+      throw new Error('No person found for this prospect in Apollo');
     }
 
-    throw new Error('No email found for this prospect in Apollo');
+    return {
+      email: person.email?.trim() || undefined,
+      first_name: person.first_name?.trim() || undefined,
+      last_name: person.last_name?.trim() || undefined,
+      job_title: person.title?.trim() || undefined,
+      linkedin_url: person.linkedin_url?.trim() || undefined,
+      company_name: person.organization?.name?.trim() || undefined,
+    };
   }
 
   async discoverPeople(request: DiscoverPeopleRequest): Promise<DiscoverPeopleResult> {

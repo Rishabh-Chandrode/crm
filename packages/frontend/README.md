@@ -86,7 +86,7 @@ The app supports a full dark theme with three selectable modes:
 
 The Vercel site can be installed from Brave or Chrome on Android (**Install app** in the browser menu). Install needs the web manifest (`src/app/manifest.ts`), the 192 and 512 icons in `public/`, and `public/sw.js`. `/manifest.webmanifest` and `/sw.js` stay public so the browser can read them before login.
 
-After install, sharing a link on Android lists Outreach CRM. The share opens `/share` with `title`, `text`, and `url`. The page takes the first `http` link from `url`, then from `text`, infers company and platform from the host, and saves through `api.applications.create`. Company chips come from that link and title (`companyOptionsFromShare`). Role chips are the signed-in user's `target_roles`, edited on Profile → Job Search. Company chips also include a left-hand hostname label, so `travclan.turbohire.co` offers Travclan and Turbohire. A signed-out share goes to `/login?next=` and returns to that same `/share` URL after sign-in. iPhone share sheets do not list websites.
+After install, sharing a link on Android lists Outreach CRM. The share opens `/share` with `title`, `text`, and `url`. The page takes the first `http` link from `url`, then from `text`. A LinkedIn profile (`/in/{slug}` or `/pub/{slug}`) shows **Add prospect** and saves through `api.prospects.fromLinkedIn`, which enriches the person and creates a prospect. Other links, including LinkedIn job posts, infer company and platform from the host and save through `api.applications.create`. **Send email** opens `/send` with that new job already selected as the linked job opportunity. Company chips come from that link and title (`companyOptionsFromShare`). Role chips are the signed-in user's `target_roles`, edited on Profile → Job Search. Company chips also include a left-hand hostname label, so `travclan.turbohire.co` offers Travclan and Turbohire. Editing the URL switches between the profile and job forms. A signed-out share goes to `/login?next=` and returns to that same `/share` URL after sign-in. iPhone share sheets do not list websites.
 
 ---
 
@@ -117,6 +117,7 @@ api.companies.create(body)
 api.companies.update(id, body)
 api.companies.delete(id)
 api.companies.merge(targetId, sourceId)
+api.prospects.fromLinkedIn({ linkedin_url }) // POST /api/prospects/from-linkedin
 
 // Jobs & Referral Outreach
 api.jobs.list(filters?)           // GET /api/jobs — search, status, companyId, limit, offset
@@ -229,6 +230,6 @@ Test suites live in `src/__tests__/`:
 - `apiResources.test.ts` — CRUD resources and error handlers
 - `middleware.test.ts` — Edge auth redirects, public manifest and service worker, share login return path
 - `shareTarget.test.ts` — Shared link resolution, job URL inference, company chip options, and safe post-login paths
-- `share.test.tsx` — Share page prefill, company and role chips, and application save
+- `share.test.tsx` — Share page prefill, company and role chips, application save, and LinkedIn profile prospect save
 - `types.test.ts` — Utility functions (`prospectFullName`, `getGmailSearchUrl`, `toVariableLabel`, `buildVariableFromKey`)
 

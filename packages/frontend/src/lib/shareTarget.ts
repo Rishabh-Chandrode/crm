@@ -14,6 +14,17 @@ function firstHttp(value: string | null | undefined): string | null {
   return match[0].replace(/[),.;]+$/, '');
 }
 
+/** LinkedIn person profiles (`/in/{slug}` and `/pub/{slug}`). Job posts stay applications. */
+export function isLinkedInProfileUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.toLowerCase().includes('linkedin.com')) return false;
+    return /^\/(?:in|pub)\/[^/]+/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
 /** First http(s) link from the share `url` field, then from `text`. */
 export function resolveSharedLink(url: string | null | undefined, text: string | null | undefined): string {
   return firstHttp(url) ?? firstHttp(text) ?? '';

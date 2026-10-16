@@ -184,6 +184,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    fromLinkedIn: (body: { linkedin_url: string }) =>
+      request<{ data: import('./types').Prospect; created: boolean }>('/prospects/from-linkedin', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     enrich: (body: { first_name?: string; last_name?: string; company_name?: string; linkedin_url?: string }) =>
       request<import('./types').EnrichmentResult>('/prospects/enrich', {
         method: 'POST',

@@ -28,7 +28,7 @@ src/
 │       ├── jobs/page.tsx          # Redirects /jobs → /applications
 │       ├── share/page.tsx         # Receives an Android share-target link, offers company and role chips, and saves an application
 │       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + waiting period + stages
-│       ├── profile/page.tsx       # Profile editor — personal, job search (including target roles), work, education, documents, projects, skills
+│       ├── profile/page.tsx       # Profile editor — personal, job search (including target roles), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/

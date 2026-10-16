@@ -1113,6 +1113,7 @@ function TargetRolesEditor({ initialRoles }: { initialRoles: string[] }) {
   const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const draftRef = useRef('');
 
   useEffect(() => { setRoles(initialRoles); }, [initialRoles]);
 
@@ -1130,13 +1131,21 @@ function TargetRolesEditor({ initialRoles }: { initialRoles: string[] }) {
   }
 
   function addRoles() {
-    const next = input
+    const raw = draftRef.current;
+    if (!raw.trim()) return;
+    draftRef.current = '';
+    const next = raw
       .split(/[,;]+/)
       .map((role) => role.trim())
       .filter((role) => role && !roles.some((existing) => existing.toLowerCase() === role.toLowerCase()));
     setInput('');
     if (!next.length) return;
     void persist([...roles, ...next]);
+  }
+
+  function onDraftChange(value: string) {
+    draftRef.current = value;
+    setInput(value);
   }
 
   return (
@@ -1160,15 +1169,28 @@ function TargetRolesEditor({ initialRoles }: { initialRoles: string[] }) {
           </span>
         ))}
       </div>
-      <input
-        id="target-roles-input"
-        className="form-input text-xs"
-        placeholder="SDE, SDE1, backend developer"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRoles(); } }}
-        disabled={saving}
-      />
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          addRoles();
+        }}
+      >
+        <input
+          id="target-roles-input"
+          className="form-input text-xs flex-1"
+          placeholder="SDE, SDE1, backend developer"
+          value={input}
+          enterKeyHint="done"
+          onChange={(e) => onDraftChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRoles(); } }}
+          onBlur={() => addRoles()}
+          disabled={saving}
+        />
+        <button type="submit" disabled={saving || !input.trim()} className="btn-primary text-xs shrink-0">
+          Add role
+        </button>
+      </form>
       {error && <p className="text-xs text-rose-500 mt-1">{error}</p>}
     </div>
   );

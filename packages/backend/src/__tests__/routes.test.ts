@@ -18,6 +18,9 @@ describe('Backend API Feature Routes', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    // Never fall through to the real pool. A one-off mock that runs out otherwise
+    // waits on a live connection until the test times out.
+    vi.spyOn(pool, 'query').mockResolvedValue({ rows: [], rowCount: 0 } as any);
   });
 
   describe('Companies API (/api/companies)', () => {
@@ -691,8 +694,9 @@ describe('Backend API Feature Routes', () => {
 
   describe('Auth profile (/api/auth)', () => {
     it('PATCH /api/auth/profile stores trimmed unique target roles', async () => {
-      const query = vi.spyOn(pool, 'query').mockResolvedValueOnce({
+      const query = vi.spyOn(pool, 'query').mockResolvedValue({
         rows: [{ id: 'u-1', target_roles: ['SDE', 'SDE1'] }],
+        rowCount: 1,
       } as any);
 
       const res = await request(app)

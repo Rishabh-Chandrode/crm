@@ -143,4 +143,32 @@ describe('ProfilePage documents', () => {
       expect(api.auth.updateProfile).toHaveBeenCalledWith({ target_roles: ['SDE', 'SDE1'] });
     });
   });
+
+  it('saves a target role when the field is left', async () => {
+    nav.tab = 'preferences';
+    vi.mocked(api.auth.updateProfile).mockResolvedValue({ user } as never);
+    render(<ProfilePage />);
+
+    const input = await screen.findByLabelText('Target roles');
+    fireEvent.change(input, { target: { value: 'Backend Developer' } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(api.auth.updateProfile).toHaveBeenCalledWith({ target_roles: ['Backend Developer'] });
+    });
+  });
+
+  it('saves a target role from the Add role button', async () => {
+    nav.tab = 'preferences';
+    vi.mocked(api.auth.updateProfile).mockResolvedValue({ user } as never);
+    render(<ProfilePage />);
+
+    const input = await screen.findByLabelText('Target roles');
+    fireEvent.change(input, { target: { value: 'SDE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add role' }));
+
+    await waitFor(() => {
+      expect(api.auth.updateProfile).toHaveBeenCalledWith({ target_roles: ['SDE'] });
+    });
+  });
 });

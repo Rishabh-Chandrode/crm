@@ -22,7 +22,7 @@ src/
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination)
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
 │       ├── templates/page.tsx     # One card per template (latest version). Auto-detect reads the subject and body currently in the editor. Attachment badges count only documents that still exist
-│       ├── send/page.tsx          # Template and version dropdowns; All selects every prospect and checks those boxes by default
+│       ├── send/page.tsx          # Template and version dropdowns; All selects every prospect. Quick Email fields shrink inside the card on narrow screens.
 │       ├── history/page.tsx       # Paginated email send log with open tracking
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel
 │       ├── jobs/page.tsx          # Redirects /jobs → /applications
@@ -35,7 +35,7 @@ src/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, and theme switcher. The mobile close control sits beside the theme switcher.
 │   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
-│   ├── Combobox.tsx               # Searchable combobox dropdown with full dark mode support
+│   ├── Combobox.tsx               # Searchable combobox. The closed label truncates instead of widening the field.
 │   ├── CompanyAutocomplete.tsx   # Autocomplete combobox with existing/new company live indicators
 │   ├── DateTimePicker.tsx         # Interactive Antigravity calendar & precision time picker
 │   ├── ImportModal.tsx            # CSV/Excel bulk prospect import modal

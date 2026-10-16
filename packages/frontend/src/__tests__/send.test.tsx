@@ -256,6 +256,9 @@ describe('SendPage', () => {
     fireEvent.click(screen.getByText('Quick Email'));
 
     expect(screen.getByText('Compose Quick Message')).toBeInTheDocument();
+    const jobLink = screen.getByText('Optional: Link this email to a job opportunity…');
+    expect(jobLink.className).toContain('truncate');
+    expect(jobLink.parentElement?.parentElement?.className).toContain('min-w-0');
     expect(screen.getByText('To:')).toBeInTheDocument();
     expect(screen.getByText('Subject:')).toBeInTheDocument();
 

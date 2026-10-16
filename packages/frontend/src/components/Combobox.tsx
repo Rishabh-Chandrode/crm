@@ -106,7 +106,7 @@ export default function Combobox({
   }, [activeIdx]);
 
   return (
-    <div ref={containerRef} className={`relative ${className}`} onKeyDown={handleKeyDown}>
+    <div ref={containerRef} className={`relative min-w-0 w-full ${className}`} onKeyDown={handleKeyDown}>
       {/* Trigger */}
       <button
         type="button"
@@ -114,9 +114,9 @@ export default function Combobox({
         aria-expanded={open}
         aria-controls={instanceId}
         onClick={() => (open ? close() : openDropdown())}
-        className="form-input w-full text-left flex items-center justify-between gap-2 pr-3 cursor-pointer"
+        className="form-input w-full min-w-0 text-left flex items-center justify-between gap-2 pr-3 cursor-pointer"
       >
-        <span className={`truncate ${selected ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-zinc-400 dark:text-zinc-500'}`}>
+        <span className={`truncate min-w-0 ${selected ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-zinc-400 dark:text-zinc-500'}`}>
           {selected ? selected.label : placeholder}
         </span>
         <svg

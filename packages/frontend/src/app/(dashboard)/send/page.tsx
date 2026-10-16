@@ -1080,11 +1080,11 @@ function SendPageInner() {
             </div>
           )}
           <div className="flex flex-col flex-1">
-            <div className="flex items-center px-4 py-2 bg-amber-500/5 dark:bg-amber-500/10 border-b border-amber-500/20">
+            <div className="flex items-center px-4 py-2 min-w-0 bg-amber-500/5 dark:bg-amber-500/10 border-b border-amber-500/20">
               <span className="text-amber-800 dark:text-amber-300 text-xs font-semibold uppercase tracking-wider w-20 flex-shrink-0">
                 Job Link:
               </span>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <Combobox
                   options={jobs.map((j) => ({
                     value: j.id,
@@ -1099,7 +1099,7 @@ function SendPageInner() {
               </div>
             </div>
 
-            <div className="flex items-center px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
+            <div className="flex items-center px-4 py-2.5 min-w-0 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
               <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider w-16 flex-shrink-0">To:</span>
               <input
                 type="email"
@@ -1110,7 +1110,7 @@ function SendPageInner() {
                 }}
                 onFocus={() => { if (quickTo.length >= 2) setShowQuickEmailSuggestions(true); }}
                 onBlur={() => setTimeout(() => setShowQuickEmailSuggestions(false), 200)}
-                className="flex-1 bg-transparent border-none outline-none text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:ring-0 p-0 font-mono"
+                className="flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:ring-0 p-0 font-mono"
                 placeholder="recipient@example.com"
               />
               {showQuickEmailSuggestions && quickEmailSuggestions.length > 0 && (
@@ -1132,13 +1132,13 @@ function SendPageInner() {
                 </div>
               )}
             </div>
-            <div className="flex items-center px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
+            <div className="flex items-center px-4 py-2.5 min-w-0 border-b border-zinc-200 dark:border-zinc-800 relative transition-colors focus-within:bg-zinc-50/50 dark:focus-within:bg-zinc-850/50">
               <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider w-16 flex-shrink-0">Subject:</span>
               <input
                 type="text"
                 value={quickSubject}
                 onChange={e => setQuickSubject(e.target.value)}
-                className="flex-1 bg-transparent border-none outline-none text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:ring-0 p-0 font-medium"
+                className="flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:ring-0 p-0 font-medium"
                 placeholder="Email subject line…"
               />
             </div>

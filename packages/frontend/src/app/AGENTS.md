@@ -22,6 +22,7 @@ These rules apply to all page files within `packages/frontend/src/app/`.
 | `/scheduled`       | `(dashboard)/scheduled/`     | Scheduled email management   |
 | `/history`         | `(dashboard)/history/`       | Email send history           |
 | `/applications`    | `(dashboard)/applications/`  | Job application tracking     |
+| `/share`           | `(dashboard)/share/`         | Save a job link shared from Android |
 | `/settings`        | `(dashboard)/settings/`      | Appearance, Gmail, template variables |
 | `/profile`         | `(dashboard)/profile/`       | Profile fields and documents |
 | `/users`           | `(dashboard)/users/`         | User management (admin)      |

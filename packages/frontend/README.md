@@ -26,12 +26,14 @@ src/
 │       ├── history/page.tsx       # Paginated email send log with open tracking
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel
 │       ├── jobs/page.tsx          # Redirects /jobs → /applications
+│       ├── share/page.tsx         # Receives an Android share-target link and saves an application
 │       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + waiting period + stages
 │       ├── profile/page.tsx       # Profile editor — personal, work, education, documents, projects, skills
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, & quick theme switcher
+│   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
 │   ├── Combobox.tsx               # Searchable combobox dropdown with full dark mode support
 │   ├── CompanyAutocomplete.tsx   # Autocomplete combobox with existing/new company live indicators
@@ -40,7 +42,8 @@ src/
 │   └── DiscoverProspectsModal.tsx # Prospeo & Apollo decision maker discovery & bulk import modal
 └── lib/
     ├── types.ts                   # TypeScript interfaces mirroring backend types
-    └── api.ts                     # Typed fetch wrapper — all backend calls go here
+    ├── api.ts                     # Typed fetch wrapper — all backend calls go here
+    └── shareTarget.ts             # Shared-link parsing, job URL inference, safe login return paths
 
 ```
 
@@ -78,6 +81,12 @@ The app supports a full dark theme with three selectable modes:
 4. The login page reads `google_token` from the URL, stores it as the `crm_token` cookie, and navigates to `/dashboard`.
 5. If the Google consent screen includes Gmail access and is approved, Gmail is connected automatically (Settings will show "connected").
 6. If the flow fails, `google_error` appears in the URL and an error message is shown on the login page.
+
+### Install and Android share
+
+The Vercel site can be installed from Brave or Chrome on Android (**Install app** in the browser menu). Install needs the web manifest (`src/app/manifest.ts`), the 192 and 512 icons in `public/`, and `public/sw.js`. `/manifest.webmanifest` and `/sw.js` stay public so the browser can read them before login.
+
+After install, sharing a link on Android lists Outreach CRM. The share opens `/share` with `title`, `text`, and `url`. The page takes the first `http` link from `url`, then from `text`, infers company and platform from the host, and saves through `api.applications.create`. A signed-out share goes to `/login?next=` and returns to that same `/share` URL after sign-in. iPhone share sheets do not list websites.
 
 ---
 
@@ -218,6 +227,8 @@ Test suites live in `src/__tests__/`:
 - `theme.test.tsx` — ThemeProvider context, localStorage persistence, `.dark` class application, matchMedia listener
 - `api.test.ts` — Central API client (`src/lib/api.ts`), JWT cookie handling, header injection, 400 error field unwrapping
 - `apiResources.test.ts` — CRUD resources and error handlers
-- `middleware.test.ts` — Edge auth redirects
+- `middleware.test.ts` — Edge auth redirects, public manifest and service worker, share login return path
+- `shareTarget.test.ts` — Shared link resolution, job URL inference, and safe post-login paths
+- `share.test.tsx` — Share page prefill from a shared link and application save
 - `types.test.ts` — Utility functions (`prospectFullName`, `getGmailSearchUrl`, `toVariableLabel`, `buildVariableFromKey`)
 

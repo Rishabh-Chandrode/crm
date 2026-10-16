@@ -4,6 +4,9 @@ import { useState, FormEvent, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { postLoginPath, safeNextPath } from '@/lib/shareTarget';
+
+const LOGIN_NEXT_KEY = 'crm_login_next';
 
 function GoogleIcon() {
   return (
@@ -33,7 +36,9 @@ function LoginForm() {
       api.auth.exchangeCode(googleCode)
         .then((res) => {
           document.cookie = `crm_token=${encodeURIComponent(res.token)}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
-          router.push('/dashboard');
+          const stored = sessionStorage.getItem(LOGIN_NEXT_KEY);
+          sessionStorage.removeItem(LOGIN_NEXT_KEY);
+          router.push(postLoginPath(stored ?? searchParams.get('next')));
         })
         .catch((err) => {
           setError(`Google sign-in failed: ${err instanceof Error ? err.message : 'Exchange failed'}`);
@@ -53,7 +58,9 @@ function LoginForm() {
     try {
       const res = await api.auth.login(username, password);
       document.cookie = `crm_token=${encodeURIComponent(res.token)}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
-      router.push('/dashboard');
+      const stored = sessionStorage.getItem(LOGIN_NEXT_KEY);
+      sessionStorage.removeItem(LOGIN_NEXT_KEY);
+      router.push(postLoginPath(stored ?? searchParams.get('next')));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid credentials');
     } finally {
@@ -65,6 +72,8 @@ function LoginForm() {
     setGoogleLoading(true);
     setError('');
     try {
+      const next = safeNextPath(searchParams.get('next'));
+      if (next) sessionStorage.setItem(LOGIN_NEXT_KEY, next);
       const { url } = await api.auth.googleLoginUrl();
       window.location.href = url;
     } catch (err) {

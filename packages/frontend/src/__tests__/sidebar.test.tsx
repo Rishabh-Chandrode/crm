@@ -60,6 +60,7 @@ describe('Sidebar Component', () => {
     expect(screen.getAllByText('Templates').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Send Emails').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Applications').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Share').length).toBeGreaterThan(0);
 
     // Regular users should not see Admin Users section
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();

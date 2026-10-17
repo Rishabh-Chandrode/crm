@@ -48,6 +48,7 @@ src/
 │   ├── settings.ts              # /settings — key/value store
 │   ├── aiSettings.ts            # /ai-settings — admin-only LLM provider, credentials & model configuration
 │   ├── track.ts                 # /track — email open pixel (public, no auth)
+│   ├── notifications.ts         # /notifications — Web Push VAPID key & browser subscriptions
 │   └── logs.ts                  # /logs — admin-only system logs, stats, and retention pruning
 ├── services/
 │   ├── llm/
@@ -73,6 +74,7 @@ src/
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
 │   ├── documentRefs.ts          # Keeps template and schedule attachment ids limited to documents that still exist
 │   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
+│   ├── pushNotificationService.ts # Free Web Push (VAPID key management, browser delivery, LLM failure alerts)
 │   ├── systemLogger.ts          # Self-hosted in-database telemetry & error logger with 30-day retention
 │   ├── githubIssueService.ts    # Automated GitHub issue reporter for unhandled errors with deduplication
 │   └── scheduler.ts             # node-cron job — processes email_schedules, Drive sync, and job email sync
@@ -383,6 +385,17 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `DELETE` | `/api/logs` | **Query:** `beforeDate?` (ISO date string) | `{ deleted: number }` — purges all logs or logs prior to `beforeDate`. Audited with warning. |
 | `POST` | `/api/logs/prune` | `{ days?: number }` (default: 30) | `{ deleted: number, retentionDays: number }` — manual trigger for retention cleanup. |
 
+---
+
+### Push Notifications
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/notifications/vapid-key` | — | `{ publicKey: string }` — returns the VAPID public key (auto-generated & stored if not exists). |
+| `POST` | `/api/notifications/subscribe` | `{ endpoint: string, keys: { p256dh: string, auth: string }, userAgent?: string }` | `{ success: true, message: string }` — registers a browser push subscription for current user. |
+| `POST` | `/api/notifications/unsubscribe` | `{ endpoint: string }` | `{ success: true, message: string }` — removes a push subscription. |
+| `POST` | `/api/notifications/test` | — | `{ success: true, sent: number, failed: number }` — dispatches a test push notification to user's registered devices. |
+
 
 ---
 
@@ -450,6 +463,8 @@ pending_prospects (id, user_id→users, linkedin_url, first_name, last_name, com
                    dismissed_at, created_at, updated_at)
 system_logs (id, level, message, source, context, error_name, stack_trace, request_id, method, path,
              status_code, user_id→users, ip, github_issue_url, created_at)
+push_subscriptions (id UUID PK, user_id→users, endpoint UNIQUE, p256dh, auth,
+                    user_agent, created_at, updated_at)
 ```
 
 ### Migrations

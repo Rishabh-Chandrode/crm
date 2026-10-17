@@ -620,4 +620,22 @@ export const api = {
         body: JSON.stringify(body),
       }),
   },
+
+  notifications: {
+    getVapidKey: () => request<{ publicKey: string }>('/notifications/vapid-key'),
+    subscribe: (body: import('./types').SubscribePushPayload) =>
+      request<{ message: string; data: import('./types').PushSubscriptionRecord }>('/notifications/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    unsubscribe: (endpoint: string) =>
+      request<{ success: boolean; message: string }>('/notifications/unsubscribe', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint }),
+      }),
+    test: () =>
+      request<{ success: boolean; sentCount: number; message: string }>('/notifications/test', {
+        method: 'POST',
+      }),
+  },
 };

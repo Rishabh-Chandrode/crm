@@ -208,4 +208,33 @@ describe('AiSettingsPage Component', () => {
       expect(screen.getByText('LLM connection successful.')).toBeInTheDocument();
     });
   });
+
+  it('renders Mobile & Phone Push Notifications card with controls', async () => {
+    vi.mocked(api.auth.me).mockResolvedValue({
+      user: { id: 'admin-1', username: 'admin', role: 'admin' },
+    } as any);
+
+    vi.mocked(api.aiSettings.get).mockResolvedValue({
+      data: {
+        enabled: true,
+        provider: 'gemini',
+        model: 'gemini-3.8-flash',
+        temperature: 0.2,
+        maxTokens: 2048,
+        hasGeminiKey: true,
+        hasOpenAiKey: false,
+      },
+    });
+
+    render(<AiSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Mobile & Phone Push Notifications')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(/Receive instant phone lock-screen push alerts whenever LLM calls fail/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText('Enable Push Notifications')).toBeInTheDocument();
+  });
 });

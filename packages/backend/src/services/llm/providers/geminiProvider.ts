@@ -1,6 +1,7 @@
 import type { ILlmProvider, LlmCompletionOptions } from '../types.js';
 import type { SystemLogLevel } from '../../../types/index.js';
 import { systemLogger, truncatePayload } from '../../systemLogger.js';
+import { pushNotificationService } from '../../pushNotificationService.js';
 
 export interface GeminiProviderConfig {
   apiKey: string;
@@ -48,6 +49,19 @@ export class GeminiProvider implements ILlmProvider {
       },
       skipGithubIssue: true,
     });
+
+    if (statusCode >= 400 || error) {
+      const errDetail =
+        error ||
+        (typeof responseBody === 'object' && responseBody && 'error' in responseBody
+          ? JSON.stringify((responseBody as Record<string, unknown>).error)
+          : `HTTP ${statusCode}`);
+      void pushNotificationService.notifyLlmFailure({
+        model,
+        statusCode,
+        message: errDetail,
+      }).catch((e) => console.warn('[GeminiProvider] Push notification failed:', e));
+    }
   }
 
   async generateText(

@@ -450,3 +450,33 @@ export interface TestLlmConnectionResult {
   error?: string;
 }
 
+export interface PushSubscriptionKeys {
+  p256dh: string;
+  auth: string;
+}
+
+export interface PushSubscriptionRecord {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscribePushPayload {
+  endpoint: string;
+  keys: PushSubscriptionKeys;
+  userAgent?: string;
+}
+
+export interface PushNotificationPayload {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+}
+
+

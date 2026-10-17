@@ -337,6 +337,27 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(config.provider).toBe('gemini');
     expect(config.model).toBe('gemini-3.8-flash');
   });
+
+  it('validates PushNotification contracts in Trinity sync', () => {
+    const keys: extensionTypes.PushSubscriptionKeys = {
+      p256dh: 'BNc...',
+      auth: 'xyz...',
+    };
+    const subPayload: extensionTypes.SubscribePushPayload = {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/test',
+      keys,
+      userAgent: 'Mozilla/5.0 Chrome/120.0.0.0',
+    };
+    const notif: extensionTypes.PushNotificationPayload = {
+      title: 'LLM Error',
+      body: 'Gemini call failed with 404',
+      url: '/ai-settings',
+      tag: 'llm-error',
+    };
+    expect(subPayload.endpoint).toContain('fcm.googleapis.com');
+    expect(subPayload.keys.p256dh).toBe('BNc...');
+    expect(notif.title).toBe('LLM Error');
+  });
 });
 
 

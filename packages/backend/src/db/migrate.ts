@@ -476,6 +476,18 @@ export async function migrate(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON system_logs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level);
     CREATE INDEX IF NOT EXISTS idx_system_logs_source ON system_logs(source);
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
   `);
 
   console.log('Database migration completed successfully');

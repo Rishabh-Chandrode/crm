@@ -147,7 +147,10 @@ api.import.parse(file)
 api.import.prospects(body)
 
 // Job Applications & Opportunities
-api.applications.list(filters?)       // GET  /api/applications — status, search, job_id, limit, offset
+api.applications.list(filters?)       // GET  /api/applications — status, search, job_id, min_match_score, limit, offset
+api.applications.syncEmails()         // POST /api/applications/sync-emails — scans Gmail for jobs & status updates
+api.applications.getPreferences()     // GET  /api/applications/preferences — candidate roles, skills, criteria
+api.applications.updatePreferences(p) // PUT  /api/applications/preferences — updates candidate criteria
 api.applications.create(body)         // POST /api/applications
 api.applications.update(id, body)     // PATCH /api/applications/:id
 api.applications.delete(id)           // DELETE /api/applications/:id
@@ -166,7 +169,9 @@ Key exports:
 |---|---|
 | `CrmUser` | User account with full profile, `has_gmail_configured` flag |
 | `Company`, `Prospect`, `EmailTemplate`, `EmailSend`, `EmailSchedule` | Core data interfaces |
-| `JobApplication` | Job application record (`company_name`, `job_title`, `job_url`, `platform`, `status`, `applied_at`) |
+| `JobApplication` | Job application record (`company_name`, `job_title`, `job_url`, `platform`, `status`, `applied_at`, `match_score`, `match_reasons`, `missing_skills`) |
+| `CandidatePreferences` | Candidate target roles, skills, experience range, location, and remote preferences |
+| `JobEmailSyncResult` | Counts for discovered, updated, scanned, and skipped job emails |
 | `VariableSource` | `'prospect' \| 'company' \| 'sender' \| 'static' \| 'custom'` |
 | `TemplateVariable`, `VariablePreset` | Template variable types |
 | `PROSPECT_FIELDS` | Field options for the variable mapper (prospect source) |

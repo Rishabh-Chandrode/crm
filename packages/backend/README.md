@@ -48,6 +48,17 @@ src/
 │   ├── settings.ts              # /settings — key/value store
 │   └── track.ts                 # /track — email open pixel (public, no auth)
 ├── services/
+│   ├── llm/
+│   │   ├── types.ts             # ILlmProvider interface & options
+│   │   ├── factory.ts           # LlmProviderFactory (Strategy & Factory pattern)
+│   │   ├── heuristicFallback.ts # Deterministic rule engine for classification & scoring
+│   │   └── providers/           # GeminiProvider, OpenAiProvider, NullLlmProvider
+│   ├── jobEmailSync/
+│   │   ├── gmailFetcher.ts      # Queries Gmail API for job recommendations & updates
+│   │   ├── jobExtractor.ts      # Unwraps tracking links and parses jobs from HTML
+│   │   ├── jobScraper.ts        # Server-side description scraper (LinkedIn guest API, fallback)
+│   │   ├── jobClassifierAndScorer.ts # Coordinates LLM & heuristic scoring against preferences
+│   │   └── syncOrchestrator.ts  # End-to-end sync workflow and scheduler integration
 │   ├── email/
 │   │   ├── types.ts             # EmailProvider interface
 │   │   ├── resend.ts            # Resend implementation
@@ -59,7 +70,7 @@ src/
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
 │   ├── documentRefs.ts          # Keeps template and schedule attachment ids limited to documents that still exist
 │   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
-│   └── scheduler.ts             # node-cron job — processes pending email_schedules + Drive sync
+│   └── scheduler.ts             # node-cron job — processes email_schedules, Drive sync, and job email sync
 └── types/
     └── index.ts                 # Shared TypeScript interfaces
 ```
@@ -294,7 +305,10 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/applications` | **Query:** `status?` (`open` \| `referral_requested` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn` \| `closed`), `search?` (company_name or job_title), `job_id?`, `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `company_id`, `email_count`, and `referral_requested_at` |
+| `GET` | `/api/applications` | **Query:** `status?`, `search?`, `job_id?`, `min_match_score?` (number), `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `company_id`, `email_count`, `referral_requested_at`, `match_score`, `match_reasons`, `missing_skills` |
+| `POST` | `/api/applications/sync-emails` | — | `{ data: JobEmailSyncResult }` — scans connected Gmail for job alerts and application status updates |
+| `GET` | `/api/applications/preferences` | — | `{ data: CandidatePreferences }` — candidate target roles, skills, and scoring criteria |
+| `PUT` | `/api/applications/preferences` | `{ target_roles?: string[], target_skills?: string[], min_experience_years?: number, max_experience_years?: number, preferred_locations?: string[], remote_only?: boolean }` | `{ data: CandidatePreferences }` |
 | `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'`. Auto-resolves/creates company in Companies table and links `company_id` to the associated `jobs` entry. | `JobApplication` (includes `company_id`) — `201` |
 | `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values, synchronizes company and title/URL updates with the linked `jobs` record | `JobApplication` |
 | `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
@@ -367,6 +381,9 @@ users (id UUID PK, username, email, password_hash, role, is_active,
        from_name, reply_to_email,          -- email display name / reply-to overrides
        daily_document_sync,                -- opt-in daily Drive document refetch
        daily_document_synced_at,           -- last time that daily refetch ran
+       candidate_preferences,              -- JSONB target roles, skills, and fit criteria
+       last_job_email_synced_at,           -- sync cursor for Gmail job discovery
+       job_email_sync_enabled,             -- toggle for background email job sync
        created_at, updated_at)
 
 jobs             (id UUID PK, company_id→companies, title, job_url,
@@ -375,7 +392,9 @@ jobs             (id UUID PK, company_id→companies, title, job_url,
 
 job_applications (id UUID PK, user_id→users, job_id→jobs,
                   company_name, job_title, job_url, platform,
-                  status,       -- applied|screening|interview|offer|rejected|withdrawn
+                  status,       -- not_applied|applied|screening|interview|offer|rejected|withdrawn|closed
+                  match_score, match_reasons, missing_skills, description,
+                  source_email_id, email_source,
                   notes, applied_at, created_at, updated_at)
 
 companies      (id, name, website, industry, created_by→users, created_at, updated_at)

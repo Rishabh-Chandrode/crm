@@ -1,4 +1,6 @@
 import type { ILlmProvider, LlmCompletionOptions } from '../types.js';
+import type { SystemLogLevel } from '../../../types/index.js';
+import { systemLogger, truncatePayload } from '../../systemLogger.js';
 
 export interface GeminiProviderConfig {
   apiKey: string;
@@ -17,6 +19,35 @@ export class GeminiProvider implements ILlmProvider {
 
   isAvailable(): boolean {
     return Boolean(this.apiKey && this.apiKey.length > 0);
+  }
+
+  private logGeminiCall(
+    model: string,
+    requestBody: unknown,
+    responseBody: unknown,
+    statusCode: number,
+    durationMs: number,
+    error?: string
+  ): void {
+    const level: SystemLogLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
+    const path = `/v1beta/models/${model}:generateContent`;
+    const message = error
+      ? `Gemini API POST /models/${model}:generateContent error: ${error} (${durationMs}ms)`
+      : `Gemini API POST /models/${model}:generateContent ${statusCode} (${durationMs}ms)`;
+
+    void systemLogger.log(level, message, {
+      source: 'gemini',
+      method: 'POST',
+      path,
+      statusCode,
+      context: {
+        durationMs,
+        model,
+        requestBody: truncatePayload(requestBody),
+        responseBody: truncatePayload(responseBody),
+      },
+      skipGithubIssue: true,
+    });
   }
 
   async generateText(
@@ -55,6 +86,7 @@ export class GeminiProvider implements ILlmProvider {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
+    const startTime = Date.now();
 
     try {
       const res = await fetch(url, {
@@ -64,13 +96,22 @@ export class GeminiProvider implements ILlmProvider {
         signal: controller.signal,
       });
 
+      const durationMs = Date.now() - startTime;
+
       if (!res.ok) {
         const errorText = await res.text().catch(() => '');
         console.warn(`[GeminiProvider] API error HTTP ${res.status}: ${errorText.slice(0, 300)}`);
+        let errorPayload: unknown = errorText;
+        try {
+          errorPayload = JSON.parse(errorText);
+        } catch {
+          // keep as string
+        }
+        this.logGeminiCall(model, body, errorPayload, res.status, durationMs);
         return null;
       }
 
-      const data = await res.json() as {
+      const data = (await res.json()) as {
         candidates?: Array<{
           content?: {
             parts?: Array<{ text?: string }>;
@@ -78,11 +119,16 @@ export class GeminiProvider implements ILlmProvider {
         }>;
       };
 
+      this.logGeminiCall(model, body, data, res.status, durationMs);
+
       const candidate = data.candidates?.[0];
       const text = candidate?.content?.parts?.[0]?.text;
       return text ? text.trim() : null;
     } catch (err) {
-      console.warn('[GeminiProvider] Network or timeout error:', err instanceof Error ? err.message : err);
+      const durationMs = Date.now() - startTime;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn('[GeminiProvider] Network or timeout error:', errMsg);
+      this.logGeminiCall(model, body, { error: errMsg }, 500, durationMs, errMsg);
       return null;
     } finally {
       clearTimeout(timeout);
@@ -126,6 +172,7 @@ export class GeminiProvider implements ILlmProvider {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
+    const startTime = Date.now();
 
     try {
       const res = await fetch(url, {
@@ -135,13 +182,22 @@ export class GeminiProvider implements ILlmProvider {
         signal: controller.signal,
       });
 
+      const durationMs = Date.now() - startTime;
+
       if (!res.ok) {
         const errorText = await res.text().catch(() => '');
         console.warn(`[GeminiProvider] API error HTTP ${res.status}: ${errorText.slice(0, 300)}`);
+        let errorPayload: unknown = errorText;
+        try {
+          errorPayload = JSON.parse(errorText);
+        } catch {
+          // keep as string
+        }
+        this.logGeminiCall(model, body, errorPayload, res.status, durationMs);
         return null;
       }
 
-      const data = await res.json() as {
+      const data = (await res.json()) as {
         candidates?: Array<{
           content?: {
             parts?: Array<{ text?: string }>;
@@ -149,13 +205,18 @@ export class GeminiProvider implements ILlmProvider {
         }>;
       };
 
+      this.logGeminiCall(model, body, data, res.status, durationMs);
+
       const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!raw) return null;
 
       const cleanJson = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
       return JSON.parse(cleanJson) as T;
     } catch (err) {
-      console.warn('[GeminiProvider] JSON parse or network error:', err instanceof Error ? err.message : err);
+      const durationMs = Date.now() - startTime;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn('[GeminiProvider] JSON parse or network error:', errMsg);
+      this.logGeminiCall(model, body, { error: errMsg }, 500, durationMs, errMsg);
       return null;
     } finally {
       clearTimeout(timeout);

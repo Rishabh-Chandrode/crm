@@ -31,7 +31,7 @@ src/
 │       ├── profile/page.tsx       # Profile editor — personal, job preferences (target roles, tech skills, locations, remote toggle, compensation, and criteria used for email job sync & scoring), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
 │       ├── users/page.tsx         # Admin-only user management
-│       └── logs/page.tsx          # Admin-only system logs & observability (telemetry, filters, stack traces, 30-day retention pruning)
+│       └── logs/page.tsx          # Admin-only system logs & observability (telemetry, Gemini LLM API request & response payload inspector, latency metrics, query badges, source filters, stack traces, 30-day retention pruning)
 ├── components/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, and theme switcher. The mobile close control sits beside the theme switcher.
 │   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed

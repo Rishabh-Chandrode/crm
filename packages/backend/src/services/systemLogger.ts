@@ -19,21 +19,62 @@ interface LogOptions {
   statusCode?: number;
   userId?: string;
   ip?: string;
+  skipGithubIssue?: boolean;
 }
 
 const SENSITIVE_KEYS = new Set([
   'password',
   'password_hash',
+  'new_password',
+  'old_password',
+  'confirm_password',
   'token',
   'access_token',
+  'accesstoken',
   'refresh_token',
+  'refreshtoken',
+  'id_token',
+  'idtoken',
+  'jwt',
+  'crm_token',
+  'crmtoken',
+  'google_token',
+  'googletoken',
+  'app_password',
+  'apppassword',
   'authorization',
+  'auth',
   'secret',
+  'client_secret',
+  'clientsecret',
+  'secret_key',
+  'secretkey',
+  'private_key',
+  'privatekey',
   'cookie',
   'credentials',
   'api_key',
   'apikey',
+  'session',
+  'session_token',
+  'sessiontoken',
 ]);
+
+export function isSensitiveKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  if (SENSITIVE_KEYS.has(lower)) return true;
+  if (
+    lower.includes('password') ||
+    lower.includes('secret') ||
+    lower.includes('token') ||
+    lower.includes('apikey') ||
+    lower.includes('api_key') ||
+    lower.includes('credential')
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Recursively redacts sensitive keys from log context.
@@ -48,7 +89,7 @@ export function sanitizeLogData(data: unknown): unknown {
 
   const sanitized: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(data as Record<string, unknown>)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+    if (isSensitiveKey(key)) {
       sanitized[key] = '[REDACTED]';
     } else if (typeof val === 'object' && val !== null) {
       sanitized[key] = sanitizeLogData(val);
@@ -57,6 +98,45 @@ export function sanitizeLogData(data: unknown): unknown {
     }
   }
   return sanitized;
+}
+
+/**
+ * Recursively truncates large strings and large arrays/objects
+ * to prevent excessive payload sizes in Postgres JSONB logs.
+ */
+export function truncatePayload(data: unknown, maxDepth = 4): unknown {
+  if (data === null || data === undefined) return data;
+  if (typeof data === 'string') {
+    if (data.length > 10000) {
+      return data.slice(0, 10000) + '... [TRUNCATED]';
+    }
+    return data;
+  }
+  if (typeof data === 'number' || typeof data === 'boolean') {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    const MAX_ITEMS = 50;
+    const items = data.slice(0, MAX_ITEMS).map((item) => truncatePayload(item, maxDepth - 1));
+    if (data.length > MAX_ITEMS) {
+      items.push(`[... ${data.length - MAX_ITEMS} more items truncated]`);
+    }
+    return items;
+  }
+  if (typeof data === 'object') {
+    if (maxDepth <= 0) return '[Object truncated: max depth]';
+    const result: Record<string, unknown> = {};
+    const entries = Object.entries(data as Record<string, unknown>);
+    const MAX_KEYS = 50;
+    for (const [k, v] of entries.slice(0, MAX_KEYS)) {
+      result[k] = truncatePayload(v, maxDepth - 1);
+    }
+    if (entries.length > MAX_KEYS) {
+      result['__truncated_keys_count__'] = entries.length - MAX_KEYS;
+    }
+    return result;
+  }
+  return String(data);
 }
 
 export class SystemLoggerService {
@@ -70,8 +150,15 @@ export class SystemLoggerService {
     options: LogOptions = {}
   ): Promise<void> {
     try {
-      const sanitizedContext = options.context ? sanitizeLogData(options.context) : null;
+      const sanitizedContext = options.context ? (sanitizeLogData(options.context) as Record<string, unknown>) : null;
       const source = options.source || 'backend';
+
+      const isValidUuid = typeof options.userId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options.userId);
+      const userIdParam = isValidUuid ? options.userId : null;
+
+      if (options.userId && !isValidUuid && sanitizedContext) {
+        sanitizedContext['raw_user_id'] = options.userId;
+      }
 
       const res = await pool.query<{ id: string }>(
         `INSERT INTO system_logs (
@@ -90,14 +177,14 @@ export class SystemLoggerService {
           options.method || null,
           options.path || null,
           options.statusCode || null,
-          options.userId || null,
+          userIdParam,
           options.ip || null,
         ]
       );
 
       const logId = res.rows[0]?.id;
 
-      if (level === 'error' && githubIssueService.isConfigured()) {
+      if (level === 'error' && !options.skipGithubIssue && githubIssueService.isConfigured()) {
         void githubIssueService.reportError({
           logId,
           message,

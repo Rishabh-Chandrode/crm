@@ -67,6 +67,11 @@ describe('LogsPage Component', () => {
           path: '/api/prospects/enrich',
           status_code: 500,
           github_issue_url: 'https://github.com/Rishabh-Chandrode/crm/issues/42',
+          context: {
+            durationMs: 42,
+            requestBody: { email: 'test@example.com' },
+            responseBody: { error: 'Failed to enrich prospect email' },
+          },
           created_at: new Date('2026-10-17T10:00:00Z').toISOString(),
         },
       ],
@@ -104,6 +109,72 @@ describe('LogsPage Component', () => {
       expect(screen.getByText('req-abc-123')).toBeInTheDocument();
       expect(screen.getByText(/EnrichmentError/i)).toBeInTheDocument();
       expect(screen.getByText('GitHub Issue')).toBeInTheDocument();
+      expect(screen.getByText('Request Body')).toBeInTheDocument();
+      expect(screen.getByText('Response Body')).toBeInTheDocument();
+      expect(screen.getByText(/Latency:/i)).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Gemini LLM' })).toBeInTheDocument();
+    });
+  });
+
+  it('renders Gemini LLM log entries with request and response body', async () => {
+    vi.mocked(api.auth.me).mockResolvedValue({
+      user: { id: 'admin-1', username: 'admin', role: 'admin' },
+    } as any);
+
+    vi.mocked(api.logs.stats).mockResolvedValue({
+      total: 10,
+      errors: 0,
+      warnings: 0,
+      info: 10,
+      last24Hours: 5,
+    });
+
+    vi.mocked(api.logs.list).mockResolvedValue({
+      data: [
+        {
+          id: 'gemini-log-1',
+          level: 'info',
+          message: 'Gemini API POST /models/gemini-2.5-flash:generateContent 200 (150ms)',
+          source: 'gemini',
+          method: 'POST',
+          path: '/v1beta/models/gemini-2.5-flash:generateContent',
+          status_code: 200,
+          context: {
+            durationMs: 150,
+            model: 'gemini-2.5-flash',
+            requestBody: {
+              contents: [{ role: 'user', parts: [{ text: 'Extract job details' }] }],
+            },
+            responseBody: {
+              candidates: [{ content: { parts: [{ text: '{"company": "Google"}' }] } }],
+            },
+          },
+          created_at: new Date('2026-10-17T11:00:00Z').toISOString(),
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    });
+
+    render(<LogsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Gemini API POST /models/gemini-2.5-flash:generateContent 200 (150ms)')).toBeInTheDocument();
+      expect(screen.getByText('gemini')).toBeInTheDocument();
+      expect(screen.getByText('POST /v1beta/models/gemini-2.5-flash:generateContent')).toBeInTheDocument();
+      expect(screen.getByText('200')).toBeInTheDocument();
+    });
+
+    // Expand
+    const target = screen.getByText('Gemini API POST /models/gemini-2.5-flash:generateContent 200 (150ms)');
+    fireEvent.click(target);
+
+    await waitFor(() => {
+      expect(screen.getByText('Request Body')).toBeInTheDocument();
+      expect(screen.getByText('Response Body')).toBeInTheDocument();
+      expect(screen.getByText(/Latency:/i)).toBeInTheDocument();
     });
   });
 
@@ -143,3 +214,4 @@ describe('LogsPage Component', () => {
     expect(screen.queryByText(/permanently delete all recorded system logs/i)).not.toBeInTheDocument();
   });
 });
+

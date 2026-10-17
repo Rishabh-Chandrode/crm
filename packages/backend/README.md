@@ -546,6 +546,17 @@ Resolution in `services/templateEngine.ts → resolveTemplate()`:
 
 ---
 
+## Gemini LLM API Request & Response Telemetry
+
+Outgoing requests made to the Google Gemini API (`generateContent`) are intercepted and logged into the `system_logs` database table with `source: 'gemini'`.
+
+- **Captured Fields:** Request method (`POST`), endpoint path (`/v1beta/models/${model}:generateContent`), HTTP status code, round-trip latency (`durationMs`), model name, request body (`contents`, `generationConfig`), and response body (`candidates` or error payload).
+- **Security & Redaction:** Gemini API keys passed in URL query strings are strictly stripped to prevent token exposure. All sensitive fields in payload contexts are recursively sanitized via `sanitizeLogData()`.
+- **Payload Truncation:** Large prompts or candidate structures are recursively truncated via `truncatePayload()` to prevent Postgres JSONB table bloat.
+- **Observability:** Rendered in the frontend Admin Observability dashboard (`/logs`) with dedicated JSON viewer drawers for inspection and debugging.
+
+---
+
 ## Automated Testing
 
 Backend uses **Vitest** for unit tests and **Supertest** for Express HTTP endpoint testing.
@@ -561,6 +572,8 @@ pnpm test:watch
 Test suites live in `src/__tests__/`:
 - `api.test.ts` — Express route tests (health check, route protection)
 - `auth.test.ts` — JWT token generation, authMiddleware, session validation, requireRole
+- `llm.test.ts` — LLM provider factory, heuristic fallback rules, and Gemini API request/response telemetry logging
+- `logs.test.ts` — System logging service, retention pruning, and admin log endpoints
 - `genderInference.test.ts` — Automated pronoun parsing and first-name dictionary inference
 - `templateEngine.test.ts` — Variable resolution, customizable salutations (Sir/Ma'am), HTML converters, tracking pixel injection
 - `types.test.ts` — Backend types, getGmailSearchUrl utility, and Trinity sync validation

@@ -250,6 +250,7 @@ export default function LogsPage() {
           className="px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 text-zinc-900 dark:text-zinc-100 focus:outline-hidden"
         >
           <option value="">All Sources</option>
+          <option value="gemini">Gemini LLM</option>
           <option value="backend">Backend</option>
           <option value="scheduler">Scheduler</option>
           <option value="email_sync">Email Sync</option>
@@ -366,6 +367,16 @@ export default function LogsPage() {
                             <span className="font-semibold text-zinc-700 dark:text-zinc-300 font-sans">Request ID:</span> {log.request_id}
                           </div>
                         )}
+                        {typeof log.context?.durationMs === 'number' && (
+                          <div className="px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded font-mono">
+                            <span className="font-semibold text-zinc-700 dark:text-zinc-300 font-sans">Latency:</span> {log.context.durationMs}ms
+                          </div>
+                        )}
+                        {Boolean(log.context?.query && Object.keys(log.context.query as object).length > 0) && (
+                          <div className="px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded font-mono truncate max-w-xs">
+                            <span className="font-semibold text-zinc-700 dark:text-zinc-300 font-sans">Query:</span> {JSON.stringify(log.context?.query)}
+                          </div>
+                        )}
                         {log.user_id && (
                           <div className="px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded font-mono">
                             <span className="font-semibold text-zinc-700 dark:text-zinc-300 font-sans">User ID:</span> {log.user_id}
@@ -410,23 +421,96 @@ export default function LogsPage() {
                         </div>
                       )}
 
-                      {/* Context JSON */}
-                      {log.context && Object.keys(log.context).length > 0 && (
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">Context Data</span>
-                            <button
-                              onClick={() => copyToClipboard(JSON.stringify(log.context, null, 2), `context-${log.id}`)}
-                              className="text-[11px] text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-                            >
-                              {copiedId === `context-${log.id}` ? '✓ Copied' : 'Copy'}
-                            </button>
-                          </div>
-                          <pre className="p-3 text-[11px] font-mono rounded-lg bg-zinc-900 text-zinc-100 overflow-x-auto whitespace-pre leading-relaxed">
-                            {JSON.stringify(log.context, null, 2)}
-                          </pre>
+                      {/* HTTP Request & Response Payload Display */}
+                      {log.context && (log.context.requestBody !== undefined || log.context.responseBody !== undefined) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {log.context.requestBody !== undefined && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                  <span>Request Body</span>
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    copyToClipboard(
+                                      typeof log.context?.requestBody === 'string'
+                                        ? log.context.requestBody
+                                        : JSON.stringify(log.context?.requestBody, null, 2),
+                                      `req-${log.id}`
+                                    )
+                                  }
+                                  className="text-[11px] text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                >
+                                  {copiedId === `req-${log.id}` ? '✓ Copied' : 'Copy'}
+                                </button>
+                              </div>
+                              <pre className="p-3 text-[11px] font-mono rounded-lg bg-zinc-900 text-zinc-100 overflow-x-auto whitespace-pre leading-relaxed max-h-64 overflow-y-auto">
+                                {typeof log.context.requestBody === 'string'
+                                  ? log.context.requestBody
+                                  : JSON.stringify(log.context.requestBody, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+
+                          {log.context.responseBody !== undefined && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                  <span>Response Body</span>
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    copyToClipboard(
+                                      typeof log.context?.responseBody === 'string'
+                                        ? log.context.responseBody
+                                        : JSON.stringify(log.context?.responseBody, null, 2),
+                                      `res-${log.id}`
+                                    )
+                                  }
+                                  className="text-[11px] text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                >
+                                  {copiedId === `res-${log.id}` ? '✓ Copied' : 'Copy'}
+                                </button>
+                              </div>
+                              <pre className="p-3 text-[11px] font-mono rounded-lg bg-zinc-900 text-zinc-100 overflow-x-auto whitespace-pre leading-relaxed max-h-64 overflow-y-auto">
+                                {typeof log.context.responseBody === 'string'
+                                  ? log.context.responseBody
+                                  : JSON.stringify(log.context.responseBody, null, 2)}
+                              </pre>
+                            </div>
+                          )}
                         </div>
                       )}
+
+                      {/* Remaining Context JSON */}
+                      {(() => {
+                        if (!log.context) return null;
+                        const otherContext: Record<string, unknown> = {};
+                        for (const [k, v] of Object.entries(log.context)) {
+                          if (k !== 'requestBody' && k !== 'responseBody') {
+                            otherContext[k] = v;
+                          }
+                        }
+                        if (Object.keys(otherContext).length === 0) return null;
+                        return (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">Context Data</span>
+                              <button
+                                onClick={() => copyToClipboard(JSON.stringify(otherContext, null, 2), `context-${log.id}`)}
+                                className="text-[11px] text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                              >
+                                {copiedId === `context-${log.id}` ? '✓ Copied' : 'Copy'}
+                              </button>
+                            </div>
+                            <pre className="p-3 text-[11px] font-mono rounded-lg bg-zinc-900 text-zinc-100 overflow-x-auto whitespace-pre leading-relaxed max-h-60 overflow-y-auto">
+                              {JSON.stringify(otherContext, null, 2)}
+                            </pre>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

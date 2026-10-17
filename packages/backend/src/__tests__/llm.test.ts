@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { LlmProviderFactory } from '../services/llm/factory.js';
 import { NullLlmProvider } from '../services/llm/providers/nullProvider.js';
 import { GeminiProvider } from '../services/llm/providers/geminiProvider.js';
 import { OpenAiProvider } from '../services/llm/providers/openaiProvider.js';
+import { systemLogger } from '../services/systemLogger.js';
 import {
   classifyEmailHeuristic,
   matchScoreHeuristic,
@@ -60,6 +61,124 @@ describe('LLM Module & Heuristic Fallback', () => {
 
       const emptyProvider = new OpenAiProvider({ apiKey: '' });
       expect(emptyProvider.isAvailable()).toBe(false);
+    });
+  });
+
+  describe('GeminiProvider API Request & Response Logging', () => {
+    const originalFetch = globalThis.fetch;
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+      vi.restoreAllMocks();
+    });
+
+    it('logs outgoing request and incoming response payload on successful generateText', async () => {
+      const logSpy = vi.spyOn(systemLogger, 'log').mockResolvedValue();
+      const provider = new GeminiProvider({ apiKey: 'secret-gemini-key' });
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Generated summary from Gemini' }],
+              },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+      const result = await provider.generateText('Draft an email', 'You are an email assistant');
+      expect(result).toBe('Generated summary from Gemini');
+
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      const [level, message, options] = logSpy.mock.calls[0];
+      expect(level).toBe('info');
+      expect(message).toContain('Gemini API POST /models/gemini-2.5-flash:generateContent 200');
+      expect(options?.source).toBe('gemini');
+      expect(options?.method).toBe('POST');
+      expect(options?.statusCode).toBe(200);
+      expect(options?.path).toBe('/v1beta/models/gemini-2.5-flash:generateContent');
+      // Ensure the API key parameter is NOT logged in path
+      expect(options?.path).not.toContain('secret-gemini-key');
+      expect(options?.context?.model).toBe('gemini-2.5-flash');
+      expect(options?.context?.requestBody).toBeDefined();
+      expect(options?.context?.responseBody).toBeDefined();
+    });
+
+    it('logs outgoing request and response payload on generateJson', async () => {
+      const logSpy = vi.spyOn(systemLogger, 'log').mockResolvedValue();
+      const provider = new GeminiProvider({ apiKey: 'test-key' });
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: '{"companyName": "Google", "status": "interview"}' }],
+              },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+      const result = await provider.generateJson<{ companyName: string; status: string }>(
+        'Extract details'
+      );
+      expect(result).toEqual({ companyName: 'Google', status: 'interview' });
+
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      const [level, , options] = logSpy.mock.calls[0];
+      expect(level).toBe('info');
+      expect(options?.source).toBe('gemini');
+      expect(options?.statusCode).toBe(200);
+      expect((options?.context?.requestBody as any).generationConfig.responseMimeType).toBe(
+        'application/json'
+      );
+    });
+
+    it('logs warn and error payload on non-200 HTTP responses', async () => {
+      const logSpy = vi.spyOn(systemLogger, 'log').mockResolvedValue();
+      const provider = new GeminiProvider({ apiKey: 'test-key' });
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ error: { message: 'Invalid argument provided' } }),
+      } as unknown as Response);
+
+      const result = await provider.generateText('Test bad request');
+      expect(result).toBeNull();
+
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      const [level, , options] = logSpy.mock.calls[0];
+      expect(level).toBe('warn');
+      expect(options?.statusCode).toBe(400);
+      expect(options?.source).toBe('gemini');
+      expect(options?.context?.responseBody).toEqual({
+        error: { message: 'Invalid argument provided' },
+      });
+    });
+
+    it('logs error on network or timeout exceptions', async () => {
+      const logSpy = vi.spyOn(systemLogger, 'log').mockResolvedValue();
+      const provider = new GeminiProvider({ apiKey: 'test-key' });
+
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network connection timeout'));
+
+      const result = await provider.generateText('Test timeout');
+      expect(result).toBeNull();
+
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      const [level, message, options] = logSpy.mock.calls[0];
+      expect(level).toBe('error');
+      expect(message).toContain('Network connection timeout');
+      expect(options?.statusCode).toBe(500);
+      expect(options?.source).toBe('gemini');
     });
   });
 

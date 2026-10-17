@@ -606,4 +606,18 @@ export const api = {
         body: JSON.stringify({ days }),
       }),
   },
+
+  aiSettings: {
+    get: () => request<{ data: import('./types').LlmConfigSettings }>('/ai-settings'),
+    update: (body: import('./types').UpdateLlmConfigPayload) =>
+      request<{ data: import('./types').LlmConfigSettings }>('/ai-settings', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    test: (body: import('./types').TestLlmConnectionPayload) =>
+      request<{ data: import('./types').TestLlmConnectionResult }>('/ai-settings/test', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
 };

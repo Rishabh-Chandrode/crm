@@ -41,7 +41,7 @@ extension/
 │   ├── popup.ts                    # Main logic — auth gate, tabs, API calls, match card, autofill
 │   ├── contentScript.ts            # Passive listener on linkedin.com/in/* — only scrolls/scrapes on explicit user request
 │   ├── background.ts               # Service worker — tab queries, scrape trigger, tab URL events
-│   ├── types.ts                    # Shared TypeScript interfaces mirroring backend contracts (including JobApplicationStatus with ineligible, SystemLog telemetry, PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
+│   ├── types.ts                    # Shared TypeScript interfaces mirroring backend contracts (including LlmConfigSettings, LlmProviderType, JobApplicationStatus with ineligible, SystemLog telemetry, PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
 │   └── formFiller/                 # Form autofill subsystem
 │       ├── index.ts                # Orchestrator — platform detection, field loop, resume injection
 │       ├── detector.ts             # Label-based field detection: getLabelText, PATTERNS, classifyElement, detectAllFields
@@ -221,5 +221,5 @@ Test suites live in `src/__tests__/`:
 - `platforms.test.ts` — ATS platform detector and selectors
 - `profileSearch.test.ts` — Profile field search filtering and match highlighting
 - `theme.test.ts` — Light/Dark/System theme switching and root class management
-- `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts, Job, JobApplication (including fit score and match reasons), CandidatePreferences, VariableSource, PendingProspect, LinkedInProspectResult, getGmailSearchUrl utility (direct #all/<threadId> and rfc822msgid search), and Type Trinity synchronization
+- `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts, Job, JobApplication (including fit score and match reasons), CandidatePreferences, LlmConfigSettings, LlmProviderType, VariableSource, PendingProspect, LinkedInProspectResult, getGmailSearchUrl utility (direct #all/<threadId> and rfc822msgid search), and Type Trinity synchronization
 

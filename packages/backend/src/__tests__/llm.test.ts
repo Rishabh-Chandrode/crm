@@ -96,14 +96,14 @@ describe('LLM Module & Heuristic Fallback', () => {
       expect(logSpy).toHaveBeenCalledTimes(1);
       const [level, message, options] = logSpy.mock.calls[0];
       expect(level).toBe('info');
-      expect(message).toContain('Gemini API POST /models/gemini-2.5-flash:generateContent 200');
+      expect(message).toContain('Gemini API POST /models/gemini-3.8-flash:generateContent 200');
       expect(options?.source).toBe('gemini');
       expect(options?.method).toBe('POST');
       expect(options?.statusCode).toBe(200);
-      expect(options?.path).toBe('/v1beta/models/gemini-2.5-flash:generateContent');
+      expect(options?.path).toBe('/v1beta/models/gemini-3.8-flash:generateContent');
       // Ensure the API key parameter is NOT logged in path
       expect(options?.path).not.toContain('secret-gemini-key');
-      expect(options?.context?.model).toBe('gemini-2.5-flash');
+      expect(options?.context?.model).toBe('gemini-3.8-flash');
       expect(options?.context?.requestBody).toBeDefined();
       expect(options?.context?.responseBody).toBeDefined();
     });

@@ -413,3 +413,40 @@ export interface SystemLogStats {
   last24Hours: number;
 }
 
+export type LlmProviderType = 'gemini' | 'openai' | 'disabled';
+
+export interface LlmConfigSettings {
+  enabled: boolean;
+  provider: LlmProviderType;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  hasGeminiKey: boolean;
+  hasOpenAiKey: boolean;
+  geminiApiKeyMasked?: string;
+  openaiApiKeyMasked?: string;
+}
+
+export interface UpdateLlmConfigPayload {
+  enabled?: boolean;
+  provider?: LlmProviderType;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  geminiApiKey?: string;
+  openaiApiKey?: string;
+}
+
+export interface TestLlmConnectionPayload {
+  provider?: LlmProviderType;
+  apiKey?: string;
+  model?: string;
+}
+
+export interface TestLlmConnectionResult {
+  success: boolean;
+  latencyMs?: number;
+  message?: string;
+  error?: string;
+}
+

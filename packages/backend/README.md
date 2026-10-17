@@ -46,12 +46,14 @@ src/
 │   ├── import.ts                # /import — CSV parsing + bulk prospect import
 │   ├── stats.ts                 # /stats — dashboard stats
 │   ├── settings.ts              # /settings — key/value store
+│   ├── aiSettings.ts            # /ai-settings — admin-only LLM provider, credentials & model configuration
 │   ├── track.ts                 # /track — email open pixel (public, no auth)
 │   └── logs.ts                  # /logs — admin-only system logs, stats, and retention pruning
 ├── services/
 │   ├── llm/
 │   │   ├── types.ts             # ILlmProvider interface & options
 │   │   ├── factory.ts           # LlmProviderFactory (Strategy & Factory pattern)
+│   │   ├── llmSettingsService.ts # Database-backed LLM settings & dynamic credential management
 │   │   ├── heuristicFallback.ts # Deterministic rule engine for classification & scoring
 │   │   └── providers/           # GeminiProvider, OpenAiProvider, NullLlmProvider
 │   ├── jobEmailSync/
@@ -328,6 +330,16 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 ---
 
+### AI & LLM Settings (Admin only)
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/ai-settings` | — | `{ data: LlmConfigSettings }` — current provider, model, hyperparameters, and masked API keys |
+| `PUT` | `/api/ai-settings` | `{ enabled?, provider?, model?, geminiApiKey?, openaiApiKey?, temperature?, maxTokens? }` | `{ data: LlmConfigSettings }` — saves to database and refreshes factory cache instantly |
+| `POST` | `/api/ai-settings/test` | `{ provider?, apiKey?, model? }` | `{ data: { success: boolean, latencyMs?: number, message?: string, error?: string } }` — live diagnostic connectivity test |
+
+---
+
 ### Stats (Dashboard)
 
 | Method | Path | Body / Params | Response |
@@ -548,7 +560,7 @@ Resolution in `services/templateEngine.ts → resolveTemplate()`:
 
 ## Gemini LLM API Request & Response Telemetry
 
-Outgoing requests made to the Google Gemini API (`generateContent`) are intercepted and logged into the `system_logs` database table with `source: 'gemini'`.
+Outgoing requests made to the Google Gemini API (`generateContent`) are intercepted and logged into the `system_logs` database table with `source: 'gemini'`. The default model configured is `gemini-3.8-flash` (customizable dynamically via the Admin Panel under `/ai-settings` and persisted in the database, with no reliance on static `.env` variables).
 
 - **Captured Fields:** Request method (`POST`), endpoint path (`/v1beta/models/${model}:generateContent`), HTTP status code, round-trip latency (`durationMs`), model name, request body (`contents`, `generationConfig`), and response body (`candidates` or error payload).
 - **Security & Redaction:** Gemini API keys passed in URL query strings are strictly stripped to prevent token exposure. All sensitive fields in payload contexts are recursively sanitized via `sanitizeLogData()`.
@@ -573,6 +585,7 @@ Test suites live in `src/__tests__/`:
 - `api.test.ts` — Express route tests (health check, route protection)
 - `auth.test.ts` — JWT token generation, authMiddleware, session validation, requireRole
 - `llm.test.ts` — LLM provider factory, heuristic fallback rules, and Gemini API request/response telemetry logging
+- `aiSettings.test.ts` — AI & LLM admin settings CRUD, validation, authorization, and test connection diagnostics
 - `logs.test.ts` — System logging service, retention pruning, and admin log endpoints
 - `genderInference.test.ts` — Automated pronoun parsing and first-name dictionary inference
 - `templateEngine.test.ts` — Variable resolution, customizable salutations (Sir/Ma'am), HTML converters, tracking pixel injection

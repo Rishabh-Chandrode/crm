@@ -2,9 +2,13 @@ import { app } from './app.js';
 import { CONFIG } from './config.js';
 import { migrate } from './db/migrate.js';
 import { startScheduler, startLogRetentionScheduler } from './services/scheduler.js';
+import { LlmProviderFactory } from './services/llm/factory.js';
 
 async function start(): Promise<void> {
   await migrate();
+  await LlmProviderFactory.refresh().catch((err) => {
+    console.warn('[LlmProviderFactory] Failed to initialize from database, using env fallback:', err);
+  });
   startScheduler();
   startLogRetentionScheduler();
   app.listen(CONFIG.port, () => {

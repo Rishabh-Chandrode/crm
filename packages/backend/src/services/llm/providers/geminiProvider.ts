@@ -14,7 +14,7 @@ export class GeminiProvider implements ILlmProvider {
 
   constructor(config: GeminiProviderConfig) {
     this.apiKey = config.apiKey.trim();
-    this.defaultModel = config.defaultModel || 'gemini-2.5-flash';
+    this.defaultModel = config.defaultModel || 'gemini-3.8-flash';
   }
 
   isAvailable(): boolean {

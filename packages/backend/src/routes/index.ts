@@ -17,6 +17,7 @@ import statsRouter from './stats.js';
 import applicationsRouter from './applications.js';
 import jobsRouter from './jobs.js';
 import logsRouter from './logs.js';
+import aiSettingsRouter from './aiSettings.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -40,5 +41,6 @@ router.use('/stats',             authMiddleware, statsRouter);
 router.use('/applications',      authMiddleware, applicationsRouter);
 router.use('/jobs',              authMiddleware, jobsRouter);
 router.use('/logs',              logsRouter);
+router.use('/ai-settings',       aiSettingsRouter);
 
 export default router;

@@ -134,14 +134,14 @@ describe('LogsPage Component', () => {
         {
           id: 'gemini-log-1',
           level: 'info',
-          message: 'Gemini API POST /models/gemini-2.5-flash:generateContent 200 (150ms)',
+          message: 'Gemini API POST /models/gemini-3.8-flash:generateContent 200 (150ms)',
           source: 'gemini',
           method: 'POST',
-          path: '/v1beta/models/gemini-2.5-flash:generateContent',
+          path: '/v1beta/models/gemini-3.8-flash:generateContent',
           status_code: 200,
           context: {
             durationMs: 150,
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             requestBody: {
               contents: [{ role: 'user', parts: [{ text: 'Extract job details' }] }],
             },
@@ -161,14 +161,14 @@ describe('LogsPage Component', () => {
     render(<LogsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Gemini API POST /models/gemini-2.5-flash:generateContent 200 (150ms)')).toBeInTheDocument();
+      expect(screen.getByText('Gemini API POST /models/gemini-3.8-flash:generateContent 200 (150ms)')).toBeInTheDocument();
       expect(screen.getByText('gemini')).toBeInTheDocument();
-      expect(screen.getByText('POST /v1beta/models/gemini-2.5-flash:generateContent')).toBeInTheDocument();
+      expect(screen.getByText('POST /v1beta/models/gemini-3.8-flash:generateContent')).toBeInTheDocument();
       expect(screen.getByText('200')).toBeInTheDocument();
     });
 
     // Expand
-    const target = screen.getByText('Gemini API POST /models/gemini-2.5-flash:generateContent 200 (150ms)');
+    const target = screen.getByText('Gemini API POST /models/gemini-3.8-flash:generateContent 200 (150ms)');
     fireEvent.click(target);
 
     await waitFor(() => {

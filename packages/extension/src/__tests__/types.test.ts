@@ -320,6 +320,23 @@ describe('Extension Data Shapes & Message Contracts', () => {
     const status: extensionTypes.JobApplicationStatus = 'ineligible';
     expect(status).toBe('ineligible');
   });
+
+  it('validates LlmConfigSettings and LlmProviderType contracts in Trinity sync', () => {
+    const provider: extensionTypes.LlmProviderType = 'gemini';
+    const config: extensionTypes.LlmConfigSettings = {
+      enabled: true,
+      provider,
+      model: 'gemini-3.8-flash',
+      temperature: 0.2,
+      maxTokens: 2048,
+      hasGeminiKey: true,
+      hasOpenAiKey: false,
+      geminiApiKeyMasked: '••••••••Ab8R',
+    };
+    expect(config.enabled).toBe(true);
+    expect(config.provider).toBe('gemini');
+    expect(config.model).toBe('gemini-3.8-flash');
+  });
 });
 
 

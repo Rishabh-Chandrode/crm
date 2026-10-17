@@ -312,6 +312,7 @@ export async function processDailyDocumentSync(): Promise<number> {
 }
 
 import { syncAllActiveUsers } from './jobEmailSync/syncOrchestrator.js';
+import { systemLogger } from './systemLogger.js';
 
 export function startScheduler(customCron?: string): void {
   const emailCron = customCron ?? EMAIL_SCHEDULER_CRON;
@@ -324,3 +325,15 @@ export function startScheduler(customCron?: string): void {
 
   console.log(`Email scheduler started (polling every 30 minutes with cron '${emailCron}')`);
 }
+
+export function startLogRetentionScheduler(): void {
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      await systemLogger.pruneOldLogs(30);
+    } catch (err) {
+      console.error('[Scheduler] Failed to prune old system logs:', err);
+    }
+  });
+}
+
+

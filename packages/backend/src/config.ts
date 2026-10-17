@@ -31,5 +31,8 @@ export const CONFIG = {
   llmProvider: process.env['LLM_PROVIDER'] ?? 'gemini',
   llmEnabled: process.env['LLM_ENABLED'] !== 'false',
   llmModel: process.env['LLM_MODEL'] ?? 'gemini-2.5-flash',
+  githubToken: process.env['GITHUB_TOKEN'] ?? '',
+  githubRepo: process.env['GITHUB_REPO'] ?? 'Rishabh-Chandrode/crm',
+  githubIssuesEnabled: process.env['GITHUB_ISSUES_ENABLED'] === 'true' || Boolean(process.env['GITHUB_TOKEN']),
 } as const;
 

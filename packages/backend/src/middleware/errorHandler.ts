@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { systemLogger } from '../services/systemLogger.js';
 
 export function errorHandler(
   err: unknown,
@@ -21,7 +22,17 @@ export function errorHandler(
     return;
   }
 
-  console.error('Unhandled error:', err);
   const message = err instanceof Error ? err.message : 'Internal server error';
+  
+  systemLogger.error(`Unhandled error: ${message}`, err, {
+    source: 'backend',
+    method: _req.method,
+    path: _req.originalUrl || _req.url,
+    statusCode: 500,
+    userId: _req.user?.id,
+    ip: _req.ip,
+  });
+
+  console.error('Unhandled error:', err);
   res.status(500).json({ error: message });
 }

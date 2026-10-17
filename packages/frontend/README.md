@@ -30,7 +30,8 @@ src/
 │       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + stages + referral outreach across active statuses, email job sync, and fit scoring linked to profile job preferences
 │       ├── profile/page.tsx       # Profile editor — personal, job preferences (target roles, tech skills, locations, remote toggle, compensation, and criteria used for email job sync & scoring), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
-│       └── users/page.tsx         # Admin-only user management
+│       ├── users/page.tsx         # Admin-only user management
+│       └── logs/page.tsx          # Admin-only system logs & observability (telemetry, filters, stack traces, 30-day retention pruning)
 ├── components/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, and theme switcher. The mobile close control sits beside the theme switcher.
 │   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed
@@ -155,6 +156,12 @@ api.applications.create(body)         // POST /api/applications
 api.applications.update(id, body)     // PATCH /api/applications/:id
 api.applications.delete(id)           // DELETE /api/applications/:id
 api.applications.getEmails(id)        // GET  /api/applications/:id/emails — outreach history
+
+// System Logs & Telemetry (Admin only)
+api.logs.list(filters?)               // GET  /api/logs — level, source, search, startDate, endDate, page, limit
+api.logs.stats()                      // GET  /api/logs/stats — errors, warnings, 24h count
+api.logs.clear(beforeDate?)           // DELETE /api/logs — purges all logs or before date
+api.logs.prune(days?)                 // POST /api/logs/prune — manual trigger for retention pruning
 ```
 
 ---

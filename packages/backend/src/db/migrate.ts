@@ -454,6 +454,28 @@ export async function migrate(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_job_applications_source_email_id ON job_applications(source_email_id);
     CREATE INDEX IF NOT EXISTS idx_job_applications_match_score ON job_applications(match_score DESC);
+
+    CREATE TABLE IF NOT EXISTS system_logs (
+      id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+      level         VARCHAR(20)  NOT NULL,
+      message       TEXT         NOT NULL,
+      source        VARCHAR(50)  NOT NULL DEFAULT 'backend',
+      context       JSONB,
+      error_name    VARCHAR(255),
+      stack_trace   TEXT,
+      request_id    VARCHAR(100),
+      method        VARCHAR(10),
+      path          VARCHAR(500),
+      status_code   INTEGER,
+      user_id       UUID         REFERENCES users(id) ON DELETE SET NULL,
+      ip            VARCHAR(100),
+      github_issue_url VARCHAR(500),
+      created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+    ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS github_issue_url VARCHAR(500);
+    CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON system_logs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level);
+    CREATE INDEX IF NOT EXISTS idx_system_logs_source ON system_logs(source);
   `);
 
   console.log('Database migration completed successfully');

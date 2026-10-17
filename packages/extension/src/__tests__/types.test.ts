@@ -302,6 +302,20 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(appWithScore.match_score).toBe(92);
     expect(appWithScore.match_reasons?.length).toBe(2);
   });
+
+  it('validates SystemLog and SystemLogLevel contracts in extension types', () => {
+    const level: extensionTypes.SystemLogLevel = 'error';
+    const log: extensionTypes.SystemLog = {
+      id: 'log-1',
+      level,
+      message: 'Test log',
+      source: 'extension',
+      created_at: new Date().toISOString(),
+    };
+    expect(log.level).toBe('error');
+    expect(log.source).toBe('extension');
+  });
 });
+
 
 

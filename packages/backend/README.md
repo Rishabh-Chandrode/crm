@@ -46,7 +46,8 @@ src/
 │   ├── import.ts                # /import — CSV parsing + bulk prospect import
 │   ├── stats.ts                 # /stats — dashboard stats
 │   ├── settings.ts              # /settings — key/value store
-│   └── track.ts                 # /track — email open pixel (public, no auth)
+│   ├── track.ts                 # /track — email open pixel (public, no auth)
+│   └── logs.ts                  # /logs — admin-only system logs, stats, and retention pruning
 ├── services/
 │   ├── llm/
 │   │   ├── types.ts             # ILlmProvider interface & options
@@ -70,6 +71,8 @@ src/
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
 │   ├── documentRefs.ts          # Keeps template and schedule attachment ids limited to documents that still exist
 │   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
+│   ├── systemLogger.ts          # Self-hosted in-database telemetry & error logger with 30-day retention
+│   ├── githubIssueService.ts    # Automated GitHub issue reporter for unhandled errors with deduplication
 │   └── scheduler.ts             # node-cron job — processes email_schedules, Drive sync, and job email sync
 └── types/
     └── index.ts                 # Shared TypeScript interfaces
@@ -359,6 +362,18 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 ---
 
+### System Logs & Observability (Admin only)
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `GET` | `/api/logs` | **Query:** `level?` (`error` \| `warn` \| `info` \| `debug`), `source?`, `search?`, `startDate?`, `endDate?`, `page?`, `limit?` | `{ data: SystemLog[], total: number, page: number, limit: number, totalPages: number }` |
+| `GET` | `/api/logs/stats` | — | `{ total: number, errors: number, warnings: number, info: number, last24Hours: number }` |
+| `DELETE` | `/api/logs` | **Query:** `beforeDate?` (ISO date string) | `{ deleted: number }` — purges all logs or logs prior to `beforeDate`. Audited with warning. |
+| `POST` | `/api/logs/prune` | `{ days?: number }` (default: 30) | `{ deleted: number, retentionDays: number }` — manual trigger for retention cleanup. |
+
+
+---
+
 ## Database
 
 ### Schema (key tables)
@@ -421,6 +436,8 @@ variable_presets (id, key, label, source, field, default_value, male_value, fema
                   created_by→users, created_at, updated_at)
 pending_prospects (id, user_id→users, linkedin_url, first_name, last_name, company_name, job_title, notes,
                    dismissed_at, created_at, updated_at)
+system_logs (id, level, message, source, context, error_name, stack_trace, request_id, method, path,
+             status_code, user_id→users, ip, github_issue_url, created_at)
 ```
 
 ### Migrations

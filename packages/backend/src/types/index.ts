@@ -366,3 +366,49 @@ export interface BulkImportProspectsResponse {
   total: number;
 }
 
+export type SystemLogLevel = 'info' | 'warn' | 'error' | 'debug';
+
+export interface SystemLog {
+  id: string;
+  level: SystemLogLevel;
+  message: string;
+  source: string;
+  context?: Record<string, unknown> | null;
+  error_name?: string | null;
+  stack_trace?: string | null;
+  request_id?: string | null;
+  method?: string | null;
+  path?: string | null;
+  status_code?: number | null;
+  user_id?: string | null;
+  ip?: string | null;
+  github_issue_url?: string | null;
+  created_at: string | Date;
+}
+
+export interface SystemLogsFilter {
+  level?: SystemLogLevel;
+  source?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface SystemLogsResponse {
+  data: SystemLog[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface SystemLogStats {
+  total: number;
+  errors: number;
+  warnings: number;
+  info: number;
+  last24Hours: number;
+}
+

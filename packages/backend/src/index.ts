@@ -1,11 +1,12 @@
 import { app } from './app.js';
 import { CONFIG } from './config.js';
 import { migrate } from './db/migrate.js';
-import { startScheduler } from './services/scheduler.js';
+import { startScheduler, startLogRetentionScheduler } from './services/scheduler.js';
 
 async function start(): Promise<void> {
   await migrate();
   startScheduler();
+  startLogRetentionScheduler();
   app.listen(CONFIG.port, () => {
     const time = new Date().toLocaleTimeString();
     console.log(`[${time}] Server restarted — running on port ${CONFIG.port} [${CONFIG.nodeEnv}]`);

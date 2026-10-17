@@ -41,7 +41,7 @@ extension/
 │   ├── popup.ts                    # Main logic — auth gate, tabs, API calls, match card, autofill
 │   ├── contentScript.ts            # Passive listener on linkedin.com/in/* — only scrolls/scrapes on explicit user request
 │   ├── background.ts               # Service worker — tab queries, scrape trigger, tab URL events
-│   ├── types.ts                    # Shared TypeScript interfaces (including PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
+│   ├── types.ts                    # Shared TypeScript interfaces (including SystemLog telemetry, PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
 │   └── formFiller/                 # Form autofill subsystem
 │       ├── index.ts                # Orchestrator — platform detection, field loop, resume injection
 │       ├── detector.ts             # Label-based field detection: getLabelText, PATTERNS, classifyElement, detectAllFields

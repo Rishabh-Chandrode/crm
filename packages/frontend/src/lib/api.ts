@@ -581,4 +581,29 @@ export const api = {
     getEmails: (id: string) =>
       request<{ data: import('./types').EmailSend[] }>(`/jobs/${id}/emails`),
   },
+
+  logs: {
+    list: (params?: import('./types').SystemLogsFilter) => {
+      const q = new URLSearchParams();
+      if (params?.level) q.set('level', params.level);
+      if (params?.source) q.set('source', params.source);
+      if (params?.search) q.set('search', params.search);
+      if (params?.startDate) q.set('startDate', params.startDate);
+      if (params?.endDate) q.set('endDate', params.endDate);
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return request<import('./types').SystemLogsResponse>(`/logs${qs ? `?${qs}` : ''}`);
+    },
+    stats: () => request<import('./types').SystemLogStats>('/logs/stats'),
+    clear: (beforeDate?: string) => {
+      const q = beforeDate ? `?beforeDate=${encodeURIComponent(beforeDate)}` : '';
+      return request<{ deleted: number }>(`/logs${q}`, { method: 'DELETE' });
+    },
+    prune: (days = 30) =>
+      request<{ deleted: number; retentionDays: number }>('/logs/prune', {
+        method: 'POST',
+        body: JSON.stringify({ days }),
+      }),
+  },
 };

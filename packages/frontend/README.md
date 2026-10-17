@@ -17,7 +17,7 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Priority Action Center. On small screens the dismiss control sits at the card’s top-right. Dismissals are stored on the server; handles ready-to-apply, referral-sent, saved-jobs, active-interviews, failed-sends, and manual prospect entry items.
+│       ├── dashboard/page.tsx     # Priority Action Center. Features responsive 2-column grid action buttons on small screens, an explicit ✕ Dismiss button for saved/AI-synced opportunities, and corner dismiss controls. Dismissals are stored on the server; handles ready-to-apply, referral-sent, saved-jobs, active-interviews, failed-sends, and manual prospect entry items.
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination). Supports ?new=true query parameters to prefill and open create modal, auto-dismissing pending prospects upon save.
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history

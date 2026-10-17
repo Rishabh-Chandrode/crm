@@ -466,4 +466,50 @@ describe('DashboardPage Priority Action Center', () => {
     });
     expect(screen.queryByText('Sarah Connor')).not.toBeInTheDocument();
   });
+
+  it('allows dismissing saved/AI-synced opportunities from the Priority Action Center using ✕ Dismiss button', async () => {
+    const mockStats = {
+      companies: 2,
+      prospects: 2,
+      templates: 1,
+      applications: 2,
+      emails: { total: 0, sent: 0, failed: 0, pending: 0, opened: 0, openRate: 0 },
+      notAppliedApplications: [
+        {
+          id: 'app-ai-1',
+          user_id: 'u1',
+          company_name: 'Stripe',
+          job_title: 'Full Stack Engineer',
+          status: 'not_applied',
+          platform: 'Direct',
+          job_url: 'https://stripe.com/jobs/1',
+          created_at: new Date().toISOString(),
+          applied_at: new Date().toISOString(),
+        },
+      ],
+      notAppliedCount: 1,
+      activeInterviewApplications: [],
+      activeInterviewCount: 0,
+      failedSends: [],
+      recentSends: [],
+      recentApplications: [],
+      upcomingSchedules: [],
+    };
+    (api.stats.get as any).mockResolvedValue(mockStats);
+
+    render(<DashboardPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Stripe')).toBeInTheDocument();
+    });
+
+    const dismissBtn = screen.getByText('✕ Dismiss');
+    expect(dismissBtn).toBeInTheDocument();
+    fireEvent.click(dismissBtn);
+
+    await waitFor(() => {
+      expect(api.applications.update).toHaveBeenCalledWith('app-ai-1', { status: 'closed' });
+    });
+    expect(screen.queryByText('Stripe')).not.toBeInTheDocument();
+  });
 });
+

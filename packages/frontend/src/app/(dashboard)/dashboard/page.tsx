@@ -361,7 +361,7 @@ export default function DashboardPage() {
                   key={`pending-${pending.id}`}
                   className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-amber-500/60 relative group"
                 >
-                  <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                  <div className="min-w-0 space-y-1 pr-8 md:pr-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{fullName}</span>
                       {pending.company_name && (
@@ -386,23 +386,25 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
                     {pending.linkedin_url && (
                       <a
                         href={pending.linkedin_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                        className="btn-secondary text-xs inline-flex items-center justify-center gap-1.5 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg w-full sm:w-auto text-center font-medium"
                       >
                         Open LinkedIn
-                        <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
                     )}
                     <Link
                       href={enterUrl}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                      className={`inline-flex items-center justify-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors w-full sm:w-auto text-center ${
+                        pending.linkedin_url ? '' : 'col-span-2 sm:col-span-1'
+                      }`}
                     >
                       Enter Details
                     </Link>
@@ -432,7 +434,7 @@ export default function DashboardPage() {
                   key={`sent-${app.id}`}
                   className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-amber-500/60 relative group"
                 >
-                  <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                  <div className="min-w-0 space-y-1 pr-8 md:pr-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{app.company_name}</span>
                       <span className="text-zinc-300 dark:text-zinc-600">•</span>
@@ -450,23 +452,25 @@ export default function DashboardPage() {
                       <span>Waiting on the referral window</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
                     {app.job_url && (
                       <a
                         href={app.job_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                        className="btn-secondary text-xs inline-flex items-center justify-center gap-1.5 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg w-full sm:w-auto text-center font-medium"
                       >
                         Open Portal
-                        <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
                     )}
                     <Link
                       href={`/send?jobId=${app.job_id ?? app.id}&companyName=${encodeURIComponent(app.company_name)}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                      className={`inline-flex items-center justify-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors w-full sm:w-auto text-center ${
+                        app.job_url ? '' : 'col-span-2 sm:col-span-1'
+                      }`}
                     >
                       Send another
                     </Link>
@@ -499,7 +503,7 @@ export default function DashboardPage() {
                   key={`ready-${app.id}`}
                   className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-emerald-500/60 relative group"
                 >
-                  <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                  <div className="min-w-0 space-y-1 pr-8 md:pr-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{app.company_name}</span>
                       <span className="text-zinc-300 dark:text-zinc-600">•</span>
@@ -524,16 +528,16 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Direct Action Buttons */}
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2 sm:flex-wrap">
                     {app.job_url && (
                       <a
                         href={app.job_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                        className="btn-secondary text-xs inline-flex items-center justify-center gap-1.5 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg w-full sm:w-auto text-center font-medium"
                       >
                         Open Portal
-                        <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
@@ -541,26 +545,28 @@ export default function DashboardPage() {
 
                     <Link
                       href={`/send?jobId=${app.job_id ?? app.id}&companyName=${encodeURIComponent(app.company_name)}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                      className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors w-full sm:w-auto text-center"
                     >
                       Follow-up Note
                     </Link>
 
                     <button
-                      onClick={() => handleMarkExpired(app.id)}
-                      disabled={actioningId === app.id}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 bg-zinc-100 hover:bg-rose-500/10 dark:bg-zinc-800 dark:hover:bg-rose-500/20 border border-zinc-200 dark:border-zinc-700/80 hover:border-rose-500/30 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-                      title="Mark this job opening as closed/expired"
+                      onClick={() => handleMarkApplied(app.id)}
+                      disabled={applyingId === app.id}
+                      className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-all shadow-2xs cursor-pointer w-full sm:w-auto text-center"
                     >
-                      {actioningId === app.id ? 'Updating...' : '✕ Mark Expired'}
+                      {applyingId === app.id ? 'Updating...' : '✓ Mark as Applied'}
                     </button>
 
                     <button
-                      onClick={() => handleMarkApplied(app.id)}
-                      disabled={applyingId === app.id}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-all shadow-2xs cursor-pointer"
+                      onClick={() => handleMarkExpired(app.id)}
+                      disabled={actioningId === app.id}
+                      className={`inline-flex items-center justify-center gap-1 text-xs font-semibold text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 bg-zinc-100 hover:bg-rose-500/10 dark:bg-zinc-800 dark:hover:bg-rose-500/20 border border-zinc-200 dark:border-zinc-700/80 hover:border-rose-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center ${
+                        app.job_url ? '' : 'col-span-2 sm:col-span-1'
+                      }`}
+                      title="Mark this job opening as closed/expired"
                     >
-                      {applyingId === app.id ? 'Updating...' : '✓ Mark as Applied'}
+                      {actioningId === app.id ? 'Updating...' : '✕ Mark Expired'}
                     </button>
 
                     <button
@@ -587,7 +593,7 @@ export default function DashboardPage() {
                 key={`saved-${app.id}`}
                 className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-zinc-400 dark:hover:border-zinc-700 relative group"
               >
-                <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                <div className="min-w-0 space-y-1 pr-8 md:pr-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{app.company_name}</span>
                     <span className="text-zinc-300 dark:text-zinc-600">•</span>
@@ -610,16 +616,16 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Direct Action Buttons */}
-                <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2 sm:flex-wrap">
                   {app.job_url && (
                     <a
                       href={app.job_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn-secondary text-xs inline-flex items-center gap-1"
+                      className="btn-secondary text-xs inline-flex items-center justify-center gap-1.5 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg w-full sm:w-auto text-center font-medium"
                     >
                       Listing
-                      <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </a>
@@ -627,26 +633,37 @@ export default function DashboardPage() {
 
                   <Link
                     href={`/send?jobId=${app.job_id ?? app.id}&companyName=${encodeURIComponent(app.company_name)}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 px-3 py-1.5 rounded-lg transition-colors"
+                    className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors w-full sm:w-auto text-center"
                   >
                     Ask Referral
                   </Link>
 
                   <button
-                    onClick={() => handleMarkExpired(app.id)}
-                    disabled={actioningId === app.id}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 bg-zinc-100 hover:bg-rose-500/10 dark:bg-zinc-800 dark:hover:bg-rose-500/20 border border-zinc-200 dark:border-zinc-700/80 hover:border-rose-500/30 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-                    title="Mark this job opening as closed/expired"
+                    onClick={() => handleMarkApplied(app.id)}
+                    disabled={applyingId === app.id}
+                    className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center"
                   >
-                    {actioningId === app.id ? 'Updating...' : '✕ Mark Expired'}
+                    {applyingId === app.id ? 'Updating...' : '✓ Mark Applied'}
                   </button>
 
                   <button
-                    onClick={() => handleMarkApplied(app.id)}
-                    disabled={applyingId === app.id}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    onClick={() => handleDismissAction('not_applied', app.id)}
+                    disabled={actioningId === app.id}
+                    className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-zinc-600 hover:text-amber-700 dark:text-zinc-400 dark:hover:text-amber-300 bg-zinc-100 hover:bg-amber-500/10 dark:bg-zinc-800 dark:hover:bg-amber-500/20 border border-zinc-200 dark:border-zinc-700/80 hover:border-amber-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center"
+                    title="Dismiss job recommendation (not interested)"
                   >
-                    {applyingId === app.id ? 'Updating...' : '✓ Mark Applied'}
+                    {actioningId === app.id ? 'Dismissing...' : '✕ Dismiss'}
+                  </button>
+
+                  <button
+                    onClick={() => handleMarkExpired(app.id)}
+                    disabled={actioningId === app.id}
+                    className={`inline-flex items-center justify-center gap-1 text-xs font-semibold text-zinc-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 bg-zinc-100 hover:bg-rose-500/10 dark:bg-zinc-800 dark:hover:bg-rose-500/20 border border-zinc-200 dark:border-zinc-700/80 hover:border-rose-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center ${
+                      app.job_url ? 'col-span-2 sm:col-span-1' : ''
+                    }`}
+                    title="Mark this job opening as closed/expired"
+                  >
+                    {actioningId === app.id ? 'Updating...' : '✕ Mark Expired'}
                   </button>
 
                   <button
@@ -674,7 +691,7 @@ export default function DashboardPage() {
                   key={`interview-${app.id}`}
                   className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 dark:bg-purple-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-purple-500/40 relative group"
                 >
-                  <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                  <div className="min-w-0 space-y-1 pr-8 md:pr-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{app.company_name}</span>
                       <span className="text-zinc-300 dark:text-zinc-600">•</span>
@@ -690,17 +707,17 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Direct Action Buttons */}
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
                     <Link
                       href="/applications"
-                      className="btn-secondary text-xs"
+                      className="btn-secondary text-xs inline-flex items-center justify-center py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg w-full sm:w-auto text-center font-medium"
                     >
                       View Notes & Status
                     </Link>
 
                     <Link
                       href={`/send?companyName=${encodeURIComponent(app.company_name)}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/25 px-3 py-1.5 rounded-lg transition-colors"
+                      className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/25 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors w-full sm:w-auto text-center"
                     >
                       Send Update Note
                     </Link>
@@ -729,7 +746,7 @@ export default function DashboardPage() {
                 key={`failed-${send.id}`}
                 className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/5 dark:bg-rose-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 relative group"
               >
-                <div className="min-w-0 space-y-1 pr-6 md:pr-0">
+                <div className="min-w-0 space-y-1 pr-8 md:pr-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
                       {send.prospect ? prospectFullName(send.prospect) : send.recipient_email}
@@ -745,14 +762,17 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
                   <Link
                     href={`/send?to=${encodeURIComponent(send.recipient_email ?? '')}&subject=${encodeURIComponent(send.subject ?? '')}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 px-3 py-1.5 rounded-lg transition-colors shadow-2xs"
+                    className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors shadow-2xs w-full sm:w-auto text-center"
                   >
                     Retry Send
                   </Link>
-                  <Link href="/history" className="btn-secondary text-xs">
+                  <Link
+                    href="/history"
+                    className="btn-secondary text-xs inline-flex items-center justify-center py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg w-full sm:w-auto text-center font-medium"
+                  >
                     Inspect in History
                   </Link>
                   <button
@@ -810,7 +830,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {stats.recentSends.length === 0 ? (
+          {!stats.recentSends || stats.recentSends.length === 0 ? (
             <p className="px-5 py-12 text-zinc-400 text-xs text-center font-medium">No outreach emails sent yet.</p>
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 overflow-y-auto max-h-80">

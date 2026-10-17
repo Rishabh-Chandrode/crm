@@ -93,10 +93,28 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+async function resolveOrCreateCompanyId(userId: string, companyName?: string | null): Promise<string | null> {
+  const name = companyName?.trim();
+  if (!name) return null;
+
+  const existing = await pool.query<{ id: string }>(
+    'SELECT id FROM companies WHERE LOWER(name) = LOWER($1) AND created_by = $2 LIMIT 1',
+    [name, userId]
+  );
+  if (existing.rows[0]) return existing.rows[0].id;
+
+  const created = await pool.query<{ id: string }>(
+    'INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id',
+    [name, userId]
+  );
+  return created.rows[0]?.id ?? null;
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const { company_id, first_name, last_name, email, job_title, linkedin_url, phone, notes, gender } =
       req.body as Partial<Prospect>;
+    const bodyCompanyName = (req.body as { company_name?: string }).company_name;
     const role_category: string | null =
       (req.body as { role_category?: string | null }).role_category !== undefined
         ? ((req.body as { role_category?: string | null }).role_category || null)
@@ -105,13 +123,18 @@ router.post('/', async (req, res, next) => {
     if (!first_name?.trim()) { res.status(400).json({ error: 'first_name is required' }); return; }
     if (!email?.trim()) { res.status(400).json({ error: 'email is required' }); return; }
 
+    let resolvedCompanyId = company_id ?? null;
+    if (!resolvedCompanyId && bodyCompanyName) {
+      resolvedCompanyId = await resolveOrCreateCompanyId(req.user!.id, bodyCompanyName);
+    }
+
     const resolvedGender = gender?.trim() || inferProspectGender({ firstName: first_name });
 
     const result = await pool.query<Prospect>(
       `INSERT INTO prospects (company_id, first_name, last_name, email, job_title, role_category, linkedin_url, phone, notes, gender, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
-        company_id ?? null,
+        resolvedCompanyId,
         first_name.trim(),
         last_name?.trim() ?? null,
         email.trim().toLowerCase(),
@@ -552,6 +575,8 @@ router.patch('/:id', async (req, res, next) => {
       req.body as Partial<Prospect>;
     const bodyRoleCategory = (req.body as { role_category?: string | null }).role_category;
 
+    const bodyCompanyName = (req.body as { company_name?: string }).company_name;
+
     const fields: string[] = [];
     const values: unknown[] = [];
 
@@ -560,7 +585,12 @@ router.patch('/:id', async (req, res, next) => {
       values.push(val);
     };
 
-    if (company_id !== undefined)   add('company_id',   company_id);
+    if (company_id !== undefined) {
+      add('company_id', company_id);
+    } else if (bodyCompanyName !== undefined) {
+      const resolvedCompanyId = await resolveOrCreateCompanyId(req.user!.id, bodyCompanyName);
+      add('company_id', resolvedCompanyId);
+    }
     if (first_name !== undefined)   add('first_name',   first_name?.trim());
     if (last_name !== undefined)    add('last_name',    last_name?.trim() ?? null);
     if (email !== undefined)        add('email',        email?.toLowerCase());

@@ -83,6 +83,48 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.data).toHaveLength(1);
       expect(res.body.total).toBe(1);
     });
+
+    it('creates prospect with company_name when company_id is not provided', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as any) // SELECT company
+        .mockResolvedValueOnce({ rows: [{ id: 'c-new' }], rowCount: 1 } as any) // INSERT company
+        .mockResolvedValueOnce({
+          rows: [{ id: 'p-new', first_name: 'Bob', email: 'bob@newcorp.com', company_id: 'c-new' }],
+          rowCount: 1,
+        } as any) // INSERT prospect
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as any); // dismissMatchingPendingProspects
+
+      const res = await request(app)
+        .post('/api/prospects')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ first_name: 'Bob', email: 'bob@newcorp.com', company_name: 'NewCorp' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data).toMatchObject({
+        id: 'p-new',
+        company_id: 'c-new',
+      });
+    });
+
+    it('patches prospect with company_name when company_id is not provided', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 'c-existing' }], rowCount: 1 } as any) // SELECT company
+        .mockResolvedValueOnce({
+          rows: [{ id: 'p-1', company_id: 'c-existing' }],
+          rowCount: 1,
+        } as any); // UPDATE prospect
+
+      const res = await request(app)
+        .patch('/api/prospects/p-1')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ company_name: 'ExistingCorp' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        id: 'p-1',
+        company_id: 'c-existing',
+      });
+    });
   });
 
   describe('Templates API (/api/templates)', () => {

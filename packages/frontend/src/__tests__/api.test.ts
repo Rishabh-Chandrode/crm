@@ -69,4 +69,17 @@ describe('Frontend API Client (src/lib/api.ts)', () => {
 
     await expect(api.auth.login('baduser', 'badpass')).rejects.toThrowError('Invalid credentials');
   });
+
+  it('calls prospects.lookup with query params and returns result', async () => {
+    const mockLookup = { data: { id: 'p-1', first_name: 'Jane' }, pending: null };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockLookup,
+    });
+    global.fetch = mockFetch;
+
+    const res = await api.prospects.lookup({ linkedin_url: 'https://linkedin.com/in/jane' });
+    expect(res).toEqual(mockLookup);
+    expect(mockFetch.mock.calls[0]?.[0]).toContain('/prospects/lookup?linkedin_url=https%3A%2F%2Flinkedin.com%2Fin%2Fjane');
+  });
 });

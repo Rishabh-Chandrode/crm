@@ -102,7 +102,17 @@ export class ProspeoProvider implements EnrichmentProvider {
     const names = prospeoName(person);
     const email = prospeoEmail(person);
     const jobTitle = person.current_job_title?.trim() || person.job_title?.trim();
-    const companyName = person.company?.name?.trim();
+    const rawCompany = (person as Record<string, unknown>).company ?? (person as Record<string, unknown>).current_company;
+    let companyName: string | undefined;
+    if (typeof rawCompany === 'string') {
+      companyName = rawCompany.trim() || undefined;
+    } else if (rawCompany && typeof rawCompany === 'object') {
+      companyName = ((rawCompany as { name?: string }).name)?.trim() || undefined;
+    }
+    if (!companyName && typeof (person as Record<string, unknown>).company_name === 'string') {
+      companyName = ((person as Record<string, unknown>).company_name as string).trim() || undefined;
+    }
+
     if (!email && !names.first_name && !jobTitle && !companyName) {
       throw new Error('No person found for this prospect in Prospeo');
     }

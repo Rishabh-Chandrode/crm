@@ -158,6 +158,27 @@ function ProspectsContent() {
 
     setEditing(null);
     setPendingIdToDismiss(qPendingId || null);
+
+    if (qCompanyName.trim() && !matched) {
+      void api.companies.create({ name: qCompanyName.trim() })
+        .then((res) => {
+          setCompanies((prev) => {
+            if (prev.some((c) => c.id === res.data.id)) return prev;
+            return [...prev, res.data];
+          });
+          setForm((prev) => ({ ...prev, company_id: res.data.id }));
+        })
+        .catch(() => {
+          void api.companies.list().then((cRes) => {
+            setCompanies(cRes.data as Company[]);
+            const m = (cRes.data as Company[]).find(
+              (c) => c.name.toLowerCase() === qCompanyName.trim().toLowerCase()
+            );
+            if (m) setForm((prev) => ({ ...prev, company_id: m.id }));
+          });
+        });
+    }
+
     setForm({
       ...EMPTY,
       company_id: matched ? matched.id : '',
@@ -170,6 +191,19 @@ function ProspectsContent() {
     setError('');
     setShowForm(true);
   }, [searchParams, loading, companies]);
+
+  async function handleCreateCompany(name: string) {
+    try {
+      const res = await api.companies.create({ name });
+      setCompanies((prev) => {
+        if (prev.some((c) => c.id === res.data.id)) return prev;
+        return [...prev, res.data];
+      });
+      f('company_id', res.data.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create company');
+    }
+  }
 
   function handleSort(col: SortCol) {
     if (sortBy === col) {
@@ -517,6 +551,8 @@ function ProspectsContent() {
                   onChange={(v) => f('company_id', v)}
                   placeholder="Select company"
                   clearLabel="No company"
+                  onCreate={handleCreateCompany}
+                  createLabel={(name) => `Add "${name}" as new company`}
                 />
               </div>
 

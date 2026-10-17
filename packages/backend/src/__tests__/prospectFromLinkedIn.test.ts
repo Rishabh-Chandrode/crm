@@ -382,6 +382,23 @@ describe('Enrichment provider name mapping', () => {
     expect(result.email).toBeUndefined();
   });
 
+  it('Prospeo parses string company or company_name correctly', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        error: false,
+        person: {
+          first_name: 'Alex',
+          current_job_title: 'Engineer',
+          company: 'Acme String Corp',
+        },
+      }),
+    }));
+
+    const result = await new ProspeoProvider().enrich({ linkedin_url: PROFILE });
+    expect(result.company_name).toBe('Acme String Corp');
+  });
+
   it('Prospeo throws when no person is returned', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,

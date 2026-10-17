@@ -17,6 +17,8 @@ interface Props {
   /** Allow clearing back to empty string */
   clearable?: boolean;
   clearLabel?: string;
+  onCreate?: (name: string) => void | Promise<void>;
+  createLabel?: (query: string) => string;
 }
 
 export default function Combobox({
@@ -27,6 +29,8 @@ export default function Combobox({
   className = '',
   clearable = true,
   clearLabel = 'None',
+  onCreate,
+  createLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -67,6 +71,18 @@ export default function Combobox({
     close();
   }
 
+  const hasExactMatch = options.some(
+    (o) => o.label.toLowerCase() === query.trim().toLowerCase()
+  );
+  const showCreateOption = Boolean(onCreate && query.trim() && !hasExactMatch);
+
+  async function handleCreate() {
+    if (!onCreate || !query.trim()) return;
+    const name = query.trim();
+    close();
+    await onCreate(name);
+  }
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
@@ -85,16 +101,21 @@ export default function Combobox({
       }
       return;
     }
+    const totalCount = listItems.length + (showCreateOption ? 1 : 0);
     if (e.key === 'Escape') { close(); return; }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIdx((i) => Math.min(i + 1, listItems.length - 1));
+      setActiveIdx((i) => Math.min(i + 1, totalCount - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' && activeIdx >= 0) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
-      select(listItems[activeIdx]!.value);
+      if (activeIdx >= 0 && activeIdx < listItems.length) {
+        select(listItems[activeIdx]!.value);
+      } else if (activeIdx === listItems.length && showCreateOption) {
+        void handleCreate();
+      }
     }
   }
 
@@ -156,7 +177,7 @@ export default function Combobox({
             role="listbox"
             className="max-h-56 overflow-y-auto p-1 space-y-0.5"
           >
-            {listItems.length === 0 && (
+            {listItems.length === 0 && !showCreateOption && (
               <li className="px-3 py-3 text-xs text-zinc-400 text-center">No matching results</li>
             )}
             {listItems.map((opt, idx) => {
@@ -189,6 +210,21 @@ export default function Combobox({
                 </li>
               );
             })}
+            {showCreateOption && (
+              <li
+                role="button"
+                onMouseDown={(e) => { e.preventDefault(); void handleCreate(); }}
+                onMouseEnter={() => setActiveIdx(listItems.length)}
+                className={`px-2.5 py-2 rounded-lg cursor-pointer flex items-center gap-2 text-xs font-semibold border-t border-zinc-100 dark:border-zinc-800 mt-1 transition-colors ${
+                  activeIdx === listItems.length
+                    ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                    : 'text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
+                }`}
+              >
+                <span className="text-sm leading-none text-zinc-400">+</span>
+                <span className="truncate">{createLabel ? createLabel(query.trim()) : `Add "${query.trim()}"`}</span>
+              </li>
+            )}
           </ul>
         </div>
       )}

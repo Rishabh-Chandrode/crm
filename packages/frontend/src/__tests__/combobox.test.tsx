@@ -82,4 +82,26 @@ describe('Combobox Component', () => {
     fireEvent.mouseDown(screen.getByText('None'));
     expect(handleChange).toHaveBeenCalledWith('');
   });
+
+  it('renders inline create option and calls onCreate when typed query does not match', () => {
+    const handleCreate = vi.fn();
+    render(
+      <Combobox
+        options={mockOptions}
+        value=""
+        onChange={vi.fn()}
+        onCreate={handleCreate}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+    const searchInput = screen.getByPlaceholderText('Type to search…');
+    fireEvent.change(searchInput, { target: { value: 'Dragonfruit' } });
+
+    const createButton = screen.getByText('Add "Dragonfruit"');
+    expect(createButton).toBeInTheDocument();
+
+    fireEvent.mouseDown(createButton);
+    expect(handleCreate).toHaveBeenCalledWith('Dragonfruit');
+  });
 });

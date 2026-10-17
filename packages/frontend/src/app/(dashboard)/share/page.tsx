@@ -4,7 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { prospectFullName, type Prospect, type LinkedInProspectResult } from '@/lib/types';
+import { prospectFullName, type Prospect, type LinkedInProspectResult, type ProspectLookupResult } from '@/lib/types';
 import { companyOptionsFromShare, inferJobFromUrl, isLinkedInProfileUrl, resolveSharedLink } from '@/lib/shareTarget';
 
 const PLATFORM_OPTIONS = [
@@ -86,6 +86,8 @@ function ShareForm() {
   const [savedJobId, setSavedJobId] = useState<string | null>(null);
   const [savedProspect, setSavedProspect] = useState<LinkedInProspectResult | null>(null);
   const [targetRoles, setTargetRoles] = useState<string[]>([]);
+  const [checkingProspect, setCheckingProspect] = useState(false);
+  const [existingLookup, setExistingLookup] = useState<ProspectLookupResult | null>(null);
   const profileMode = isLinkedInProfileUrl(jobUrl);
 
   const companyOptions = companyOptionsFromShare(
@@ -99,6 +101,32 @@ function ShareForm() {
       .then((res) => setTargetRoles(res.user.target_roles ?? []))
       .catch(() => setTargetRoles([]));
   }, []);
+
+  useEffect(() => {
+    if (!profileMode || !jobUrl.trim()) {
+      setExistingLookup(null);
+      setCheckingProspect(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingProspect(true);
+
+    api.prospects.lookup({ linkedin_url: jobUrl.trim() })
+      .then((res) => {
+        if (!cancelled) setExistingLookup(res);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingLookup(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingProspect(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobUrl, profileMode]);
 
   function applyUrl(nextUrl: string) {
     const wasProfile = isLinkedInProfileUrl(jobUrl);
@@ -259,6 +287,86 @@ function ShareForm() {
           </p>
         </div>
 
+        {checkingProspect && (
+          <div className="card p-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <svg className="animate-spin h-3.5 w-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Checking CRM for this profile…
+          </div>
+        )}
+
+        {!checkingProspect && existingLookup?.data && (
+          <div className="card p-4 sm:p-5 space-y-3 border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20">
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-500 text-base font-bold">✓</span>
+              <h2 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
+                Already in your CRM
+              </h2>
+            </div>
+            <div className="text-xs text-zinc-600 dark:text-zinc-300 space-y-0.5">
+              <p className="font-semibold text-zinc-900 dark:text-zinc-100">
+                {prospectFullName(existingLookup.data)}
+              </p>
+              {existingLookup.data.job_title && <p>{existingLookup.data.job_title}</p>}
+              {existingLookup.data.company_name && (
+                <p className="font-medium text-zinc-700 dark:text-zinc-200">{existingLookup.data.company_name}</p>
+              )}
+              {existingLookup.data.email && (
+                <p className="font-mono text-[11px] text-zinc-500">{existingLookup.data.email}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link
+                href={`/prospects/${existingLookup.data.id}`}
+                className="btn-primary text-xs py-2 px-3.5 justify-center"
+              >
+                View prospect
+              </Link>
+              <Link
+                href={
+                  existingLookup.data.company_name
+                    ? `/send?companyName=${encodeURIComponent(existingLookup.data.company_name)}`
+                    : '/send'
+                }
+                className="btn-secondary text-xs py-2 px-3.5 justify-center"
+              >
+                Send email
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {!checkingProspect && !existingLookup?.data && existingLookup?.pending && (
+          <div className="card p-4 sm:p-5 space-y-3 border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-500 text-base">⚡</span>
+              <h2 className="text-sm font-bold text-amber-900 dark:text-amber-100">
+                Pending in Priority Action Center
+              </h2>
+            </div>
+            <p className="text-xs text-zinc-600 dark:text-zinc-300">
+              This profile was previously shared without an email. You can manually enter the contact details.
+            </p>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-0.5">
+              <p className="font-semibold text-zinc-900 dark:text-zinc-100">
+                {[existingLookup.pending.first_name, existingLookup.pending.last_name].filter(Boolean).join(' ') || 'LinkedIn Contact'}
+              </p>
+              {existingLookup.pending.job_title && <p>{existingLookup.pending.job_title}</p>}
+              {existingLookup.pending.company_name && <p>{existingLookup.pending.company_name}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link
+                href={`/prospects?new=true&firstName=${encodeURIComponent(existingLookup.pending.first_name || '')}&lastName=${encodeURIComponent(existingLookup.pending.last_name || '')}&companyName=${encodeURIComponent(existingLookup.pending.company_name || '')}&jobTitle=${encodeURIComponent(existingLookup.pending.job_title || '')}&linkedinUrl=${encodeURIComponent(existingLookup.pending.linkedin_url || jobUrl.trim())}&pendingId=${existingLookup.pending.id}`}
+                className="btn-primary text-xs py-2 px-3.5 justify-center"
+              >
+                Manually Enter Prospect Now
+              </Link>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={(e) => void handleAddProspect(e)} className="card p-4 sm:p-5 space-y-3.5">
           {error && (
             <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-200 dark:border-rose-900">
@@ -284,7 +392,7 @@ function ShareForm() {
             disabled={saving}
             className="btn-primary w-full py-2.5 text-xs font-semibold justify-center"
           >
-            {saving ? 'Adding…' : 'Add prospect'}
+            {saving ? 'Adding…' : existingLookup?.data ? 'Re-enrich / update prospect' : 'Add prospect'}
           </button>
         </form>
       </div>

@@ -21,6 +21,7 @@ vi.mock('../lib/api', () => ({
     },
     prospects: {
       fromLinkedIn: vi.fn(),
+      lookup: vi.fn(),
     },
   },
 }));
@@ -30,6 +31,7 @@ describe('SharePage', () => {
     vi.clearAllMocks();
     search.value = '';
     vi.mocked(api.auth.me).mockResolvedValue({ user: { target_roles: [] } } as never);
+    vi.mocked(api.prospects.lookup).mockResolvedValue({ data: null, pending: null });
   });
 
   it('fills the form from a link shared in the text field', () => {
@@ -177,5 +179,59 @@ describe('SharePage', () => {
     expect(screen.getByRole('heading', { name: 'Shared job' })).toBeInTheDocument();
     expect(screen.getByLabelText('Company *')).toHaveValue('Example');
     expect(screen.getByLabelText('Job URL *')).toHaveValue('https://careers.example.com/jobs/1');
+  });
+
+  it('displays "Already in your CRM" banner when profile already exists in CRM', async () => {
+    search.value = `url=${encodeURIComponent('https://www.linkedin.com/in/jane-doe')}`;
+    vi.mocked(api.prospects.lookup).mockResolvedValue({
+      data: {
+        id: 'p-existing-1',
+        first_name: 'Jane',
+        last_name: 'Doe',
+        email: 'jane@existing.com',
+        job_title: 'Lead Recruiter',
+        company_name: 'Acme Global',
+      } as never,
+      pending: null,
+    });
+    render(<SharePage />);
+
+    expect(await screen.findByText('Already in your CRM')).toBeInTheDocument();
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText('Lead Recruiter')).toBeInTheDocument();
+    expect(screen.getByText('Acme Global')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View prospect' })).toHaveAttribute(
+      'href',
+      '/prospects/p-existing-1',
+    );
+    expect(screen.getByRole('button', { name: 'Re-enrich / update prospect' })).toBeInTheDocument();
+  });
+
+  it('displays "Pending in Priority Action Center" banner when profile is pending', async () => {
+    search.value = `url=${encodeURIComponent('https://www.linkedin.com/in/jane-doe')}`;
+    vi.mocked(api.prospects.lookup).mockResolvedValue({
+      data: null,
+      pending: {
+        id: 'pend-123',
+        user_id: 'u-1',
+        linkedin_url: 'https://www.linkedin.com/in/jane-doe',
+        first_name: 'Jane',
+        last_name: 'Doe',
+        company_name: 'Acme Pending',
+        job_title: 'Sourcer',
+        notes: null,
+        dismissed_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+    render(<SharePage />);
+
+    expect(await screen.findByText('Pending in Priority Action Center')).toBeInTheDocument();
+    expect(screen.getByText('Acme Pending')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Manually Enter Prospect Now' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/prospects?new=true'),
+    );
   });
 });

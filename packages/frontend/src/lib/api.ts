@@ -189,6 +189,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    lookup: (params: { linkedin_url?: string; email?: string }) => {
+      const q = new URLSearchParams();
+      if (params.linkedin_url) q.set('linkedin_url', params.linkedin_url);
+      if (params.email) q.set('email', params.email);
+      return request<import('./types').ProspectLookupResult>(`/prospects/lookup?${q.toString()}`);
+    },
     enrich: (body: { first_name?: string; last_name?: string; company_name?: string; linkedin_url?: string }) =>
       request<import('./types').EnrichmentResult>('/prospects/enrich', {
         method: 'POST',

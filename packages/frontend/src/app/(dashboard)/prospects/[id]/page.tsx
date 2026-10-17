@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { prospectFullName, formatTemplateLabel } from '@/lib/types';
 import type { Prospect, Company, EmailSend } from '@/lib/types';
+import Combobox from '@/components/Combobox';
 
 interface ProspectFormData {
   company_id: string;
@@ -134,6 +135,19 @@ export default function ProspectDetailPage() {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCreateCompany(name: string) {
+    try {
+      const res = await api.companies.create({ name });
+      setCompanies((prev) => {
+        if (prev.some((c) => c.id === res.data.id)) return prev;
+        return [...prev, res.data];
+      });
+      f('company_id', res.data.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create company');
     }
   }
 
@@ -297,10 +311,15 @@ export default function ProspectDetailPage() {
             <div className="space-y-4">
               <div>
                 <label className="form-label text-xs">Company</label>
-                <select className="form-select text-xs" value={form.company_id} onChange={(e) => f('company_id', e.target.value)}>
-                  <option value="">No company</option>
-                  {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <Combobox
+                  options={companies.map((c) => ({ value: c.id, label: c.name }))}
+                  value={form.company_id}
+                  onChange={(v) => f('company_id', v)}
+                  placeholder="Select company"
+                  clearLabel="No company"
+                  onCreate={handleCreateCompany}
+                  createLabel={(name) => `Add "${name}" as new company`}
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

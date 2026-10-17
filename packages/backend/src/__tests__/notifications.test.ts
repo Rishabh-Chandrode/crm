@@ -152,6 +152,7 @@ describe('Web Push Notifications API & Service', () => {
         }
         if (typeof text === 'string' && text.includes('INSERT INTO settings')) {
           insertCalled = true;
+          expect(text).not.toContain('updated_at');
           return { rows: [], rowCount: 2 } as any;
         }
         return { rows: [], rowCount: 0 } as any;

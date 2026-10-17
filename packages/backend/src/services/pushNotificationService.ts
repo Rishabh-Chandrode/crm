@@ -42,7 +42,7 @@ export class PushNotificationService {
         `INSERT INTO settings (key, value) VALUES
           ('vapid_public_key', $1),
           ('vapid_private_key', $2)
-        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
         [pub, priv]
       );
     }

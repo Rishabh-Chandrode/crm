@@ -396,7 +396,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `POST` | `/api/notifications/unsubscribe` | `{ endpoint: string }` | `{ success: true, message: string }` — removes a push subscription. |
 | `POST` | `/api/notifications/test` | — | `{ success: true, sent: number, failed: number }` — dispatches a test push notification to user's registered devices. |
 
-
+- **VAPID Keys:** Automatically generated on first retrieval and persisted in the `settings` key-value table (`vapid_public_key`, `vapid_private_key`).
 ---
 
 ## Database

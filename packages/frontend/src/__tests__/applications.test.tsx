@@ -109,6 +109,10 @@ describe('ApplicationsPage', () => {
     expect(screen.getByText('Referrals Pending')).toBeInTheDocument();
     expect(screen.getByText('Ready to Apply (2d+)')).toBeInTheDocument();
 
+    // Verify preferences button is removed and links to profile job preferences
+    expect(screen.queryByRole('button', { name: /^preferences$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /job preferences/i })).toHaveAttribute('href', '/profile?tab=preferences');
+
     // Check application items rendered
     expect(screen.getByText('Software Engineer')).toBeInTheDocument();
     expect(screen.getByText('Stripe')).toBeInTheDocument();

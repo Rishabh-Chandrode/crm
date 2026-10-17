@@ -102,16 +102,48 @@ router.post('/sync-emails', async (req: Request, res: Response) => {
 router.get('/preferences', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const result = await pool.query<{ candidate_preferences: CandidatePreferences | null }>(
-      `SELECT candidate_preferences FROM users WHERE id = $1`,
+    const result = await pool.query<{
+      candidate_preferences: CandidatePreferences | null;
+      target_roles?: string[] | string | null;
+      skills?: string[] | string | null;
+      years_of_experience?: string | null;
+      expected_ctc?: string | null;
+      location?: string | null;
+    }>(
+      `SELECT candidate_preferences, target_roles, skills, years_of_experience, expected_ctc, location
+       FROM users WHERE id = $1`,
       [userId]
     );
 
-    const prefs = result.rows[0]?.candidate_preferences || {
-      target_roles: [],
-      target_skills: [],
-      preferred_locations: [],
-      remote_only: false,
+    const row = result.rows[0];
+    const userTargetRoles = Array.isArray(row?.target_roles)
+      ? row.target_roles
+      : typeof row?.target_roles === 'string'
+      ? JSON.parse(row.target_roles || '[]')
+      : [];
+    const userSkills = Array.isArray(row?.skills)
+      ? row.skills
+      : typeof row?.skills === 'string'
+      ? JSON.parse(row.skills || '[]')
+      : [];
+    const minExp = row?.years_of_experience ? parseInt(row.years_of_experience, 10) || undefined : undefined;
+
+    const rawPrefs: Partial<CandidatePreferences> = row?.candidate_preferences || {};
+    const prefs: CandidatePreferences = {
+      target_roles: Array.isArray(rawPrefs.target_roles) && rawPrefs.target_roles.length > 0
+        ? rawPrefs.target_roles
+        : userTargetRoles,
+      target_skills: Array.isArray(rawPrefs.target_skills) && rawPrefs.target_skills.length > 0
+        ? rawPrefs.target_skills
+        : userSkills,
+      preferred_locations: Array.isArray(rawPrefs.preferred_locations) && rawPrefs.preferred_locations.length > 0
+        ? rawPrefs.preferred_locations
+        : (row?.location ? [row.location] : []),
+      remote_only: rawPrefs.remote_only ?? false,
+      min_experience_years: rawPrefs.min_experience_years ?? minExp,
+      max_experience_years: rawPrefs.max_experience_years,
+      min_salary: rawPrefs.min_salary || row?.expected_ctc || undefined,
+      notes: rawPrefs.notes,
     };
 
     res.json({ data: prefs });
@@ -154,6 +186,13 @@ router.put('/preferences', async (req: Request, res: Response) => {
       `UPDATE users SET candidate_preferences = $1, updated_at = NOW() WHERE id = $2`,
       [JSON.stringify(updated), userId]
     );
+
+    if (Array.isArray(body.target_roles)) {
+      await pool.query(
+        `UPDATE users SET target_roles = $1 WHERE id = $2`,
+        [JSON.stringify(body.target_roles), userId]
+      );
+    }
 
     res.json({ data: updated });
   } catch (err) {

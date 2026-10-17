@@ -27,8 +27,8 @@ src/
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel
 │       ├── jobs/page.tsx          # Redirects /jobs → /applications
 │       ├── share/page.tsx         # Receives an Android share-target link, offers company and role chips, and saves an application. For LinkedIn profiles, tries Prospeo then Apollo; if neither gives an email, routes to manual entry in Priority Action Center without placeholder emails.
-│       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + stages + referral outreach available across active statuses (excluding rejected or expired/closed jobs)
-│       ├── profile/page.tsx       # Profile editor — personal, job search (including target roles), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
+│       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + stages + referral outreach across active statuses, email job sync, and fit scoring linked to profile job preferences
+│       ├── profile/page.tsx       # Profile editor — personal, job preferences (target roles, tech skills, locations, remote toggle, compensation, and criteria used for email job sync & scoring), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
 │       └── users/page.tsx         # Admin-only user management
 ├── components/

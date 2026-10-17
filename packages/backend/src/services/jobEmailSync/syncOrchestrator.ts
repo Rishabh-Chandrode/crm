@@ -12,6 +12,11 @@ import {
 interface UserRow {
   id: string;
   candidate_preferences: CandidatePreferences | null;
+  target_roles?: string[] | string | null;
+  skills?: string[] | string | null;
+  years_of_experience?: string | null;
+  expected_ctc?: string | null;
+  location?: string | null;
   last_job_email_synced_at: Date | null;
   job_email_sync_enabled: boolean;
 }
@@ -27,7 +32,7 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
 
   try {
     const userRes = await pool.query<UserRow>(
-      `SELECT id, candidate_preferences, last_job_email_synced_at, job_email_sync_enabled
+      `SELECT id, candidate_preferences, target_roles, skills, years_of_experience, expected_ctc, location, last_job_email_synced_at, job_email_sync_enabled
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -37,7 +42,35 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
       return result;
     }
 
-    const preferences = user.candidate_preferences || null;
+    const rawPrefs: Partial<CandidatePreferences> = user.candidate_preferences || {};
+    const userTargetRoles = Array.isArray(user.target_roles)
+      ? user.target_roles
+      : typeof user.target_roles === 'string'
+      ? JSON.parse(user.target_roles || '[]')
+      : [];
+    const userSkills = Array.isArray(user.skills)
+      ? user.skills
+      : typeof user.skills === 'string'
+      ? JSON.parse(user.skills || '[]')
+      : [];
+    const minExp = user.years_of_experience ? parseInt(user.years_of_experience, 10) || undefined : undefined;
+
+    const preferences: CandidatePreferences = {
+      target_roles: Array.isArray(rawPrefs.target_roles) && rawPrefs.target_roles.length > 0
+        ? rawPrefs.target_roles
+        : userTargetRoles,
+      target_skills: Array.isArray(rawPrefs.target_skills) && rawPrefs.target_skills.length > 0
+        ? rawPrefs.target_skills
+        : userSkills,
+      preferred_locations: Array.isArray(rawPrefs.preferred_locations) && rawPrefs.preferred_locations.length > 0
+        ? rawPrefs.preferred_locations
+        : (user.location ? [user.location] : []),
+      remote_only: rawPrefs.remote_only ?? false,
+      min_experience_years: rawPrefs.min_experience_years ?? minExp,
+      max_experience_years: rawPrefs.max_experience_years,
+      min_salary: rawPrefs.min_salary || user.expected_ctc || undefined,
+      notes: rawPrefs.notes,
+    };
     const emails = await fetchJobAndStatusEmails(userId, user.last_job_email_synced_at);
     result.scanned = emails.length;
 

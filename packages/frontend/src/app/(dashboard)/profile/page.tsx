@@ -15,7 +15,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
   },
   {
-    id: 'preferences', label: 'Job Search',
+    id: 'preferences', label: 'Job Preferences',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></svg>,
   },
   {
@@ -379,7 +379,7 @@ function ExpForm({
   );
 }
 
-function JobSearchTab({ user }: { user: CrmUser }) {
+function JobPreferencesTab({ user }: { user: CrmUser }) {
   const [jobForm, setJobForm] = useState({
     current_company:     user.current_company     ?? '',
     job_title:           user.job_title           ?? '',
@@ -388,6 +388,14 @@ function JobSearchTab({ user }: { user: CrmUser }) {
     current_ctc:         user.current_ctc         ?? '',
     expected_ctc:        user.expected_ctc        ?? '',
   });
+
+  const [targetSkills, setTargetSkills] = useState('');
+  const [preferredLocations, setPreferredLocations] = useState('');
+  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [minExp, setMinExp] = useState('');
+  const [maxExp, setMaxExp] = useState('');
+  const [prefNotes, setPrefNotes] = useState('');
+
   const [savingJob, setSavingJob] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -401,20 +409,80 @@ function JobSearchTab({ user }: { user: CrmUser }) {
       current_ctc:         user.current_ctc         ?? '',
       expected_ctc:        user.expected_ctc        ?? '',
     });
+    if (user.years_of_experience && !minExp) {
+      setMinExp(user.years_of_experience);
+    }
+    if (user.skills && user.skills.length > 0 && !targetSkills) {
+      setTargetSkills(user.skills.join(', '));
+    }
+    if (user.location && !preferredLocations) {
+      setPreferredLocations(user.location);
+    }
+
+    // Load candidate preferences
+    api.applications?.getPreferences?.()
+      ?.then(res => {
+        const p = res?.data;
+        if (!p) return;
+        if (p.target_skills?.length) {
+          setTargetSkills(p.target_skills.join(', '));
+        }
+        if (p.preferred_locations?.length) {
+          setPreferredLocations(p.preferred_locations.join(', '));
+        }
+        if (p.remote_only !== undefined) {
+          setRemoteOnly(Boolean(p.remote_only));
+        }
+        if (p.min_experience_years !== undefined) {
+          setMinExp(String(p.min_experience_years));
+        }
+        if (p.max_experience_years !== undefined) {
+          setMaxExp(String(p.max_experience_years));
+        }
+        if (p.notes) {
+          setPrefNotes(p.notes);
+        }
+      })
+      ?.catch(() => {
+        // ignore if not yet configured
+      });
   }, [user]);
 
   async function saveJob() {
     setSavingJob(true); setError(''); setSuccess('');
     try {
-      await api.auth.updateProfile({
-        current_company:     jobForm.current_company.trim()     || null,
-        job_title:           jobForm.job_title.trim()           || null,
-        years_of_experience: jobForm.years_of_experience.trim() || null,
-        notice_period:       jobForm.notice_period.trim()       || null,
-        current_ctc:         jobForm.current_ctc.trim()         || null,
-        expected_ctc:        jobForm.expected_ctc.trim()        || null,
-      });
-      setSuccess('Job search preferences saved.');
+      const skillsArray = targetSkills.split(',').map(s => s.trim()).filter(Boolean);
+      const locationsArray = preferredLocations.split(',').map(s => s.trim()).filter(Boolean);
+      const minExpNum = minExp.trim() ? parseInt(minExp.trim(), 10) : undefined;
+      const maxExpNum = maxExp.trim() ? parseInt(maxExp.trim(), 10) : undefined;
+
+      const promises: Promise<unknown>[] = [
+        api.auth.updateProfile({
+          current_company:     jobForm.current_company.trim()     || null,
+          job_title:           jobForm.job_title.trim()           || null,
+          years_of_experience: minExp.trim() || jobForm.years_of_experience.trim() || null,
+          notice_period:       jobForm.notice_period.trim()       || null,
+          current_ctc:         jobForm.current_ctc.trim()         || null,
+          expected_ctc:        jobForm.expected_ctc.trim()        || null,
+        }),
+      ];
+
+      if (api.applications?.updatePreferences) {
+        promises.push(
+          api.applications.updatePreferences({
+            target_skills: skillsArray,
+            preferred_locations: locationsArray,
+            remote_only: remoteOnly,
+            min_experience_years: minExpNum,
+            max_experience_years: maxExpNum,
+            min_salary: jobForm.expected_ctc.trim() || undefined,
+            notes: prefNotes.trim() || undefined,
+          })
+        );
+      }
+
+      await Promise.all(promises);
+      setSuccess('Job preferences saved successfully. Email sync and opportunity scoring will evaluate incoming jobs using these preferences.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally { setSavingJob(false); }
@@ -435,18 +503,95 @@ function JobSearchTab({ user }: { user: CrmUser }) {
 
   return (
     <div>
-      <SectionHeader title="Job Search" description="Current role, target roles, and compensation — used to autofill job application forms." />
-      <div className="space-y-3">
+      <SectionHeader
+        title="Job Preferences"
+        description="Target roles, skills, locations, compensation, and criteria used to autofill job applications and evaluate job fit."
+      />
+      <div className="space-y-4">
+        <FieldGroup label="Target Roles & Criteria" />
+        <TargetRolesEditor initialRoles={user.target_roles ?? []} />
+
+        <div>
+          <label className="form-label text-xs">Core Skills &amp; Tech Stack (evaluated for fit)</label>
+          <input
+            className="form-input text-xs"
+            placeholder="e.g. React, TypeScript, Node.js, PostgreSQL, Docker, AWS"
+            value={targetSkills}
+            onChange={e => setTargetSkills(e.target.value)}
+          />
+          <p className="text-[11px] text-zinc-400 mt-1">Comma-separated skills used by the AI/matching engine to evaluate job fit percentage.</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label text-xs">Min Experience (years)</label>
+            <input
+              type="number"
+              min="0"
+              className="form-input text-xs"
+              placeholder="e.g. 2"
+              value={minExp}
+              onChange={e => setMinExp(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="form-label text-xs">Max Experience (years)</label>
+            <input
+              type="number"
+              min="0"
+              className="form-input text-xs"
+              placeholder="e.g. 6"
+              value={maxExp}
+              onChange={e => setMaxExp(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <FieldGroup label="Location & Work Mode" />
+        <div>
+          <label className="form-label text-xs">Preferred Locations</label>
+          <input
+            className="form-input text-xs"
+            placeholder="e.g. Remote, Bangalore, San Francisco, New York"
+            value={preferredLocations}
+            onChange={e => setPreferredLocations(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 pt-0.5">
+          <input
+            type="checkbox"
+            id="remoteOnlyPref"
+            checked={remoteOnly}
+            onChange={e => setRemoteOnly(e.target.checked)}
+            className="rounded border-zinc-300 dark:border-zinc-700 text-zinc-900 focus:ring-0 cursor-pointer"
+          />
+          <label htmlFor="remoteOnlyPref" className="text-xs font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">
+            Prefer 100% Remote positions only
+          </label>
+        </div>
+
+        <FieldGroup label="Current Role & Compensation" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {jobInp('current_company', 'Current company', 'Acme Inc.')}
           {jobInp('job_title',       'Current job title', 'Software Engineer')}
         </div>
-        <TargetRolesEditor initialRoles={user.target_roles ?? []} />
-        {jobInp('years_of_experience', 'Total years of experience', '5')}
         {jobInp('notice_period', 'Notice period', 'Immediate · 30 days · 60 days')}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {jobInp('current_ctc',  'Current CTC / salary',  '$140,000')}
-          {jobInp('expected_ctc', 'Expected CTC / salary', '$175,000')}
+          {jobInp('expected_ctc', 'Expected CTC / Min salary', '$175,000')}
+        </div>
+
+        <FieldGroup label="Scoring Criteria Notes" />
+        <div>
+          <label className="form-label text-xs">Evaluation Notes (Optional)</label>
+          <textarea
+            className="form-textarea text-xs resize-none"
+            rows={2}
+            placeholder="e.g. Prioritize Series A–C product startups, fintech or developer tools companies…"
+            value={prefNotes}
+            onChange={e => setPrefNotes(e.target.value)}
+          />
         </div>
       </div>
       <div className="mt-5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
@@ -1345,7 +1490,7 @@ function ProfileContent() {
         {/* Content panel */}
         <div className="flex-1 card p-5 md:p-6 min-w-0 w-full">
           {tab === 'personal'     && <PersonalTab    user={user} />}
-          {tab === 'preferences'  && <JobSearchTab   user={user} />}
+          {tab === 'preferences'  && <JobPreferencesTab   user={user} />}
           {tab === 'work'         && <WorkTab        user={user} />}
           {tab === 'education' && <EducationTab user={user} />}
           {tab === 'documents' && <DocumentsTab />}

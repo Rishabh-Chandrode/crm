@@ -35,6 +35,19 @@ vi.mock('../lib/api', () => ({
         set: vi.fn(),
       },
     },
+    applications: {
+      getPreferences: vi.fn().mockResolvedValue({
+        data: {
+          target_roles: [],
+          target_skills: [],
+          preferred_locations: [],
+          remote_only: false,
+        },
+      }),
+      updatePreferences: vi.fn().mockResolvedValue({
+        data: {},
+      }),
+    },
   },
 }));
 
@@ -169,6 +182,38 @@ describe('ProfilePage documents', () => {
 
     await waitFor(() => {
       expect(api.auth.updateProfile).toHaveBeenCalledWith({ target_roles: ['SDE'] });
+    });
+  });
+
+  it('renders Job Preferences tab and saves candidate preferences with scoring criteria', async () => {
+    nav.tab = 'preferences';
+    vi.mocked(api.auth.updateProfile).mockResolvedValue({ user } as never);
+    vi.mocked(api.applications.updatePreferences).mockResolvedValue({ data: {} } as never);
+    render(<ProfilePage />);
+
+    expect((await screen.findAllByText('Job Preferences')).length).toBeGreaterThan(0);
+    expect(screen.getByPlaceholderText(/React, TypeScript, Node.js/)).toBeInTheDocument();
+
+    const skillsInput = screen.getByPlaceholderText(/React, TypeScript, Node.js/);
+    fireEvent.change(skillsInput, { target: { value: 'React, Node.js, Go' } });
+
+    const locationsInput = screen.getByPlaceholderText(/Remote, Bangalore, San Francisco/);
+    fireEvent.change(locationsInput, { target: { value: 'Remote, London' } });
+
+    const remoteCheckbox = screen.getByLabelText(/Prefer 100% Remote positions only/i);
+    fireEvent.click(remoteCheckbox);
+
+    const saveBtn = screen.getByRole('button', { name: 'Save Preferences' });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(api.applications.updatePreferences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_skills: ['React', 'Node.js', 'Go'],
+          preferred_locations: ['Remote', 'London'],
+          remote_only: true,
+        })
+      );
     });
   });
 });

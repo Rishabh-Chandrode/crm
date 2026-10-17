@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { canAskReferral } from '@/lib/applications';
 import { getGmailSearchUrl } from '@/lib/types';
-import type { JobApplication, EmailSend, Company, CandidatePreferences, JobEmailSyncResult } from '@/lib/types';
+import type { JobApplication, EmailSend, Company, JobEmailSyncResult } from '@/lib/types';
 import CompanyAutocomplete from '@/components/CompanyAutocomplete';
 
 const STATUS_OPTIONS = [
@@ -230,16 +231,6 @@ export default function ApplicationsPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<JobEmailSyncResult | null>(null);
 
-  // Preferences modal state
-  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
-  const [savingPrefs, setSavingPrefs] = useState(false);
-  const [rolesInput, setRolesInput] = useState('');
-  const [skillsInput, setSkillsInput] = useState('');
-  const [locationsInput, setLocationsInput] = useState('');
-  const [remoteOnlyInput, setRemoteOnlyInput] = useState(false);
-  const [minExpInput, setMinExpInput] = useState<string>('');
-  const [maxExpInput, setMaxExpInput] = useState<string>('');
-
   // Inspect application / details drawer state
   const [inspectApp, setInspectApp] = useState<JobApplication | null>(null);
 
@@ -321,43 +312,7 @@ export default function ApplicationsPage() {
     }
   }
 
-  async function openPreferences() {
-    setIsPrefsOpen(true);
-    try {
-      const res = await api.applications.getPreferences();
-      const p = res.data;
-      setRolesInput((p.target_roles || []).join(', '));
-      setSkillsInput((p.target_skills || []).join(', '));
-      setLocationsInput((p.preferred_locations || []).join(', '));
-      setRemoteOnlyInput(Boolean(p.remote_only));
-      setMinExpInput(p.min_experience_years !== undefined ? String(p.min_experience_years) : '');
-      setMaxExpInput(p.max_experience_years !== undefined ? String(p.max_experience_years) : '');
-    } catch {
-      // ignore
-    }
-  }
 
-  async function handleSavePreferences(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingPrefs(true);
-    try {
-      const updated: CandidatePreferences = {
-        target_roles: rolesInput.split(',').map(s => s.trim()).filter(Boolean),
-        target_skills: skillsInput.split(',').map(s => s.trim()).filter(Boolean),
-        preferred_locations: locationsInput.split(',').map(s => s.trim()).filter(Boolean),
-        remote_only: remoteOnlyInput,
-        min_experience_years: minExpInput ? parseInt(minExpInput, 10) : undefined,
-        max_experience_years: maxExpInput ? parseInt(maxExpInput, 10) : undefined,
-      };
-      await api.applications.updatePreferences(updated);
-      setIsPrefsOpen(false);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save preferences');
-    } finally {
-      setSavingPrefs(false);
-    }
-  }
 
   function openEdit(app: JobApplication) {
     setEditingId(app.id);
@@ -510,22 +465,13 @@ export default function ApplicationsPage() {
             Job Applications
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-0.5">
-            Auto-sync job recommendations &amp; status updates from email, scored against your preferences
+            Auto-sync job recommendations &amp; status updates from email, scored against your{' '}
+            <Link href="/profile?tab=preferences" className="underline hover:text-zinc-700 dark:hover:text-zinc-200">
+              job preferences
+            </Link>
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-          <button
-            onClick={() => void openPreferences()}
-            className="btn-secondary inline-flex items-center gap-1.5 text-xs py-2 px-3 shadow-2xs cursor-pointer"
-            title="Configure target roles, skills, and scoring criteria"
-          >
-            <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Preferences
-          </button>
-
           <button
             onClick={() => void handleSyncEmails()}
             disabled={syncing}
@@ -1268,129 +1214,7 @@ export default function ApplicationsPage() {
         </div>
       )}
 
-      {/* Preferences Modal */}
-      {isPrefsOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="card max-w-lg w-full p-5 space-y-4 shadow-xl border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in-95 duration-100">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <div>
-                <h2 className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
-                  Candidate Fit &amp; Scoring Preferences
-                </h2>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  Job opportunities discovered from your emails will be scored against these criteria.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsPrefsOpen(false)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-sm cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
 
-            <form onSubmit={handleSavePreferences} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Target Roles (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Full Stack Engineer, Backend Developer, Tech Lead"
-                  value={rolesInput}
-                  onChange={e => setRolesInput(e.target.value)}
-                  className="form-input w-full py-1.5 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Core Skills &amp; Technologies (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. React, TypeScript, Node.js, PostgreSQL, Docker, AWS"
-                  value={skillsInput}
-                  onChange={e => setSkillsInput(e.target.value)}
-                  className="form-input w-full py-1.5 text-xs"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Min Exp (years)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 2"
-                    value={minExpInput}
-                    onChange={e => setMinExpInput(e.target.value)}
-                    className="form-input w-full py-1.5 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Max Exp (years)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 6"
-                    value={maxExpInput}
-                    onChange={e => setMaxExpInput(e.target.value)}
-                    className="form-input w-full py-1.5 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Preferred Locations (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Remote, Bangalore, San Francisco"
-                  value={locationsInput}
-                  onChange={e => setLocationsInput(e.target.value)}
-                  className="form-input w-full py-1.5 text-xs"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="remoteOnlyCheckbox"
-                  checked={remoteOnlyInput}
-                  onChange={e => setRemoteOnlyInput(e.target.checked)}
-                  className="rounded border-zinc-300 dark:border-zinc-700 text-zinc-900 focus:ring-0 cursor-pointer"
-                />
-                <label htmlFor="remoteOnlyCheckbox" className="font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                  Prefer Remote positions only
-                </label>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setIsPrefsOpen(false)}
-                  className="btn-ghost text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingPrefs}
-                  className="btn-primary text-xs py-1.5 px-3.5 disabled:opacity-60"
-                >
-                  {savingPrefs ? 'Saving…' : 'Save Preferences'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Inspect Opportunity / Fit Details Modal */}
       {inspectApp && (

@@ -144,5 +144,26 @@ describe('Job Email Sync & Extraction', () => {
       expect(res.body.data.target_roles).toContain('Staff Engineer');
       expect(res.body.data.target_skills).toContain('Go');
     });
+
+    it('GET /api/applications/preferences falls back to profile columns when candidate_preferences is empty', async () => {
+      (pool.query as any).mockResolvedValueOnce({
+        rows: [{
+          candidate_preferences: {},
+          target_roles: ['DevOps Engineer'],
+          skills: ['Docker', 'Terraform'],
+          years_of_experience: '4',
+          expected_ctc: '$130k',
+          location: 'San Francisco, CA',
+        }],
+      });
+
+      const res = await request(app).get('/api/applications/preferences');
+      expect(res.status).toBe(200);
+      expect(res.body.data.target_roles).toContain('DevOps Engineer');
+      expect(res.body.data.target_skills).toContain('Docker');
+      expect(res.body.data.preferred_locations).toContain('San Francisco, CA');
+      expect(res.body.data.min_experience_years).toBe(4);
+      expect(res.body.data.min_salary).toBe('$130k');
+    });
   });
 });

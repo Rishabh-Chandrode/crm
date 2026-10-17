@@ -472,11 +472,20 @@ export interface SubscribePushPayload {
   userAgent?: string;
 }
 
+export interface PushNotificationAction {
+  action: string;
+  title: string;
+  icon?: string;
+}
+
 export interface PushNotificationPayload {
   title: string;
   body: string;
   url?: string;
   tag?: string;
+  icon?: string;
+  badge?: string;
+  actions?: PushNotificationAction[];
 }
 
 

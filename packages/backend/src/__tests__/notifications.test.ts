@@ -203,5 +203,46 @@ describe('Web Push Notifications API & Service', () => {
       });
       expect(secondAlert).toBe(false);
     });
+
+    it('dispatches scheduled email failure notification with retry CTA for general errors', async () => {
+      let sentPayload: any;
+      vi.spyOn(pushNotificationService, 'notifyUser').mockImplementation(async (_userId, payload) => {
+        sentPayload = payload;
+        return 1;
+      });
+
+      const count = await pushNotificationService.notifyScheduledEmailFailure('user-1', {
+        scheduleId: 'sched-101',
+        reason: 'SMTP connection timeout',
+        isTokenError: false,
+      });
+
+      expect(count).toBe(1);
+      expect(sentPayload.title).toBe('⚠️ Scheduled Email Failed');
+      expect(sentPayload.body).toContain('SMTP connection timeout');
+      expect(sentPayload.url).toBe('/scheduled');
+      expect(sentPayload.actions).toEqual([{ action: 'retry', title: 'Review & Retry' }]);
+    });
+
+    it('dispatches token expiration notification with reconnect CTA when token error occurs', async () => {
+      let sentPayload: any;
+      vi.spyOn(pushNotificationService, 'notifyUser').mockImplementation(async (_userId, payload) => {
+        sentPayload = payload;
+        return 1;
+      });
+
+      const count = await pushNotificationService.notifyScheduledEmailFailure('user-1', {
+        scheduleId: 'sched-102',
+        reason: 'invalid_grant: Token has been expired or revoked',
+        isTokenError: true,
+      });
+
+      expect(count).toBe(1);
+      expect(sentPayload.title).toBe('⚠️ Gmail Authorization Expired');
+      expect(sentPayload.body).toContain('Gmail session expired');
+      expect(sentPayload.url).toBe('/settings?tab=gmail');
+      expect(sentPayload.actions).toEqual([{ action: 'reconnect_gmail', title: 'Reconnect Gmail' }]);
+    });
   });
 });
+

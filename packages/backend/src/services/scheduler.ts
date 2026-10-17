@@ -12,7 +12,24 @@ import { getAttachments } from './attachmentHelper.js';
 import { syncDriveDocuments } from './driveSync.js';
 import { maybeCreateApplicationFromEmail } from './autoTrackApplication.js';
 import { recordReferralOutreach } from './jobs.js';
+import { pushNotificationService } from './pushNotificationService.js';
 import type { EmailTemplate, Prospect, Company, SenderProfile } from '../types/index.js';
+
+export function isGmailTokenError(message: string): boolean {
+  const lower = (message || '').toLowerCase();
+  return (
+    lower.includes('invalid_grant') ||
+    lower.includes('expired') ||
+    lower.includes('revoked') ||
+    lower.includes('token refresh error') ||
+    lower.includes('invalid credentials') ||
+    lower.includes('invalid login') ||
+    lower.includes('gmail not connected') ||
+    lower.includes('unauthorized') ||
+    lower.includes('auth error') ||
+    lower.includes('401')
+  );
+}
 
 interface ScheduleRow {
   id: string;
@@ -47,10 +64,18 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const company = companyRes.rows[0] ?? null;
 
   if (!template && (!schedule.subject || !schedule.body)) {
+    const errorMsg = 'Template or subject/body not found';
     await pool.query(
       `UPDATE email_schedules SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
-      ['Template or subject/body not found', schedule.id]
+      [errorMsg, schedule.id]
     );
+    if (schedule.created_by) {
+      void pushNotificationService.notifyScheduledEmailFailure(schedule.created_by, {
+        scheduleId: schedule.id,
+        reason: errorMsg,
+        isTokenError: false,
+      }).catch((e) => console.warn('[Scheduler] Push notification failed:', e));
+    }
     return;
   }
 
@@ -71,10 +96,18 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   const prospects = prospectsRes.rows;
   if (prospects.length === 0) {
+    const errorMsg = 'No prospects found';
     await pool.query(
       `UPDATE email_schedules SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
-      ['No prospects found', schedule.id]
+      [errorMsg, schedule.id]
     );
+    if (schedule.created_by) {
+      void pushNotificationService.notifyScheduledEmailFailure(schedule.created_by, {
+        scheduleId: schedule.id,
+        reason: errorMsg,
+        isTokenError: false,
+      }).catch((e) => console.warn('[Scheduler] Push notification failed:', e));
+    }
     return;
   }
 
@@ -95,10 +128,18 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
   const hasAppPassword = userRow?.gmail_user && userRow?.gmail_app_password;
 
   if (!userRow || (!hasOAuth && !hasAppPassword)) {
+    const errorMsg = 'Gmail not connected. Go to Settings → Gmail to connect your account.';
     await pool.query(
       `UPDATE email_schedules SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
-      ['Gmail not connected. Go to Settings → Gmail to connect your account.', schedule.id]
+      [errorMsg, schedule.id]
     );
+    if (schedule.created_by) {
+      void pushNotificationService.notifyScheduledEmailFailure(schedule.created_by, {
+        scheduleId: schedule.id,
+        reason: errorMsg,
+        isTokenError: true,
+      }).catch((e) => console.warn('[Scheduler] Push notification failed:', e));
+    }
     return;
   }
 
@@ -117,6 +158,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   let refreshToken = userRow.gmail_refresh_token as string | null;
   let accessToken: string | undefined;
+  let tokenRefreshError: string | null = null;
   if (hasOAuth && schedule.created_by) {
     try {
       const fresh = await ensureFreshGmailToken(schedule.created_by);
@@ -126,6 +168,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
       }
     } catch (err) {
       console.error(`[Scheduler] Gmail token refresh failed before send for ${schedule.created_by}:`, err);
+      tokenRefreshError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -245,6 +288,16 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
      WHERE id = $6`,
     [finalStatus, sentCount, failedCount, prospects.length, scheduleError, schedule.id]
   );
+
+  if (finalStatus === 'failed' && schedule.created_by) {
+    const combinedReason = scheduleError || tokenRefreshError || 'Failed to send scheduled emails';
+    const isToken = Boolean(tokenRefreshError) || isGmailTokenError(combinedReason);
+    void pushNotificationService.notifyScheduledEmailFailure(schedule.created_by, {
+      scheduleId: schedule.id,
+      reason: combinedReason,
+      isTokenError: isToken,
+    }).catch((e) => console.warn('[Scheduler] Push notification failed:', e));
+  }
 }
 
 export async function processPendingSchedules(): Promise<number> {
@@ -263,10 +316,19 @@ export async function processPendingSchedules(): Promise<number> {
         await processSchedule(schedule);
       } catch (err: unknown) {
         console.error(`Scheduler failed for schedule ${schedule.id}:`, err);
+        const errMessage = err instanceof Error ? err.message : String(err);
         await pool.query(
           `UPDATE email_schedules SET status = 'failed', error_message = $1 WHERE id = $2`,
-          [String(err), schedule.id]
+          [errMessage, schedule.id]
         ).catch(() => undefined);
+        if (schedule.created_by) {
+          const isToken = isGmailTokenError(errMessage);
+          void pushNotificationService.notifyScheduledEmailFailure(schedule.created_by, {
+            scheduleId: schedule.id,
+            reason: errMessage,
+            isTokenError: isToken,
+          }).catch((e) => console.warn('[Scheduler] Push notification failed:', e));
+        }
       }
     }
     console.log(`[Scheduler] Finished processing batch of ${due.rows.length} schedule(s). Database can rest.`);

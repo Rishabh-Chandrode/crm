@@ -349,16 +349,19 @@ describe('Extension Data Shapes & Message Contracts', () => {
       userAgent: 'Mozilla/5.0 Chrome/120.0.0.0',
     };
     const notif: extensionTypes.PushNotificationPayload = {
-      title: 'LLM Error',
-      body: 'Gemini call failed with 404',
-      url: '/ai-settings',
-      tag: 'llm-error',
+      title: 'Scheduled Email Failed',
+      body: 'Gmail authorization expired',
+      url: '/settings?tab=gmail',
+      tag: 'gmail-token-expired',
+      actions: [{ action: 'reconnect_gmail', title: 'Reconnect Gmail' }],
     };
     expect(subPayload.endpoint).toContain('fcm.googleapis.com');
     expect(subPayload.keys.p256dh).toBe('BNc...');
-    expect(notif.title).toBe('LLM Error');
+    expect(notif.title).toBe('Scheduled Email Failed');
+    expect(notif.actions?.[0]?.action).toBe('reconnect_gmail');
   });
 });
+
 
 
 

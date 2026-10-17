@@ -169,6 +169,42 @@ export class PushNotificationService {
   }
 
   /**
+   * Dispatches a push notification to a user when their scheduled email fails to send.
+   * If failure is due to token expiration, provides CTA to reconnect Gmail.
+   * Otherwise, provides CTA to review the schedule and retry.
+   */
+  async notifyScheduledEmailFailure(
+    userId: string,
+    details: {
+      scheduleId: string;
+      reason: string;
+      isTokenError: boolean;
+    }
+  ): Promise<number> {
+    const payload: PushNotificationPayload = details.isTokenError
+      ? {
+          title: '⚠️ Gmail Authorization Expired',
+          body: 'Scheduled email failed because your Gmail session expired. Tap to reconnect Gmail.',
+          url: '/settings?tab=gmail',
+          tag: 'gmail-token-expired',
+          actions: [
+            { action: 'reconnect_gmail', title: 'Reconnect Gmail' },
+          ],
+        }
+      : {
+          title: '⚠️ Scheduled Email Failed',
+          body: `Scheduled email failed: ${details.reason.slice(0, 100)}. Tap to review and retry.`,
+          url: '/scheduled',
+          tag: `schedule-failed-${details.scheduleId}`,
+          actions: [
+            { action: 'retry', title: 'Review & Retry' },
+          ],
+        };
+
+    return this.notifyUser(userId, payload);
+  }
+
+  /**
    * Dispatches an LLM failure alert to administrators with rate-limiting.
    */
   async notifyLlmFailure(errorDetails: {

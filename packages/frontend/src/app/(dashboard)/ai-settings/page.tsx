@@ -22,17 +22,6 @@ const OPENAI_MODELS = [
   { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', badge: 'Legacy', description: 'Previous generation high-capability model' },
 ];
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
-
 export default function AiSettingsPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,13 +29,6 @@ export default function AiSettingsPage() {
   const [testing, setTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testResult, setTestResult] = useState<TestLlmConnectionResult | null>(null);
-
-  // Push Notification State
-  const [pushSupported, setPushSupported] = useState(false);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [pushLoading, setPushLoading] = useState(false);
-  const [pushTesting, setPushTesting] = useState(false);
-  const [pushStatusMsg, setPushStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Form State
   const [enabled, setEnabled] = useState(true);
@@ -64,102 +46,6 @@ export default function AiSettingsPage() {
 
   // Saved State Info
   const [currentConfig, setCurrentConfig] = useState<LlmConfigSettings | null>(null);
-
-  // Detect push notification support and active device subscription
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
-      setPushSupported(true);
-      navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
-        .then((sub) => {
-          setPushSubscribed(Boolean(sub));
-        })
-        .catch(() => {
-          setPushSupported(false);
-        });
-    }
-  }, []);
-
-  async function handleTogglePush() {
-    if (!pushSupported) return;
-    setPushLoading(true);
-    setPushStatusMsg(null);
-
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const existingSub = await reg.pushManager.getSubscription();
-
-      if (existingSub) {
-        // Unsubscribe
-        const endpoint = existingSub.endpoint;
-        await existingSub.unsubscribe();
-        await api.notifications.unsubscribe(endpoint);
-        setPushSubscribed(false);
-        setPushStatusMsg({ type: 'success', text: 'Push notifications disabled on this device.' });
-      } else {
-        // Subscribe
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          throw new Error('Notification permission was not granted by browser or device.');
-        }
-
-        const { publicKey } = await api.notifications.getVapidKey();
-        const convertedKey = urlBase64ToUint8Array(publicKey);
-
-        const newSub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: convertedKey as unknown as BufferSource,
-        });
-
-        const subJson = newSub.toJSON();
-        if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) {
-          throw new Error('Failed to extract valid push subscription keys.');
-        }
-
-        await api.notifications.subscribe({
-          endpoint: subJson.endpoint,
-          keys: {
-            p256dh: subJson.keys.p256dh,
-            auth: subJson.keys.auth,
-          },
-          userAgent: navigator.userAgent,
-        });
-
-        setPushSubscribed(true);
-        setPushStatusMsg({
-          type: 'success',
-          text: 'Push notifications successfully activated on this device! You will receive alerts when LLM calls fail.',
-        });
-      }
-    } catch (err) {
-      setPushStatusMsg({
-        type: 'error',
-        text: err instanceof Error ? err.message : 'Failed to update push notification subscription',
-      });
-    } finally {
-      setPushLoading(false);
-    }
-  }
-
-  async function handleSendTestPush() {
-    setPushTesting(true);
-    setPushStatusMsg(null);
-    try {
-      const res = await api.notifications.test();
-      setPushStatusMsg({
-        type: res.success ? 'success' : 'error',
-        text: res.message,
-      });
-    } catch (err) {
-      setPushStatusMsg({
-        type: 'error',
-        text: err instanceof Error ? err.message : 'Failed to send test push notification',
-      });
-    } finally {
-      setPushTesting(false);
-    }
-  }
-
   // Check admin privileges
   useEffect(() => {
     api.auth.me()
@@ -725,80 +611,6 @@ export default function AiSettingsPage() {
                         {testResult.error}
                       </p>
                     )}
-                  </div>
-                )}
-              </div>
-
-              {/* Card 7: Mobile & Phone Push Notifications */}
-              <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        Mobile & Phone Push Notifications
-                      </h3>
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                          pushSubscribed
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
-                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700'
-                        }`}
-                      >
-                        {pushSubscribed ? 'Active on this Device' : 'Not Subscribed'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 max-w-xl">
-                      Receive instant phone lock-screen push alerts whenever LLM calls fail, models are deprecated, or quota limits are hit on your installed app.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {pushSubscribed && (
-                      <button
-                        type="button"
-                        onClick={handleSendTestPush}
-                        disabled={pushTesting || pushLoading}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 transition-colors shadow-2xs disabled:opacity-50"
-                      >
-                        {pushTesting ? 'Sending…' : 'Send Test Alert'}
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={handleTogglePush}
-                      disabled={pushLoading}
-                      className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all shadow-2xs disabled:opacity-50 ${
-                        pushSubscribed
-                          ? 'border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
-                          : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200'
-                      }`}
-                    >
-                      {pushLoading
-                        ? 'Updating…'
-                        : pushSubscribed
-                        ? 'Disable on this Device'
-                        : 'Enable Push Notifications'}
-                    </button>
-                  </div>
-                </div>
-
-                {pushStatusMsg && (
-                  <div
-                    className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
-                      pushStatusMsg.type === 'success'
-                        ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
-                    }`}
-                  >
-                    <span>{pushStatusMsg.text}</span>
-                    <button
-                      type="button"
-                      onClick={() => setPushStatusMsg(null)}
-                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xs font-bold px-1"
-                    >
-                      ✕
-                    </button>
                   </div>
                 )}
               </div>

@@ -74,7 +74,7 @@ src/
 │   ├── attachmentHelper.ts      # Loads documents from disk for attachments
 │   ├── documentRefs.ts          # Keeps template and schedule attachment ids limited to documents that still exist
 │   ├── driveSync.ts             # Google Drive URL parsing + file download + 2-hour sync
-│   ├── pushNotificationService.ts # Free Web Push (VAPID key management, browser delivery, LLM failure alerts)
+│   ├── pushNotificationService.ts # Free Web Push (VAPID key management, browser delivery, scheduled email failure & expired authorization alerts)
 │   ├── systemLogger.ts          # Self-hosted in-database telemetry & error logger with 30-day retention
 │   ├── githubIssueService.ts    # Automated GitHub issue reporter for unhandled errors with deduplication
 │   └── scheduler.ts             # node-cron job — processes email_schedules, Drive sync, and job email sync

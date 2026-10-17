@@ -29,13 +29,14 @@ src/
 │       ├── share/page.tsx         # Receives an Android share-target link, offers company and role chips, and saves an application. For LinkedIn profiles, tries Prospeo then Apollo; if neither gives an email, routes to manual entry in Priority Action Center without placeholder emails.
 │       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + stages + referral outreach across active and terminal statuses (including ineligible, closed, and rejected), email job sync, and fit scoring linked to profile job preferences
 │       ├── profile/page.tsx       # Profile editor — personal, job preferences (target roles, tech skills, locations, remote toggle, compensation, and criteria used for email job sync & scoring), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
-│       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables
+│       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables, and Web Push notifications for scheduled email failures & expired authorizations
 │       ├── users/page.tsx         # Admin-only user management
 │       ├── logs/page.tsx          # Admin-only system logs & observability (telemetry, Gemini LLM API request & response payload inspector, latency metrics, query badges, source filters, stack traces, 30-day retention pruning)
-│       └── ai-settings/page.tsx   # Admin-only AI & LLM configuration — master toggle, provider selector, model selector, API key management, hyperparameters, live diagnostics, and Web Push notifications for LLM failure alerts
+│       └── ai-settings/page.tsx   # Admin-only AI & LLM configuration — master toggle, provider selector, model selector, API key management, hyperparameters, and live diagnostics
 ├── components/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, and theme switcher. The mobile close control sits beside the theme switcher.
 │   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed
+│   ├── PushNotificationCard.tsx   # Reusable device push notification subscription and test alert card
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
 │   ├── Combobox.tsx               # Searchable combobox. The closed label truncates instead of widening the field.
 │   ├── CompanyAutocomplete.tsx   # Autocomplete combobox with existing/new company live indicators
@@ -87,7 +88,7 @@ The app supports a full dark theme with three selectable modes:
 
 ### Install and Android share
 
-The Vercel site can be installed from Brave or Chrome on Android (**Install app** in the browser menu). Install needs the web manifest (`src/app/manifest.ts`), the 192 and 512 icons in `public/`, and `public/sw.js`. `/manifest.webmanifest` and `/sw.js` stay public so the browser can read them before login. The service worker (`sw.js`) also handles background Push Notifications (displaying native alerts with vibration and opening the targeted page on click when LLM errors or tests trigger).
+The Vercel site can be installed from Brave or Chrome on Android (**Install app** in the browser menu). Install needs the web manifest (`src/app/manifest.ts`), the 192 and 512 icons in `public/`, and `public/sw.js`. `/manifest.webmanifest` and `/sw.js` stay public so the browser can read them before login. The service worker (`sw.js`) also handles background Push Notifications (displaying native alerts with vibration and opening targeted action pages: `/settings?tab=gmail` for reconnecting expired tokens, or `/scheduled` to review and retry failed schedules).
 
 After install, sharing a link on Android lists Outreach CRM. The share opens `/share` with `title`, `text`, and `url`. The page takes the first `http` link from `url`, then from `text`. A LinkedIn profile (`/in/{slug}` or `/pub/{slug}`) shows **Add prospect** and saves through `api.prospects.fromLinkedIn`, which enriches via Prospeo then Apollo. If an email is found, creates a prospect; if neither provider finds an email, creates a `pending_prospects` entry and prompts manual entry without saving dummy emails. Other links, including LinkedIn job posts, infer company and platform from the host and save through `api.applications.create`. **Send email** opens `/send` with that new job already selected as the linked job opportunity. Company chips come from that link and title (`companyOptionsFromShare`). Role chips are the signed-in user's `target_roles`, edited on Profile → Job Search. Company chips also include a left-hand hostname label, so `travclan.turbohire.co` offers Travclan and Turbohire. Editing the URL switches between the profile and job forms. A signed-out share goes to `/login?next=` and returns to that same `/share` URL after sign-in. iPhone share sheets do not list websites.
 

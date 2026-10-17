@@ -30,12 +30,13 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: data.icon || '/icon-192.png',
+    badge: data.badge || '/icon-192.png',
     tag: data.tag || 'crm-alert',
     data: {
       url: data.url || '/',
     },
+    actions: Array.isArray(data.actions) ? data.actions : [],
     vibrate: [200, 100, 200],
   };
 
@@ -45,12 +46,20 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const targetUrl = event.notification.data?.url || '/';
+  let targetUrl = event.notification.data?.url || '/';
+  if (event.action === 'reconnect_gmail') {
+    targetUrl = '/settings?tab=gmail';
+  } else if (event.action === 'retry') {
+    targetUrl = '/scheduled';
+  }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
         if ('focus' in client) {
+          if ('navigate' in client) {
+            client.navigate(targetUrl);
+          }
           return client.focus();
         }
       }

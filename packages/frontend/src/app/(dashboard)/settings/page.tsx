@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import type { CrmUser, VariablePreset, VariableSource } from '@/lib/types';
 import { PROSPECT_FIELDS, COMPANY_FIELDS, SENDER_FIELDS, toVariableLabel } from '@/lib/types';
 import { useTheme } from '@/components/ThemeProvider';
+import { PushNotificationCard } from '@/components/PushNotificationCard';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ const EMPTY_PRESET = {
   key: '', label: '', source: 'prospect' as VariableSource, field: '', default_value: '',
 };
 
-type Section = 'appearance' | 'variables' | 'gmail';
+type Section = 'appearance' | 'variables' | 'gmail' | 'notifications';
 
 const NAV: { id: Section; label: string; description: string; icon: React.ReactNode }[] = [
   {
@@ -53,6 +54,17 @@ const NAV: { id: Section; label: string; description: string; icon: React.ReactN
     icon: (
       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
         <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.909 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'notifications',
+    label: 'Push Notifications',
+    description: 'Device & email failure alerts',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
       </svg>
     ),
   },
@@ -712,7 +724,7 @@ function SettingsContent() {
 
   const tabParam = searchParams.get('tab') as Section | null;
   const [active, setActive] = useState<Section>(
-    tabParam && ['appearance', 'variables', 'gmail'].includes(tabParam)
+    tabParam && ['appearance', 'variables', 'gmail', 'notifications'].includes(tabParam)
       ? tabParam
       : 'appearance'
   );
@@ -761,9 +773,18 @@ function SettingsContent() {
         {/* Content panel */}
         <div className="flex-1 card p-5 min-w-0">
           <p className="sr-only">{current.label}</p>
-          {active === 'appearance' && <AppearanceSection />}
-          {active === 'variables'  && <VariablesSection />}
-          {active === 'gmail'      && <GmailSection />}
+          {active === 'appearance'    && <AppearanceSection />}
+          {active === 'variables'     && <VariablesSection />}
+          {active === 'gmail'         && <GmailSection />}
+          {active === 'notifications' && (
+            <div>
+              <SectionHeader
+                title="Push Notifications"
+                description="Configure real-time device alerts for scheduled email dispatch and authorization statuses."
+              />
+              <PushNotificationCard />
+            </div>
+          )}
         </div>
       </div>
     </div>

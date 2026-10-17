@@ -375,6 +375,21 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.error).toContain('status must be one of');
     });
 
+    it('allows updating application status to ineligible via PATCH /api/applications/:id', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{ id: 'app-1', company_name: 'Stripe', status: 'ineligible', job_id: null }],
+      } as any);
+
+      const res = await request(app)
+        .patch('/api/applications/app-1')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ status: 'ineligible' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ineligible');
+    });
+
     it('allows admin to update application created by another user via PATCH /api/applications/:id', async () => {
       vi.spyOn(pool, 'query').mockResolvedValueOnce({
         rowCount: 1,

@@ -185,7 +185,8 @@ export default function DashboardPage() {
       }
 
       setActioningId(id);
-      await api.applications.update(id, { status: 'closed' });
+      const nextStatus = type === 'not_applied' ? 'ineligible' : 'closed';
+      await api.applications.update(id, { status: nextStatus });
       setStats((prev) => {
         if (!prev) return null;
         return {
@@ -650,9 +651,9 @@ export default function DashboardPage() {
                     onClick={() => handleDismissAction('not_applied', app.id)}
                     disabled={actioningId === app.id}
                     className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-zinc-600 hover:text-amber-700 dark:text-zinc-400 dark:hover:text-amber-300 bg-zinc-100 hover:bg-amber-500/10 dark:bg-zinc-800 dark:hover:bg-amber-500/20 border border-zinc-200 dark:border-zinc-700/80 hover:border-amber-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center"
-                    title="Dismiss job recommendation (not interested)"
+                    title="Mark this job as ineligible"
                   >
-                    {actioningId === app.id ? 'Dismissing...' : '✕ Dismiss'}
+                    {actioningId === app.id ? 'Updating...' : '✕ Ineligible'}
                   </button>
 
                   <button

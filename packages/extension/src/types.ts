@@ -129,7 +129,8 @@ export type JobApplicationStatus =
   | 'offer'
   | 'rejected'
   | 'withdrawn'
-  | 'closed';
+  | 'closed'
+  | 'ineligible';
 
 export interface CandidatePreferences {
   target_roles: string[];

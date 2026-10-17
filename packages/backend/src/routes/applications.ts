@@ -16,6 +16,7 @@ const VALID_STATUSES = [
   'rejected',
   'withdrawn',
   'closed',
+  'ineligible',
 ];
 
 import { syncJobEmailsForUser } from '../services/jobEmailSync/syncOrchestrator.js';

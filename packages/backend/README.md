@@ -407,7 +407,7 @@ jobs             (id UUID PK, company_id→companies, title, job_url,
 
 job_applications (id UUID PK, user_id→users, job_id→jobs,
                   company_name, job_title, job_url, platform,
-                  status,       -- not_applied|applied|screening|interview|offer|rejected|withdrawn|closed
+                  status,       -- not_applied|applied|screening|interview|offer|rejected|withdrawn|closed|ineligible
                   match_score, match_reasons, missing_skills, description,
                   source_email_id, email_source,
                   notes, applied_at, created_at, updated_at)

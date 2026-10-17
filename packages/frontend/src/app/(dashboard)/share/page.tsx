@@ -29,6 +29,7 @@ const STATUS_OPTIONS = [
   'rejected',
   'withdrawn',
   'closed',
+  'ineligible',
 ] as const;
 
 function formatLabel(status: string): string {

@@ -51,11 +51,12 @@ describe('ApplicationsPage', () => {
       expect(canAskReferral(undefined)).toBe(true);
     });
 
-    it('disallows referral for rejected, closed, or expired jobs', () => {
+    it('disallows referral for rejected, closed, expired, or ineligible jobs', () => {
       expect(canAskReferral('rejected')).toBe(false);
       expect(canAskReferral('REJECTED')).toBe(false);
       expect(canAskReferral('closed')).toBe(false);
       expect(canAskReferral('expired')).toBe(false);
+      expect(canAskReferral('ineligible')).toBe(false);
     });
   });
 

@@ -315,6 +315,11 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(log.level).toBe('error');
     expect(log.source).toBe('extension');
   });
+
+  it('validates JobApplicationStatus contract including ineligible', () => {
+    const status: extensionTypes.JobApplicationStatus = 'ineligible';
+    expect(status).toBe('ineligible');
+  });
 });
 
 

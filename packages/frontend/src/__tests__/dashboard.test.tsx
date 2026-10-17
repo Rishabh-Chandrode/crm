@@ -467,7 +467,7 @@ describe('DashboardPage Priority Action Center', () => {
     expect(screen.queryByText('Sarah Connor')).not.toBeInTheDocument();
   });
 
-  it('allows dismissing saved/AI-synced opportunities from the Priority Action Center using ✕ Dismiss button', async () => {
+  it('allows marking saved/AI-synced opportunities as ineligible from the Priority Action Center using ✕ Ineligible button', async () => {
     const mockStats = {
       companies: 2,
       prospects: 2,
@@ -502,12 +502,12 @@ describe('DashboardPage Priority Action Center', () => {
       expect(screen.getByText('Stripe')).toBeInTheDocument();
     });
 
-    const dismissBtn = screen.getByText('✕ Dismiss');
-    expect(dismissBtn).toBeInTheDocument();
-    fireEvent.click(dismissBtn);
+    const ineligibleBtn = screen.getByText('✕ Ineligible');
+    expect(ineligibleBtn).toBeInTheDocument();
+    fireEvent.click(ineligibleBtn);
 
     await waitFor(() => {
-      expect(api.applications.update).toHaveBeenCalledWith('app-ai-1', { status: 'closed' });
+      expect(api.applications.update).toHaveBeenCalledWith('app-ai-1', { status: 'ineligible' });
     });
     expect(screen.queryByText('Stripe')).not.toBeInTheDocument();
   });

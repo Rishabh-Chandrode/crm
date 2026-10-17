@@ -227,6 +227,38 @@ describe('Extension Data Shapes & Message Contracts', () => {
       'https://mail.google.com/mail/u/0/#search/subject%3A(%22Intro%22)'
     );
   });
+
+  it('validates CandidatePreferences and JobApplication match fields contract', () => {
+    const prefs: extensionTypes.CandidatePreferences = {
+      target_roles: ['Staff Engineer'],
+      target_skills: ['TypeScript', 'Node.js'],
+      preferred_locations: ['Remote'],
+      remote_only: true,
+      min_experience_years: 3,
+    };
+    expect(prefs.target_roles).toContain('Staff Engineer');
+    expect(prefs.remote_only).toBe(true);
+
+    const appWithScore: extensionTypes.JobApplication = {
+      id: 'app-score-1',
+      user_id: 'user-1',
+      company_name: 'Stripe',
+      job_title: 'Backend Engineer',
+      job_url: 'https://stripe.com/jobs/1',
+      platform: 'LinkedIn',
+      status: 'not_applied',
+      notes: null,
+      applied_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      match_score: 92,
+      match_reasons: ['Role matches', 'Skills match'],
+      missing_skills: [],
+      source_email_id: 'msg-123',
+    };
+    expect(appWithScore.match_score).toBe(92);
+    expect(appWithScore.match_reasons?.length).toBe(2);
+  });
 });
 
 

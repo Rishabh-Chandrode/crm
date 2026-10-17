@@ -311,12 +311,15 @@ export async function processDailyDocumentSync(): Promise<number> {
   }
 }
 
+import { syncAllActiveUsers } from './jobEmailSync/syncOrchestrator.js';
+
 export function startScheduler(customCron?: string): void {
   const emailCron = customCron ?? EMAIL_SCHEDULER_CRON;
   cron.schedule(emailCron, async () => {
     await refreshDueGmailTokens();
     await processPendingSchedules();
     await processDailyDocumentSync();
+    await syncAllActiveUsers();
   });
 
   console.log(`Email scheduler started (polling every 30 minutes with cron '${emailCron}')`);

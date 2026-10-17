@@ -422,6 +422,24 @@ export async function migrate(): Promise<void> {
     }
   }
 
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS candidate_preferences JSONB NOT NULL DEFAULT '{}';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_job_email_synced_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS job_email_sync_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS match_score INT;
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS match_reasons TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS missing_skills TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS description TEXT;
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS location TEXT;
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS salary_range TEXT;
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS source_email_id TEXT;
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS email_source TEXT;
+
+    CREATE INDEX IF NOT EXISTS idx_job_applications_source_email_id ON job_applications(source_email_id);
+    CREATE INDEX IF NOT EXISTS idx_job_applications_match_score ON job_applications(match_score DESC);
+  `);
+
   console.log('Database migration completed successfully');
 }
 

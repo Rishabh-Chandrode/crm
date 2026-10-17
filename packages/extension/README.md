@@ -218,5 +218,5 @@ Test suites live in `src/__tests__/`:
 - `platforms.test.ts` — ATS platform detector and selectors
 - `profileSearch.test.ts` — Profile field search filtering and match highlighting
 - `theme.test.ts` — Light/Dark/System theme switching and root class management
-- `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts, Job, JobApplication, VariableSource, getGmailSearchUrl utility (direct #all/<threadId> and rfc822msgid search), and Type Trinity synchronization
+- `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts, Job, JobApplication (including fit score and match reasons), CandidatePreferences, VariableSource, getGmailSearchUrl utility (direct #all/<threadId> and rfc822msgid search), and Type Trinity synchronization
 

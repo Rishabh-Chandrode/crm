@@ -26,5 +26,10 @@ export const CONFIG = {
   apolloApiKey: process.env['APOLLO_API_KEY'] ?? '',
   prospeoApiKey: process.env['PROSPEO_API_KEY'] ?? '',
   activeEnrichmentProvider: process.env['ACTIVE_ENRICHMENT_PROVIDER'] ?? 'prospeo',
+  geminiApiKey: process.env['GEMINI_API_KEY'] ?? '',
+  openaiApiKey: process.env['OPENAI_API_KEY'] ?? '',
+  llmProvider: process.env['LLM_PROVIDER'] ?? 'gemini',
+  llmEnabled: process.env['LLM_ENABLED'] !== 'false',
+  llmModel: process.env['LLM_MODEL'] ?? 'gemini-2.5-flash',
 } as const;
 

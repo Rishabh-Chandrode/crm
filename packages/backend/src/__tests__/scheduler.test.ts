@@ -43,6 +43,7 @@ describe('Scheduler Service & Neon DB Auto-Suspend Optimization', () => {
     const query = vi.spyOn(pool, 'query')
       .mockResolvedValueOnce({ rows: [] } as any)
       .mockResolvedValueOnce({ rows: [] } as any)
+      .mockResolvedValueOnce({ rows: [] } as any)
       .mockResolvedValueOnce({ rows: [] } as any);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -53,6 +54,7 @@ describe('Scheduler Service & Neon DB Auto-Suspend Optimization', () => {
     expect(sqls[0]).toContain('gmail_refresh_token');
     expect(sqls[1]).toContain('email_schedules');
     expect(sqls[2]).toContain('daily_document_sync');
+    expect(sqls[3]).toContain('job_email_sync_enabled');
   });
 
   it('processDailyDocumentSync skips work when nobody is due', async () => {

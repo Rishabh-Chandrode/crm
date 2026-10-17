@@ -477,18 +477,28 @@ export const api = {
   },
 
   applications: {
-    list: (params?: { status?: string; search?: string; limit?: number; offset?: number; job_id?: string }) => {
+    list: (params?: { status?: string; search?: string; limit?: number; offset?: number; job_id?: string; min_match_score?: number }) => {
       const q = new URLSearchParams();
-      if (params?.status)  q.set('status',  params.status);
-      if (params?.search)  q.set('search',  params.search);
-      if (params?.limit)   q.set('limit',   String(params.limit));
-      if (params?.offset)  q.set('offset',  String(params.offset));
-      if (params?.job_id)  q.set('job_id',  params.job_id);
+      if (params?.status)           q.set('status',           params.status);
+      if (params?.search)           q.set('search',           params.search);
+      if (params?.limit)            q.set('limit',            String(params.limit));
+      if (params?.offset)           q.set('offset',           String(params.offset));
+      if (params?.job_id)           q.set('job_id',           params.job_id);
+      if (params?.min_match_score)  q.set('min_match_score',  String(params.min_match_score));
       const qs = q.toString();
       return request<{ applications: import('./types').JobApplication[]; total: number }>(
         `/applications${qs ? `?${qs}` : ''}`,
       );
     },
+    syncEmails: () =>
+      request<{ data: import('./types').JobEmailSyncResult }>('/applications/sync-emails', { method: 'POST' }),
+    getPreferences: () =>
+      request<{ data: import('./types').CandidatePreferences }>('/applications/preferences'),
+    updatePreferences: (body: Partial<import('./types').CandidatePreferences>) =>
+      request<{ data: import('./types').CandidatePreferences }>('/applications/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
     create: (body: {
       company_name: string;
       job_title: string;

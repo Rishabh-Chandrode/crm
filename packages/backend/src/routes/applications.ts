@@ -18,12 +18,15 @@ const VALID_STATUSES = [
   'closed',
 ];
 
+import { syncJobEmailsForUser } from '../services/jobEmailSync/syncOrchestrator.js';
+import type { CandidatePreferences } from '../types/index.js';
+
 // GET /api/applications
 router.get('/', async (req: Request, res: Response) => {
   try {
     const isAdmin = req.user!.role === 'admin';
     const userId = req.user!.id;
-    const { status, search, limit = '100', offset = '0', job_id } = req.query as Record<string, string>;
+    const { status, search, limit = '100', offset = '0', job_id, min_match_score } = req.query as Record<string, string>;
 
     const conditions: string[] = isAdmin ? ['1=1'] : ['ja.user_id = $1'];
     const params: unknown[] = isAdmin ? [] : [userId];
@@ -36,6 +39,10 @@ router.get('/', async (req: Request, res: Response) => {
     if (job_id) {
       conditions.push(`ja.job_id = $${i++}`);
       params.push(job_id);
+    }
+    if (min_match_score) {
+      conditions.push(`ja.match_score >= $${i++}`);
+      params.push(parseInt(min_match_score, 10));
     }
     if (search) {
       conditions.push(`(ja.company_name ILIKE $${i} OR ja.job_title ILIKE $${i})`);
@@ -76,6 +83,82 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/applications/sync-emails
+router.post('/sync-emails', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const result = await syncJobEmailsForUser(userId);
+    res.json({ data: result });
+  } catch (err) {
+    console.error('Error in /api/applications/sync-emails:', err);
+    res.status(500).json({ error: 'Failed to sync job emails' });
+  }
+});
+
+// GET /api/applications/preferences
+router.get('/preferences', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const result = await pool.query<{ candidate_preferences: CandidatePreferences | null }>(
+      `SELECT candidate_preferences FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    const prefs = result.rows[0]?.candidate_preferences || {
+      target_roles: [],
+      target_skills: [],
+      preferred_locations: [],
+      remote_only: false,
+    };
+
+    res.json({ data: prefs });
+  } catch (err) {
+    console.error('Error in GET /api/applications/preferences:', err);
+    res.status(500).json({ error: 'Failed to retrieve candidate preferences' });
+  }
+});
+
+// PUT /api/applications/preferences
+router.put('/preferences', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const body = req.body as Partial<CandidatePreferences>;
+
+    const currentRes = await pool.query<{ candidate_preferences: CandidatePreferences | null }>(
+      `SELECT candidate_preferences FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    const existing = currentRes.rows[0]?.candidate_preferences || {
+      target_roles: [],
+      target_skills: [],
+      preferred_locations: [],
+      remote_only: false,
+    };
+
+    const updated: CandidatePreferences = {
+      target_roles: Array.isArray(body.target_roles) ? body.target_roles : existing.target_roles,
+      target_skills: Array.isArray(body.target_skills) ? body.target_skills : existing.target_skills,
+      min_experience_years: typeof body.min_experience_years === 'number' ? body.min_experience_years : existing.min_experience_years,
+      max_experience_years: typeof body.max_experience_years === 'number' ? body.max_experience_years : existing.max_experience_years,
+      preferred_locations: Array.isArray(body.preferred_locations) ? body.preferred_locations : existing.preferred_locations,
+      remote_only: typeof body.remote_only === 'boolean' ? body.remote_only : existing.remote_only,
+      min_salary: typeof body.min_salary === 'string' ? body.min_salary : existing.min_salary,
+      notes: typeof body.notes === 'string' ? body.notes : existing.notes,
+    };
+
+    await pool.query(
+      `UPDATE users SET candidate_preferences = $1, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(updated), userId]
+    );
+
+    res.json({ data: updated });
+  } catch (err) {
+    console.error('Error in PUT /api/applications/preferences:', err);
+    res.status(500).json({ error: 'Failed to update candidate preferences' });
   }
 });
 

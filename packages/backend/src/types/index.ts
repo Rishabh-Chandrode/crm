@@ -170,6 +170,25 @@ export type JobApplicationStatus =
   | 'withdrawn'
   | 'closed';
 
+export interface CandidatePreferences {
+  target_roles: string[];
+  target_skills: string[];
+  min_experience_years?: number;
+  max_experience_years?: number;
+  preferred_locations: string[];
+  remote_only?: boolean;
+  min_salary?: string;
+  notes?: string;
+}
+
+export interface JobEmailSyncResult {
+  discovered: number;
+  updated: number;
+  scanned: number;
+  skipped: number;
+  errors?: string[];
+}
+
 export interface JobApplication {
   id: string;
   user_id: string;
@@ -187,6 +206,14 @@ export interface JobApplication {
   job?: Pick<Job, 'id' | 'title' | 'job_url'>;
   email_count?: number;
   referral_requested_at?: Date | null;
+  match_score?: number | null;
+  match_reasons?: string[] | null;
+  missing_skills?: string[] | null;
+  description?: string | null;
+  location?: string | null;
+  salary_range?: string | null;
+  source_email_id?: string | null;
+  email_source?: string | null;
 }
 
 export type ApiResponse<T> = {

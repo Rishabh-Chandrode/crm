@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { pool } from '../db/index.js';
-import type { Request } from 'express';
+import type { JobApplication } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -312,22 +312,127 @@ router.post('/', async (req: Request, res: Response) => {
       ).catch(() => undefined);
     }
 
-    const result = await pool.query(
-      `INSERT INTO job_applications (user_id, company_name, job_title, job_url, platform, status, notes, applied_at, job_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
-      [
-        userId,
-        trimmedCompanyName,
-        job_title.trim(),
-        job_url.trim(),
-        platform?.trim() || 'Generic',
-        normalizedStatus,
-        notes?.trim() || null,
-        applied_at ? new Date(applied_at) : new Date(),
-        targetJobId,
-      ],
+    const trimmedTitle = job_title.trim();
+    const trimmedUrl = job_url.trim();
+    const trimmedPlatform = platform?.trim() || 'Generic';
+    const trimmedNotes = notes?.trim() || null;
+    const parsedAppliedAt = applied_at ? new Date(applied_at) : new Date();
+
+    // Check for an existing application to merge with (URL match, placeholder match, or exact company+title match)
+    const existingAppRes = await pool.query<JobApplication>(
+      `SELECT * FROM job_applications
+       WHERE user_id = $1
+         AND (
+           (job_url = $2 AND $2 NOT IN ('#', ''))
+           OR (
+             (LOWER(company_name) = LOWER($3) OR LOWER($3) LIKE '%' || LOWER(company_name) || '%' OR LOWER(company_name) LIKE '%' || LOWER($3) || '%')
+             AND (
+               job_url IN ('#', '')
+               OR platform = 'Email'
+               OR job_title ILIKE 'Role at %'
+               OR job_title IN ('Job Application', 'Unknown')
+             )
+           )
+           OR (
+             (LOWER(company_name) = LOWER($3) OR LOWER($3) LIKE '%' || LOWER(company_name) || '%')
+             AND LOWER(job_title) = LOWER($4)
+           )
+         )
+       ORDER BY
+         CASE WHEN job_url = $2 AND $2 NOT IN ('#', '') THEN 0 ELSE 1 END,
+         created_at DESC
+       LIMIT 1`,
+      [userId, trimmedUrl, trimmedCompanyName, trimmedTitle]
     );
+
+    let resultRow: any;
+
+    if (existingAppRes.rowCount && existingAppRes.rowCount > 0) {
+      const existingApp = existingAppRes.rows[0]!;
+
+      // Determine best job title: prefer specific title over placeholders
+      const isPlaceholderTitle = (t: string) =>
+        !t || t === 'Job Application' || t === 'Unknown' || t.toLowerCase().startsWith('role at ');
+      const bestTitle = !isPlaceholderTitle(trimmedTitle) ? trimmedTitle : existingApp.job_title;
+
+      // Determine best job URL: prefer real URL over '#' or empty
+      const bestUrl = trimmedUrl && trimmedUrl !== '#' ? trimmedUrl : existingApp.job_url;
+
+      // Determine best platform: prefer specific platform over 'Email' or 'Generic'
+      const bestPlatform =
+        trimmedPlatform !== 'Generic' && trimmedPlatform !== 'Email'
+          ? trimmedPlatform
+          : existingApp.platform && existingApp.platform !== 'Email'
+          ? existingApp.platform
+          : trimmedPlatform;
+
+      // Determine best status: keep progressed status, otherwise update
+      const terminalOrActiveStatuses = ['interview', 'offer', 'rejected', 'ineligible'];
+      const bestStatus =
+        terminalOrActiveStatuses.includes(existingApp.status) && normalizedStatus === 'not_applied'
+          ? existingApp.status
+          : normalizedStatus !== 'not_applied'
+          ? normalizedStatus
+          : existingApp.status;
+
+      // Merge notes cleanly without duplicating existing content
+      let mergedNotes = existingApp.notes;
+      if (trimmedNotes) {
+        if (!mergedNotes) {
+          mergedNotes = trimmedNotes;
+        } else if (!mergedNotes.includes(trimmedNotes)) {
+          mergedNotes = `${mergedNotes}\n${trimmedNotes}`;
+        }
+      }
+
+      const updateRes = await pool.query(
+        `UPDATE job_applications
+         SET company_name = $1,
+             job_title = $2,
+             job_url = $3,
+             platform = $4,
+             status = $5,
+             notes = $6,
+             company_id = COALESCE(company_id, $7),
+             job_id = COALESCE(job_id, $8),
+             applied_at = COALESCE(applied_at, $9),
+             updated_at = NOW()
+         WHERE id = $10
+         RETURNING *`,
+        [
+          trimmedCompanyName,
+          bestTitle,
+          bestUrl,
+          bestPlatform,
+          bestStatus,
+          mergedNotes,
+          resolvedCompanyId,
+          targetJobId,
+          parsedAppliedAt,
+          existingApp.id,
+        ]
+      );
+      resultRow = updateRes.rows[0];
+    } else {
+      const insertRes = await pool.query(
+        `INSERT INTO job_applications (user_id, company_name, job_title, job_url, platform, status, notes, applied_at, job_id, company_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [
+          userId,
+          trimmedCompanyName,
+          trimmedTitle,
+          trimmedUrl,
+          trimmedPlatform,
+          normalizedStatus,
+          trimmedNotes,
+          parsedAppliedAt,
+          targetJobId,
+          resolvedCompanyId,
+        ],
+      );
+      resultRow = insertRes.rows[0];
+    }
 
     if (targetJobId) {
       pool.query(
@@ -336,7 +441,7 @@ router.post('/', async (req: Request, res: Response) => {
       ).catch(() => undefined);
     }
 
-    res.status(201).json({ ...result.rows[0], company_id: resolvedCompanyId });
+    res.status(201).json({ ...resultRow, company_id: resolvedCompanyId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

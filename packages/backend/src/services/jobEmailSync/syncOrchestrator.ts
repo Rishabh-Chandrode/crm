@@ -165,11 +165,17 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
         } else if (intent === 'application_update') {
           const update = await extractApplicationUpdateDetails(email.subject, email.bodyText, email.from);
           if (update && update.companyName) {
-            // Find application for this company
+            // Find application for this company (prioritize actual job applications over placeholders)
             const matchRes = await pool.query<JobApplication>(
               `SELECT id, status, notes FROM job_applications
-               WHERE user_id = $1 AND (LOWER(company_name) = LOWER($2) OR LOWER(company_name) LIKE LOWER($3))
-               ORDER BY created_at DESC
+               WHERE user_id = $1 AND (
+                 LOWER(company_name) = LOWER($2)
+                 OR LOWER(company_name) LIKE LOWER($3)
+                 OR LOWER($2) LIKE '%' || LOWER(company_name) || '%'
+               )
+               ORDER BY
+                 CASE WHEN job_url != '#' AND job_title NOT ILIKE 'Role at %' THEN 0 ELSE 1 END,
+                 created_at DESC
                LIMIT 1`,
               [userId, update.companyName, `%${update.companyName}%`]
             );

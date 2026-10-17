@@ -276,6 +276,7 @@ describe('Backend API Feature Routes', () => {
       vi.spyOn(pool, 'query')
         .mockResolvedValueOnce({ rows: [{ id: 'comp-1' }] } as any) // existing company lookup
         .mockResolvedValueOnce({ rows: [{ id: 'job-new-1' }] } as any) // insert job
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as any) // existing application lookup (none found)
         .mockResolvedValueOnce({
           rows: [{
             id: 'app-new-1',
@@ -303,6 +304,107 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.company_name).toBe('Airtel');
       expect(res.body.company_id).toBe('comp-1');
       expect(res.body.job_id).toBe('job-new-1');
+    });
+
+    it('merges into existing email placeholder application for the same company', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 'comp-aftershoot' }] } as any) // company lookup
+        .mockResolvedValueOnce({ rows: [{ id: 'job-123' }] } as any) // insert job
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{
+            id: 'app-placeholder-1',
+            company_name: 'Aftershoot',
+            job_title: 'Role at Aftershoot',
+            job_url: '#',
+            platform: 'Email',
+            status: 'applied',
+            notes: 'Auto-tracked from status email',
+            job_id: null,
+            company_id: null,
+          }],
+        } as any) // existingAppRes finds placeholder
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{
+            id: 'app-placeholder-1',
+            company_name: 'Aftershoot',
+            job_title: 'Sr. Backend Engineer',
+            job_url: 'https://aftershoot.com/careers/123',
+            platform: 'Generic',
+            status: 'applied',
+            notes: 'Auto-tracked from status email\nCandidate referral submitted',
+            job_id: 'job-123',
+            company_id: 'comp-aftershoot',
+          }],
+        } as any) // updateRes
+        .mockResolvedValueOnce({ rowCount: 1 } as any); // update jobs
+
+      const res = await request(app)
+        .post('/api/applications')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          company_name: 'Aftershoot',
+          job_title: 'Sr. Backend Engineer',
+          job_url: 'https://aftershoot.com/careers/123',
+          platform: 'Generic',
+          notes: 'Candidate referral submitted',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBe('app-placeholder-1');
+      expect(res.body.job_title).toBe('Sr. Backend Engineer');
+      expect(res.body.job_url).toBe('https://aftershoot.com/careers/123');
+      expect(res.body.platform).toBe('Generic');
+    });
+
+    it('merges into existing application when job_url matches', async () => {
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 'comp-aftershoot' }] } as any) // company lookup
+        .mockResolvedValueOnce({ rows: [{ id: 'job-123' }] } as any) // insert job
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{
+            id: 'app-existing-1',
+            company_name: 'Aftershoot',
+            job_title: 'Backend Engineer',
+            job_url: 'https://aftershoot.com/careers/123',
+            platform: 'LinkedIn',
+            status: 'not_applied',
+            notes: null,
+            job_id: null,
+          }],
+        } as any) // existingAppRes finds URL match
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{
+            id: 'app-existing-1',
+            company_name: 'Aftershoot',
+            job_title: 'Sr. Backend Engineer',
+            job_url: 'https://aftershoot.com/careers/123',
+            platform: 'LinkedIn',
+            status: 'applied',
+            notes: 'Applied via company portal',
+            job_id: 'job-123',
+          }],
+        } as any) // updateRes
+        .mockResolvedValueOnce({ rowCount: 1 } as any); // update jobs
+
+      const res = await request(app)
+        .post('/api/applications')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          company_name: 'Aftershoot',
+          job_title: 'Sr. Backend Engineer',
+          job_url: 'https://aftershoot.com/careers/123',
+          platform: 'LinkedIn',
+          status: 'applied',
+          notes: 'Applied via company portal',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBe('app-existing-1');
+      expect(res.body.status).toBe('applied');
     });
 
     it('updates application fields via PATCH /api/applications/:id', async () => {

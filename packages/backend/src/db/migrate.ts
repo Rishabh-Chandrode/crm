@@ -488,6 +488,58 @@ export async function migrate(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+
+    -- Merge existing email placeholder applications into full applications for the same user and company
+    DO $$
+    DECLARE
+      r RECORD;
+      real_app RECORD;
+    BEGIN
+      FOR r IN
+        SELECT id, user_id, company_name, notes, source_email_id, email_source
+        FROM job_applications
+        WHERE (job_title ILIKE 'Role at %' OR job_url = '#' OR platform = 'Email')
+      LOOP
+        SELECT id, notes INTO real_app
+        FROM job_applications
+        WHERE user_id = r.user_id
+          AND (LOWER(company_name) = LOWER(r.company_name) OR LOWER(r.company_name) LIKE '%' || LOWER(company_name) || '%' OR LOWER(company_name) LIKE '%' || LOWER(r.company_name) || '%')
+          AND id != r.id
+          AND job_title NOT ILIKE 'Role at %'
+          AND job_url != '#'
+        ORDER BY created_at DESC
+        LIMIT 1;
+
+        IF FOUND THEN
+          UPDATE job_applications
+          SET notes = CASE
+            WHEN r.notes IS NOT NULL AND notes IS NOT NULL AND notes NOT LIKE '%' || r.notes || '%' THEN notes || E'\n' || r.notes
+            WHEN notes IS NULL THEN r.notes
+            ELSE notes
+          END,
+          source_email_id = COALESCE(source_email_id, r.source_email_id),
+          email_source = COALESCE(email_source, r.email_source),
+          updated_at = NOW()
+          WHERE id = real_app.id;
+
+          DELETE FROM job_applications WHERE id = r.id;
+        END IF;
+      END LOOP;
+    END $$;
+
+    -- Deduplicate exact duplicate applications (same user, company, and title)
+    DELETE FROM job_applications
+    WHERE id IN (
+      SELECT id FROM (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY user_id, LOWER(company_name), LOWER(job_title)
+                 ORDER BY updated_at DESC, created_at DESC
+               ) as rnum
+        FROM job_applications
+      ) t
+      WHERE t.rnum > 1
+    );
   `);
 
   console.log('Database migration completed successfully');

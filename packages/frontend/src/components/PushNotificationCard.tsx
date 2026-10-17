@@ -113,9 +113,15 @@ export function PushNotificationCard() {
       }
     } catch (err) {
       console.error('[PushNotificationCard] Toggle error:', err);
+      const rawMsg = err instanceof Error ? err.message : 'Failed to update push notification subscription.';
+      let userMsg = rawMsg;
+      if (rawMsg.toLowerCase().includes('push service error')) {
+        userMsg =
+          'Registration failed (push service error). In Brave, enable "Use Google services for push messaging" in Settings → Privacy and security (brave://settings/privacy), then restart your browser.';
+      }
       setStatusMsg({
         type: 'error',
-        text: err instanceof Error ? err.message : 'Failed to update push notification subscription.',
+        text: userMsg,
       });
     } finally {
       setLoading(false);

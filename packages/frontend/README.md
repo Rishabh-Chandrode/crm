@@ -36,7 +36,7 @@ src/
 ├── components/
 │   ├── Sidebar.tsx                # Left nav with user info, sign-out, and theme switcher. The mobile close control sits beside the theme switcher.
 │   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed
-│   ├── PushNotificationCard.tsx   # Reusable device push notification subscription and test alert card
+│   ├── PushNotificationCard.tsx   # Reusable device push notification subscription and test alert card (with Brave push messaging guidance)
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
 │   ├── Combobox.tsx               # Searchable combobox. The closed label truncates instead of widening the field.
 │   ├── CompanyAutocomplete.tsx   # Autocomplete combobox with existing/new company live indicators

@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
+import { systemLogger } from '../services/systemLogger.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -22,11 +23,18 @@ const unsubscribeSchema = z.object({
  * GET /api/notifications/vapid-key
  * Returns the public VAPID key required for the browser to register pushManager subscription.
  */
-router.get('/vapid-key', authMiddleware, async (_req: Request, res: Response) => {
+router.get('/vapid-key', authMiddleware, async (req: Request, res: Response) => {
   try {
     const publicKey = await pushNotificationService.getPublicKey();
     res.json({ publicKey });
   } catch (err) {
+    systemLogger.error(`Failed to retrieve VAPID public key: ${err instanceof Error ? err.message : String(err)}`, err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+    });
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to retrieve VAPID public key',
     });
@@ -56,6 +64,13 @@ router.post('/subscribe', authMiddleware, async (req: Request, res: Response) =>
       data: subscription,
     });
   } catch (err) {
+    systemLogger.error(`Failed to register push subscription: ${err instanceof Error ? err.message : String(err)}`, err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+    });
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to register push subscription',
     });
@@ -85,6 +100,13 @@ router.post('/unsubscribe', authMiddleware, async (req: Request, res: Response) 
       message: removed ? 'Unsubscribed successfully' : 'Subscription not found',
     });
   } catch (err) {
+    systemLogger.error(`Failed to unsubscribe: ${err instanceof Error ? err.message : String(err)}`, err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+    });
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to unsubscribe',
     });
@@ -105,7 +127,7 @@ router.post('/test', authMiddleware, async (req: Request, res: Response) => {
     const sent = await pushNotificationService.notifyUser(req.user.id, {
       title: '🎉 Notification Test',
       body: 'Push notifications are successfully working on this device!',
-      url: '/ai-settings',
+      url: '/settings?tab=notifications',
       tag: 'test-notification',
     });
 
@@ -118,6 +140,13 @@ router.post('/test', authMiddleware, async (req: Request, res: Response) => {
           : 'No active device subscriptions found. Please enable notifications on this device first.',
     });
   } catch (err) {
+    systemLogger.error(`Failed to send test push notification: ${err instanceof Error ? err.message : String(err)}`, err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+    });
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to send test push notification',
     });

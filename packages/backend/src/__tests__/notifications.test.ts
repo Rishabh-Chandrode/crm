@@ -6,6 +6,7 @@ import app from '../app.js';
 import { pool } from '../db/index.js';
 import { CONFIG } from '../config.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
+import { systemLogger } from '../services/systemLogger.js';
 
 describe('Web Push Notifications API & Service', () => {
   const userToken = jwt.sign(
@@ -47,6 +48,26 @@ describe('Web Push Notifications API & Service', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ publicKey: 'test-vapid-public-key' });
+    });
+
+    it('logs error with systemLogger and returns 500 when getPublicKey throws', async () => {
+      const loggerSpy = vi.spyOn(systemLogger, 'error').mockImplementation(() => {});
+      vi.spyOn(pushNotificationService, 'getPublicKey').mockRejectedValue(new Error('DB failure'));
+
+      const res = await request(app)
+        .get('/api/notifications/vapid-key')
+        .set('Authorization', `Bearer ${userToken}`);
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('DB failure');
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to retrieve VAPID public key: DB failure'),
+        expect.any(Error),
+        expect.objectContaining({
+          source: 'backend',
+          statusCode: 500,
+        })
+      );
     });
   });
 

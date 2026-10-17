@@ -48,7 +48,7 @@ src/
 │   ├── settings.ts              # /settings — key/value store
 │   ├── aiSettings.ts            # /ai-settings — admin-only LLM provider, credentials & model configuration
 │   ├── track.ts                 # /track — email open pixel (public, no auth)
-│   ├── notifications.ts         # /notifications — Web Push VAPID key & browser subscriptions
+│   ├── notifications.ts         # /notifications — Web Push VAPID key & browser subscriptions with systemLogger error tracking
 │   └── logs.ts                  # /logs — admin-only system logs, stats, and retention pruning
 ├── services/
 │   ├── llm/

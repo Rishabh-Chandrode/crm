@@ -227,4 +227,36 @@ describe('PushNotificationCard Component', () => {
 
     expect(screen.getByText(/Notifications are blocked:/i)).toBeInTheDocument();
   });
+
+  it('displays Brave-specific guidance when push service error occurs', async () => {
+    (window as any).PushManager = {};
+    (navigator as any).serviceWorker = {
+      ready: Promise.resolve({
+        pushManager: {
+          getSubscription: vi.fn().mockResolvedValue(null),
+          subscribe: vi.fn().mockRejectedValue(new Error('Registration failed - push service error')),
+        },
+      }),
+    };
+    (window as any).Notification = {
+      permission: 'granted',
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+    };
+    vi.mocked(api.notifications.getVapidKey).mockResolvedValueOnce({
+      publicKey: 'BMhQ_sF6Y1-M5_u9y23-8V0U234567890123456789012345678901234567890123456789012345678901234',
+    });
+
+    render(<PushNotificationCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Enable Push Notifications')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Enable Push Notifications'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/In Brave, enable "Use Google services for push messaging"/i)).toBeInTheDocument();
+    });
+  });
 });
+

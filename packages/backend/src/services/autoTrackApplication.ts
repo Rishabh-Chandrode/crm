@@ -188,7 +188,9 @@ export async function maybeCreateApplicationFromEmail(
   // Create the application
   await pool.query(
     `INSERT INTO job_applications (user_id, company_name, job_title, job_url, platform, status, notes)
-     VALUES ($1, $2, $3, $4, $5, 'not_applied', $6)`,
+     VALUES ($1, $2, $3, $4, $5, 'not_applied', $6)
+     ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
+     DO UPDATE SET updated_at = NOW()`,
     [userId, resolvedCompanyName, resolvedJobTitle, jobUrl, resolvedPlatform, notes],
   );
 }

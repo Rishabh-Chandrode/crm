@@ -5,7 +5,7 @@ import {
   defaultDocumentSelection,
   type AutofillDocument,
 } from './documentPicker';
-import { extractJobInfoFromTab, formatJobTrackError, type TrackJobInfo } from './jobTracker';
+import { extractJobInfoFromTab, formatJobTrackError, normalizeJobUrl, type TrackJobInfo } from './jobTracker';
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -621,10 +621,14 @@ function closeTrackJobPanel(): void {
   trackJobPanel.style.display = 'none';
 }
 
+let isSavingTrackedJob = false;
+
 async function saveTrackedJob(): Promise<void> {
+  if (isSavingTrackedJob) return;
+
   const company = trackCompanyEl.value.trim();
   const title   = trackTitleEl.value.trim();
-  const url     = trackUrlEl.value.trim();
+  const url     = normalizeJobUrl(trackUrlEl.value.trim());
   const notes   = trackNotesEl.value.trim();
   const platform = trackJobPlatformEl.textContent?.trim() || 'Generic';
 
@@ -634,6 +638,7 @@ async function saveTrackedJob(): Promise<void> {
     return;
   }
 
+  isSavingTrackedJob = true;
   trackSaveBtn.disabled    = true;
   trackSaveBtn.textContent = 'Saving…';
   trackJobErrorEl.style.display = 'none';
@@ -678,6 +683,8 @@ async function saveTrackedJob(): Promise<void> {
         }),
       }).catch(() => undefined);
     }
+  } finally {
+    isSavingTrackedJob = false;
   }
 }
 

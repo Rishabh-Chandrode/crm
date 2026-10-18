@@ -141,7 +141,12 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                  description, source_email_id, email_source, applied_at
                ) VALUES (
                  $1, $2, $3, $4, $5, $6, $7, 'not_applied', $8, $9, $10, $11, $12, $13, 'email', $14
-               )`,
+               )
+               ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
+               DO UPDATE SET
+                 match_score = COALESCE(job_applications.match_score, EXCLUDED.match_score),
+                 source_email_id = COALESCE(job_applications.source_email_id, EXCLUDED.source_email_id),
+                 updated_at = NOW()`,
               [
                 userId,
                 companyId,

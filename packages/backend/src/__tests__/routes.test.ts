@@ -317,8 +317,9 @@ describe('Backend API Feature Routes', () => {
     it('creates an application, resolves company, and links company_id to job', async () => {
       vi.spyOn(pool, 'query')
         .mockResolvedValueOnce({ rows: [{ id: 'comp-1' }] } as any) // existing company lookup
-        .mockResolvedValueOnce({ rows: [{ id: 'job-new-1' }] } as any) // insert job
         .mockResolvedValueOnce({ rows: [], rowCount: 0 } as any) // existing application lookup (none found)
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as any) // existing job lookup
+        .mockResolvedValueOnce({ rows: [{ id: 'job-new-1' }] } as any) // insert job
         .mockResolvedValueOnce({
           rows: [{
             id: 'app-new-1',
@@ -351,7 +352,6 @@ describe('Backend API Feature Routes', () => {
     it('merges into existing email placeholder application for the same company', async () => {
       vi.spyOn(pool, 'query')
         .mockResolvedValueOnce({ rows: [{ id: 'comp-aftershoot' }] } as any) // company lookup
-        .mockResolvedValueOnce({ rows: [{ id: 'job-123' }] } as any) // insert job
         .mockResolvedValueOnce({
           rowCount: 1,
           rows: [{
@@ -366,6 +366,8 @@ describe('Backend API Feature Routes', () => {
             company_id: null,
           }],
         } as any) // existingAppRes finds placeholder
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as any) // existing job lookup
+        .mockResolvedValueOnce({ rows: [{ id: 'job-123' }] } as any) // insert job
         .mockResolvedValueOnce({
           rowCount: 1,
           rows: [{
@@ -403,7 +405,6 @@ describe('Backend API Feature Routes', () => {
     it('merges into existing application when job_url matches', async () => {
       vi.spyOn(pool, 'query')
         .mockResolvedValueOnce({ rows: [{ id: 'comp-aftershoot' }] } as any) // company lookup
-        .mockResolvedValueOnce({ rows: [{ id: 'job-123' }] } as any) // insert job
         .mockResolvedValueOnce({
           rowCount: 1,
           rows: [{
@@ -417,6 +418,8 @@ describe('Backend API Feature Routes', () => {
             job_id: null,
           }],
         } as any) // existingAppRes finds URL match
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as any) // existing job lookup
+        .mockResolvedValueOnce({ rows: [{ id: 'job-123' }] } as any) // insert job
         .mockResolvedValueOnce({
           rowCount: 1,
           rows: [{

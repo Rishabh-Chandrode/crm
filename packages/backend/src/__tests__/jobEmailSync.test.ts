@@ -263,11 +263,13 @@ describe('Job Email Sync & Extraction', () => {
       (pool.query as any)
         // 1. check company
         .mockResolvedValueOnce({ rows: [{ id: 'company-uuid-1' }] })
-        // 2. insert jobs
-        .mockResolvedValueOnce({ rows: [{ id: 'job-uuid-1' }] })
-        // 3. check existing application
+        // 2. check existing application
         .mockResolvedValueOnce({ rowCount: 0, rows: [] })
-        // 4. insert job_applications
+        // 3. check existing job
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+        // 4. insert jobs
+        .mockResolvedValueOnce({ rows: [{ id: 'job-uuid-1' }] })
+        // 5. insert job_applications
         .mockResolvedValueOnce({
           rows: [{
             id: 'app-uuid-1',
@@ -294,6 +296,60 @@ describe('Job Email Sync & Extraction', () => {
       expect(res.body.id).toBe('app-uuid-1');
       expect(res.body.company_id).toBe('company-uuid-1');
       expect(res.body.company_name).toBe('Stripe');
+    });
+
+    it('POST /api/applications deduplicates and updates existing application when URL matches, stripping tracking parameters', async () => {
+      (pool.query as any)
+        // 1. check company
+        .mockResolvedValueOnce({ rows: [{ id: 'company-uuid-1' }] })
+        // 2. check existing application (matches existing row)
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{
+            id: 'app-existing-1',
+            user_id: 'test-user-uuid',
+            company_name: 'doordashindia',
+            job_title: 'Software Engineer',
+            job_url: 'https://job-boards.greenhouse.io/doordashindia/jobs/5856393',
+            platform: 'Greenhouse',
+            status: 'not_applied',
+            company_id: 'company-uuid-1',
+            job_id: 'job-existing-1',
+            notes: 'Existing note',
+          }],
+        })
+        // 3. update jobs company_id
+        .mockResolvedValueOnce({ rowCount: 1 })
+        // 4. update job_applications
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'app-existing-1',
+            user_id: 'test-user-uuid',
+            company_name: 'doordashindia',
+            job_title: 'Software Engineer',
+            job_url: 'https://job-boards.greenhouse.io/doordashindia/jobs/5856393',
+            platform: 'Greenhouse',
+            status: 'applied',
+            company_id: 'company-uuid-1',
+            job_id: 'job-existing-1',
+            notes: 'Existing note\nNew application note',
+          }],
+        });
+
+      const res = await request(app)
+        .post('/api/applications')
+        .send({
+          company_name: 'doordashindia',
+          job_title: 'Software Engineer',
+          job_url: 'https://job-boards.greenhouse.io/doordashindia/jobs/5856393?gh_src=5be224ed1us',
+          status: 'applied',
+          notes: 'New application note',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBe('app-existing-1');
+      expect(res.body.job_url).toBe('https://job-boards.greenhouse.io/doordashindia/jobs/5856393');
+      expect(res.body.status).toBe('applied');
     });
 
     it('POST /api/applications returns 400 when required fields are missing', async () => {

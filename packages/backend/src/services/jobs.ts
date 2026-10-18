@@ -221,7 +221,9 @@ export async function createJob(
 
   await pool.query(
     `INSERT INTO job_applications (user_id, job_id, company_name, job_title, job_url, platform, status)
-     VALUES ($1, $2, $3, $4, $5, 'Direct', $6)`,
+     VALUES ($1, $2, $3, $4, $5, 'Direct', $6)
+     ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
+     DO UPDATE SET job_id = EXCLUDED.job_id, status = EXCLUDED.status, updated_at = NOW()`,
     [
       userId,
       job.id,

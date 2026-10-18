@@ -56,7 +56,7 @@ src/
 │   │   ├── factory.ts           # LlmProviderFactory (Strategy & Factory pattern)
 │   │   ├── llmSettingsService.ts # Database-backed LLM settings & dynamic credential management
 │   │   ├── heuristicFallback.ts # Deterministic rule engine for classification & scoring
-│   │   └── providers/           # GeminiProvider, OpenAiProvider, NullLlmProvider
+│   ├── jobUrlNormalizer.ts      # Canonicalizes career site URLs by stripping tracking parameters and trailing slashes
 │   ├── jobEmailSync/
 │   │   ├── gmailFetcher.ts      # Queries Gmail API for job recommendations & updates
 │   │   ├── htmlUtils.ts         # Visible plain-text extraction from HTML emails with entity decoding
@@ -317,7 +317,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `POST` | `/api/applications/sync-emails` | — | `{ data: JobEmailSyncResult }` — scans connected Gmail for job alerts and application status updates |
 | `GET` | `/api/applications/preferences` | — | `{ data: CandidatePreferences }` — candidate target roles, skills, and scoring criteria with automatic fallback to user profile settings |
 | `PUT` | `/api/applications/preferences` | `{ target_roles?: string[], target_skills?: string[], min_experience_years?: number, max_experience_years?: number, preferred_locations?: string[], remote_only?: boolean, min_salary?: string, notes?: string }` | `{ data: CandidatePreferences }` — updates candidate criteria and synchronizes target roles with user profile |
-| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'`. Automatically deduplicates and merges into existing applications matching by URL, company placeholder (`Role at <Company>`), or company + job title, upgrading details and consolidating notes rather than creating duplicate entries. Auto-resolves/creates company in Companies table and links `company_id` to the associated `jobs` entry. | `JobApplication` (includes `company_id`) — `201` |
+| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'`. Automatically normalizes career URLs (stripping tracking parameters like `gh_src`, `utm_*`, `ref`) and performs atomic upsert (`ON CONFLICT (user_id, job_url)`) to prevent race conditions. Merges into existing applications matching by URL, base URL, company placeholder (`Role at <Company>`), or company + job title, upgrading details and consolidating notes rather than creating duplicate entries. Reuses existing `jobs` records and auto-resolves company linking. | `JobApplication` (includes `company_id`) — `201` |
 | `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values, synchronizes company and title/URL updates with the linked `jobs` record | `JobApplication` |
 | `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
 | `GET` | `/api/applications/:id/emails` | — | `{ data: EmailSend[] }` — all outreach emails sent for this application / role |
@@ -438,6 +438,7 @@ job_applications (id UUID PK, user_id→users, job_id→jobs, company_id→compa
                   match_score, match_reasons, missing_skills, description,
                   source_email_id, email_source,
                   notes, applied_at, created_at, updated_at)
+                  -- Unique partial index: idx_job_applications_user_url ON (user_id, job_url) WHERE job_url NOT IN ('#', '')
 
 companies      (id, name, website, industry, created_by→users, created_at, updated_at)
 prospects      (id, company_id→companies, first_name, last_name, email,

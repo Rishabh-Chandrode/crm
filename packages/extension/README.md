@@ -39,7 +39,7 @@ extension/
 ├── popup.css                       # Side panel styles
 ├── src/
 │   ├── popup.ts                    # Main logic — auth gate, tabs, API calls, match card, autofill
-│   ├── jobTracker.ts               # Active tab job extraction and error formatting
+│   ├── jobTracker.ts               # Active tab job extraction, URL canonicalization, and error formatting
 │   ├── contentScript.ts            # Passive listener on linkedin.com/in/* — only scrolls/scrapes on explicit user request
 │   ├── background.ts               # Service worker — tab queries, scrape trigger, tab URL events
 │   ├── types.ts                    # Shared TypeScript interfaces mirroring backend contracts (including LlmConfigSettings, LlmProviderType, PushNotificationPayload & PushNotificationAction contracts, JobApplicationStatus with ineligible, SystemLog telemetry, PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
@@ -139,7 +139,7 @@ Workday (`*.myworkdayjobs.com`) renders a multi-step application. `detectStep()`
 
 ### Application tracking
 
-When the form is submitted, a `submit` or button-click listener fires `{ action: 'applicationSubmitted', company_name, job_title, job_url, platform }` to the side panel, which auto-POSTs to `POST /api/applications`. The side panel extracts page details, displays transparent error feedback if saving fails, and forwards failure telemetry to `POST /api/logs/ingest`.
+When the form is submitted, a `submit` or button-click listener in the top-level window fires `{ action: 'applicationSubmitted', company_name, job_title, job_url, platform }` to the side panel, which auto-POSTs to `POST /api/applications`. The side panel canonicalizes career URLs (stripping tracking query parameters like `gh_src`, `utm_*`), debounces in-flight save requests, displays transparent error feedback if saving fails, and forwards failure telemetry to `POST /api/logs/ingest`.
 
 ---
 

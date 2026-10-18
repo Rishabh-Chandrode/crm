@@ -21,6 +21,7 @@ const VALID_STATUSES = [
 ];
 
 import { syncJobEmailsForUser } from '../services/jobEmailSync/syncOrchestrator.js';
+import { normalizeJobUrl } from '../services/jobUrlNormalizer.js';
 import type { CandidatePreferences } from '../types/index.js';
 
 // GET /api/applications
@@ -341,39 +342,26 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    let targetJobId = job_id || jobId || null;
-
-    if (!targetJobId) {
-      const jobRes = await pool.query<{ id: string }>(
-        `INSERT INTO jobs (title, job_url, company_id, status, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id`,
-        [job_title.trim(), job_url.trim(), resolvedCompanyId, normalizedStatus, notes?.trim() || null, userId]
-      );
-      targetJobId = jobRes.rows[0]!.id;
-    } else if (resolvedCompanyId) {
-      try {
-        await pool.query(
-          `UPDATE jobs SET company_id = COALESCE(company_id, $1), updated_at = NOW() WHERE id = $2 AND created_by = $3`,
-          [resolvedCompanyId, targetJobId, userId]
-        );
-      } catch {
-        // Ignore non-critical job company update error
-      }
-    }
-
     const trimmedTitle = job_title.trim();
     const trimmedUrl = job_url.trim();
+    const normalizedUrl = normalizeJobUrl(trimmedUrl);
     const trimmedPlatform = platform?.trim() || 'Generic';
     const trimmedNotes = notes?.trim() || null;
     const parsedAppliedAt = applied_at ? new Date(applied_at) : new Date();
 
-    // Check for an existing application to merge with (URL match, placeholder match, or exact company+title match)
+    // Check for an existing application to merge with (URL match, base URL match, placeholder match, or exact company+title match)
     const existingAppRes = await pool.query<JobApplication>(
       `SELECT * FROM job_applications
        WHERE user_id = $1
          AND (
-           (job_url = $2 AND $2 NOT IN ('#', ''))
+           (
+             $2 NOT IN ('#', '')
+             AND (
+               job_url = $2
+               OR job_url = $5
+               OR split_part(job_url, '?', 1) = split_part($2, '?', 1)
+             )
+           )
            OR (
              (LOWER(company_name) = LOWER($3) OR LOWER($3) LIKE '%' || LOWER(company_name) || '%' OR LOWER(company_name) LIKE '%' || LOWER($3) || '%')
              AND (
@@ -389,11 +377,49 @@ router.post('/', async (req: Request, res: Response) => {
            )
          )
        ORDER BY
-         CASE WHEN job_url = $2 AND $2 NOT IN ('#', '') THEN 0 ELSE 1 END,
+         CASE
+           WHEN job_url = $2 THEN 0
+           WHEN job_url = $5 THEN 1
+           WHEN split_part(job_url, '?', 1) = split_part($2, '?', 1) AND $2 NOT IN ('#', '') THEN 2
+           ELSE 3
+         END,
          created_at DESC
        LIMIT 1`,
-      [userId, trimmedUrl, trimmedCompanyName, trimmedTitle]
+      [userId, normalizedUrl, trimmedCompanyName, trimmedTitle, trimmedUrl]
     );
+
+    let targetJobId = job_id || jobId || existingAppRes.rows[0]?.job_id || null;
+
+    if (!targetJobId) {
+      if (normalizedUrl && normalizedUrl !== '#') {
+        const existingJob = await pool.query<{ id: string }>(
+          `SELECT id FROM jobs WHERE created_by = $1 AND (job_url = $2 OR job_url = $3) ORDER BY created_at DESC LIMIT 1`,
+          [userId, normalizedUrl, trimmedUrl]
+        );
+        if (existingJob.rows.length > 0) {
+          targetJobId = existingJob.rows[0]!.id;
+        }
+      }
+
+      if (!targetJobId) {
+        const jobRes = await pool.query<{ id: string }>(
+          `INSERT INTO jobs (title, job_url, company_id, status, notes, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id`,
+          [trimmedTitle, normalizedUrl, resolvedCompanyId, normalizedStatus, trimmedNotes, userId]
+        );
+        targetJobId = jobRes.rows[0]!.id;
+      }
+    } else if (resolvedCompanyId) {
+      try {
+        await pool.query(
+          `UPDATE jobs SET company_id = COALESCE(company_id, $1), updated_at = NOW() WHERE id = $2 AND created_by = $3`,
+          [resolvedCompanyId, targetJobId, userId]
+        );
+      } catch {
+        // Ignore non-critical job company update error
+      }
+    }
 
     let resultRow: any;
 
@@ -405,8 +431,8 @@ router.post('/', async (req: Request, res: Response) => {
         !t || t === 'Job Application' || t === 'Unknown' || t.toLowerCase().startsWith('role at ');
       const bestTitle = !isPlaceholderTitle(trimmedTitle) ? trimmedTitle : existingApp.job_title;
 
-      // Determine best job URL: prefer real URL over '#' or empty
-      const bestUrl = trimmedUrl && trimmedUrl !== '#' ? trimmedUrl : existingApp.job_url;
+      // Determine best job URL: prefer normalized real URL over '#' or empty
+      const bestUrl = normalizedUrl && normalizedUrl !== '#' ? normalizedUrl : existingApp.job_url;
 
       // Determine best platform: prefer specific platform over 'Email' or 'Generic'
       const bestPlatform =
@@ -467,12 +493,31 @@ router.post('/', async (req: Request, res: Response) => {
       const insertRes = await pool.query(
         `INSERT INTO job_applications (user_id, company_name, job_title, job_url, platform, status, notes, applied_at, job_id, company_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
+         DO UPDATE SET
+           company_name = EXCLUDED.company_name,
+           job_title    = CASE
+                            WHEN EXCLUDED.job_title NOT IN ('Job Application', 'Unknown') AND EXCLUDED.job_title NOT ILIKE 'Role at %' THEN EXCLUDED.job_title
+                            ELSE job_applications.job_title
+                          END,
+           platform     = CASE
+                            WHEN EXCLUDED.platform NOT IN ('Generic', 'Email') THEN EXCLUDED.platform
+                            ELSE job_applications.platform
+                          END,
+           notes        = CASE
+                            WHEN EXCLUDED.notes IS NOT NULL AND job_applications.notes IS NOT NULL AND job_applications.notes NOT LIKE '%' || EXCLUDED.notes || '%' THEN job_applications.notes || E'\n' || EXCLUDED.notes
+                            ELSE COALESCE(EXCLUDED.notes, job_applications.notes)
+                          END,
+           company_id   = COALESCE(job_applications.company_id, EXCLUDED.company_id),
+           job_id       = COALESCE(job_applications.job_id, EXCLUDED.job_id),
+           applied_at   = COALESCE(job_applications.applied_at, EXCLUDED.applied_at),
+           updated_at   = NOW()
          RETURNING *`,
         [
           userId,
           trimmedCompanyName,
           trimmedTitle,
-          trimmedUrl,
+          normalizedUrl,
           trimmedPlatform,
           normalizedStatus,
           trimmedNotes,

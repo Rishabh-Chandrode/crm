@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractJobInfoFromTab, formatJobTrackError } from '../jobTracker';
+import { extractJobInfoFromTab, formatJobTrackError, normalizeJobUrl } from '../jobTracker';
 
 function createMockTab(overrides: Partial<chrome.tabs.Tab>): chrome.tabs.Tab {
   return {
@@ -85,6 +85,37 @@ describe('Extension Job Tracker Module', () => {
       expect(info.platform).toBe('Generic');
       expect(info.company_name).toBe('Stripe');
       expect(info.job_title).toBe('Fullstack Engineer');
+    });
+
+    it('canonicalizes URL by stripping gh_src and tracking parameters', () => {
+      const tab = createMockTab({
+        id: 6,
+        url: 'https://job-boards.greenhouse.io/doordashindia/jobs/5856393?gh_src=5be224ed1us',
+        title: 'Software Engineer - DoorDash Careers',
+      });
+
+      const info = extractJobInfoFromTab(tab);
+      expect(info.platform).toBe('Greenhouse');
+      expect(info.company_name).toBe('doordashindia');
+      expect(info.job_title).toBe('Software Engineer');
+      expect(info.job_url).toBe('https://job-boards.greenhouse.io/doordashindia/jobs/5856393');
+    });
+  });
+
+  describe('normalizeJobUrl', () => {
+    it('strips Greenhouse tracking query params like gh_src and gh_jid', () => {
+      const url = 'https://job-boards.greenhouse.io/doordashindia/jobs/5856393?gh_src=5be224ed1us&gh_jid=5856393';
+      expect(normalizeJobUrl(url)).toBe('https://job-boards.greenhouse.io/doordashindia/jobs/5856393');
+    });
+
+    it('strips UTM parameters and trailing slashes', () => {
+      const url = 'https://jobs.lever.co/netflix/123/?utm_source=linkedin&utm_medium=job_post';
+      expect(normalizeJobUrl(url)).toBe('https://jobs.lever.co/netflix/123');
+    });
+
+    it('handles placeholder URLs safely', () => {
+      expect(normalizeJobUrl('#')).toBe('#');
+      expect(normalizeJobUrl('')).toBe('');
     });
   });
 

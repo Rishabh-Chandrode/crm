@@ -549,6 +549,61 @@ export async function migrate(): Promise<void> {
       ) t
       WHERE t.rnum > 1
     );
+
+    -- Merge and deduplicate duplicate applications by base URL (e.g. tracking links or concurrent submits)
+    DO $$
+    DECLARE
+      dup RECORD;
+      primary_app RECORD;
+    BEGIN
+      FOR dup IN
+        SELECT id, user_id, job_url, notes, company_id, job_id, match_score, match_reasons, missing_skills
+        FROM (
+          SELECT id, user_id, job_url, notes, company_id, job_id, match_score, match_reasons, missing_skills,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY user_id, split_part(job_url, '?', 1)
+                   ORDER BY
+                     CASE WHEN status IN ('interview', 'offer', 'applied') THEN 0 ELSE 1 END,
+                     updated_at DESC,
+                     created_at DESC
+                 ) as rnum
+          FROM job_applications
+          WHERE job_url NOT IN ('#', '')
+        ) t
+        WHERE t.rnum > 1
+      LOOP
+        SELECT id, notes, company_id, job_id, match_score INTO primary_app
+        FROM job_applications
+        WHERE user_id = dup.user_id
+          AND split_part(job_url, '?', 1) = split_part(dup.job_url, '?', 1)
+          AND id != dup.id
+        ORDER BY
+          CASE WHEN status IN ('interview', 'offer', 'applied') THEN 0 ELSE 1 END,
+          updated_at DESC,
+          created_at DESC
+        LIMIT 1;
+
+        IF FOUND THEN
+          UPDATE job_applications
+          SET notes = CASE
+            WHEN dup.notes IS NOT NULL AND notes IS NOT NULL AND notes NOT LIKE '%' || dup.notes || '%' THEN notes || E'\n' || dup.notes
+            WHEN notes IS NULL THEN dup.notes
+            ELSE notes
+          END,
+          company_id = COALESCE(company_id, dup.company_id),
+          job_id = COALESCE(job_id, dup.job_id),
+          match_score = COALESCE(match_score, dup.match_score),
+          updated_at = NOW()
+          WHERE id = primary_app.id;
+
+          DELETE FROM job_applications WHERE id = dup.id;
+        END IF;
+      END LOOP;
+    END $$;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_job_applications_user_url
+      ON job_applications(user_id, job_url)
+      WHERE job_url NOT IN ('#', '');
   `);
 
   console.log('Database migration completed successfully');

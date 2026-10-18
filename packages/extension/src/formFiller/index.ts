@@ -345,6 +345,12 @@ function extractJobInfo(): { company_name: string; job_title: string; job_url: s
 }
 
 function setupSubmitDetector(): void {
+  // Only attach submit detector in the top-level window to prevent nested iframes
+  // (e.g. Greenhouse reCAPTCHA, analytics, or embed frames) from firing duplicate messages.
+  if (typeof window !== 'undefined' && window.top !== window.self) {
+    return;
+  }
+
   let tracked = false;
 
   const send = (): void => {

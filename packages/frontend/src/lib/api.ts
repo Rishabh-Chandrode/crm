@@ -418,6 +418,8 @@ export const api = {
         notAppliedCount?: number;
         activeInterviewApplications?: import('./types').JobApplication[];
         activeInterviewCount?: number;
+        unconfirmedApplications?: import('./types').JobApplication[];
+        unconfirmedCount?: number;
         failedSends?: import('./types').EmailSend[];
         pendingProspects?: import('./types').PendingProspect[];
         pendingProspectCount?: number;

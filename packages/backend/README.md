@@ -60,10 +60,10 @@ src/
 │   ├── jobEmailSync/
 │   │   ├── gmailFetcher.ts      # Queries Gmail API for job recommendations & updates
 │   │   ├── htmlUtils.ts         # Visible plain-text extraction from HTML emails with entity decoding
-│   │   ├── jobExtractor.ts      # Unwraps tracking links and parses jobs from HTML
+│   │   ├── jobExtractor.ts      # Unwraps tracking links, candidate link extraction, and HTML parsing
 │   │   ├── jobScraper.ts        # Server-side description scraper (LinkedIn guest API, fallback)
-│   │   ├── jobClassifierAndScorer.ts # Coordinates LLM & heuristic scoring against preferences
-│   │   └── syncOrchestrator.ts  # End-to-end sync workflow and scheduler integration
+│   │   ├── jobClassifierAndScorer.ts # Coordinates LLM & heuristic scoring against preferences, full-context AI job opportunity extraction (title, company, URL, confidence, completeness)
+│   │   └── syncOrchestrator.ts  # End-to-end sync workflow: confident extractions auto-insert companies and open jobs, unconfident extractions create unconfirmed jobs and applications for Priority Center review
 │   ├── email/
 │   │   ├── types.ts             # EmailProvider interface
 │   │   ├── resend.ts            # Resend implementation
@@ -300,7 +300,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/jobs` | **Query:** `companyId?`, `status?` (`open` \| `referral_requested` \| `applied` \| `interviewing` \| `closed`), `search?` (job title or company name), `limit?` (default 50), `offset?` | `{ data: Job[], total: number }` — each includes nested `company`, `application`, `email_count` (sent emails only), and `referral_requested_at` |
+| `GET` | `/api/jobs` | **Query:** `companyId?`, `status?` (`open` \| `referral_requested` \| `applied` \| `interviewing` \| `closed` \| `unconfirmed`), `search?` (job title or company name), `limit?` (default 50), `offset?` | `{ data: Job[], total: number }` — each includes nested `company`, `application`, `email_count` (sent emails only), and `referral_requested_at` |
 | `POST` | `/api/jobs` | `{ title: string, job_url: string, company_id?: string, company_name?: string, status?: string, notes?: string }` — auto-creates/links company if `company_name` given, and creates a matching `job_applications` row so the dashboard can count outreach | `{ data: Job }` — `201` |
 | `GET` | `/api/jobs/:id` | — | `{ data: Job & { emails: EmailSend[] } }` |
 | `PATCH` | `/api/jobs/:id` | Any subset of: `title`, `job_url`, `company_id`, `status`, `notes` | `{ data: Job }` |
@@ -313,12 +313,12 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/applications` | **Query:** `status?`, `search?`, `job_id?`, `min_match_score?` (number), `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `company_id`, `email_count`, `referral_requested_at`, `match_score`, `match_reasons`, `missing_skills` |
+| `GET` | `/api/applications` | **Query:** `status?` (`not_applied` \| `applied` \| `screening` \| `interview` \| `offer` \| `rejected` \| `withdrawn` \| `closed` \| `ineligible` \| `unconfirmed`), `search?`, `job_id?`, `min_match_score?` (number), `limit?` (default 100), `offset?` | `{ applications: JobApplication[], total: number }` — includes nested `job`, `company_id`, `email_count`, `referral_requested_at`, `match_score`, `match_reasons`, `missing_skills` |
 | `POST` | `/api/applications/sync-emails` | — | `{ data: JobEmailSyncResult }` — scans connected Gmail for job alerts and application status updates |
 | `GET` | `/api/applications/preferences` | — | `{ data: CandidatePreferences }` — candidate target roles, skills, and scoring criteria with automatic fallback to user profile settings |
 | `PUT` | `/api/applications/preferences` | `{ target_roles?: string[], target_skills?: string[], min_experience_years?: number, max_experience_years?: number, preferred_locations?: string[], remote_only?: boolean, min_salary?: string, notes?: string }` | `{ data: CandidatePreferences }` — updates candidate criteria and synchronizes target roles with user profile |
-| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'`. Automatically normalizes career URLs (stripping tracking parameters like `gh_src`, `utm_*`, `ref`) and performs atomic upsert (`ON CONFLICT (user_id, job_url)`) to prevent race conditions. Merges into existing applications matching by URL, base URL, company placeholder (`Role at <Company>`), or company + job title, upgrading details and consolidating notes rather than creating duplicate entries. Reuses existing `jobs` records and auto-resolves company linking. | `JobApplication` (includes `company_id`) — `201` |
-| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values, synchronizes company and title/URL updates with the linked `jobs` record | `JobApplication` |
+| `POST` | `/api/applications` | `{ company_name: string, job_title: string, job_url: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — platform defaults to `'Generic'`, status defaults to `'open'`/`'applied'`. Supports status `'unconfirmed'` for AI-extracted jobs needing verification. Automatically normalizes career URLs (stripping tracking parameters like `gh_src`, `utm_*`, `ref`) and performs atomic upsert (`ON CONFLICT (user_id, job_url)`) to prevent race conditions. Merges into existing applications matching by URL, base URL, company placeholder (`Role at <Company>`), or company + job title, upgrading details and consolidating notes rather than creating duplicate entries. Reuses existing `jobs` records and auto-resolves company linking. | `JobApplication` (includes `company_id`) — `201` |
+| `PATCH` | `/api/applications/:id` | `{ company_name?: string, job_title?: string, job_url?: string, platform?: string, status?: string, notes?: string, applied_at?: string, job_id?: string }` — validates status against allowed values (including promoting from `'unconfirmed'`), synchronizes company and title/URL updates with the linked `jobs` record | `JobApplication` |
 | `DELETE` | `/api/applications/:id` | — | `{ success: true }` |
 | `GET` | `/api/applications/:id/emails` | — | `{ data: EmailSend[] }` — all outreach emails sent for this application / role |
 
@@ -347,7 +347,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, pendingProspects, pendingProspectCount, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. `Cache-Control: no-store`. Before returning, runs `syncOutreachForDashboard` (links unassigned sends, updates jobs/applications status, and links/upserts missing applications via `ON CONFLICT DO UPDATE` with error isolation and `systemLogger` capture). `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. `failedSends` and `pendingProspects` omit rows with `dismissed_at` set. |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, unconfirmedApplications, unconfirmedCount, failedSends, pendingProspects, pendingProspectCount, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. `Cache-Control: no-store`. Before returning, runs `syncOutreachForDashboard` (links unassigned sends, updates jobs/applications status, and links/upserts missing applications via `ON CONFLICT DO UPDATE` with error isolation and `systemLogger` capture). `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. `unconfirmedApplications` are AI-extracted jobs awaiting confirmation. `failedSends` and `pendingProspects` omit rows with `dismissed_at` set. |
 | `POST` | `/api/stats/dismissals` | `{ application_ids?: uuid[], failed_send_ids?: uuid[], pending_prospect_ids?: uuid[] }` | `{ closed, dismissed, pending_dismissed }` — closes the caller's applications, sets `dismissed_at` on the caller's failed sends, and sets `dismissed_at` on the caller's pending prospects. Other users' ids are ignored. |
 
 ---
@@ -429,16 +429,18 @@ users (id UUID PK, username, email, password_hash, role, is_active,
        created_at, updated_at)
 
 jobs             (id UUID PK, company_id→companies, title, job_url,
-                  status,       -- open|referral_requested|applied|interviewing|closed
+                  status,       -- open|referral_requested|applied|interviewing|closed|unconfirmed
                   notes, created_by→users, created_at, updated_at)
+                  -- Index: idx_jobs_status ON jobs(status)
 
 job_applications (id UUID PK, user_id→users, job_id→jobs, company_id→companies,
                   company_name, job_title, job_url, platform,
-                  status,       -- not_applied|applied|screening|interview|offer|rejected|withdrawn|closed|ineligible
+                  status,       -- not_applied|applied|screening|interview|offer|rejected|withdrawn|closed|ineligible|unconfirmed
                   match_score, match_reasons, missing_skills, description,
                   source_email_id, email_source,
                   notes, applied_at, created_at, updated_at)
                   -- Unique partial index: idx_job_applications_user_url ON (user_id, job_url) WHERE job_url NOT IN ('#', '')
+                  -- Index: idx_job_applications_status ON job_applications(status)
 
 companies      (id, name, website, industry, created_by→users, created_at, updated_at)
 prospects      (id, company_id→companies, first_name, last_name, email,

@@ -71,7 +71,8 @@ describe('Dashboard Stats and Sync Reliability', () => {
         .mockResolvedValueOnce({ rows: [] } as any) // notApplied
         .mockResolvedValueOnce({ rows: [] } as any) // activeInterviews
         .mockResolvedValueOnce({ rows: [] } as any) // failedSends
-        .mockResolvedValueOnce({ rows: [] } as any); // pendingProspects
+        .mockResolvedValueOnce({ rows: [] } as any) // pendingProspects
+        .mockResolvedValueOnce({ rows: [] } as any); // unconfirmedApplications
 
       const res = await request(app)
         .get('/api/stats')
@@ -80,6 +81,7 @@ describe('Dashboard Stats and Sync Reliability', () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('companies', 2);
       expect(res.body).toHaveProperty('applications', 3);
+      expect(res.body).toHaveProperty('unconfirmedCount', 0);
       expect(loggerSpy).toHaveBeenCalledWith(
         expect.stringContaining('syncOutreachForDashboard failed'),
         expect.any(Error),
@@ -106,7 +108,8 @@ describe('Dashboard Stats and Sync Reliability', () => {
         .mockResolvedValueOnce({ rows: [] } as any) // notApplied
         .mockResolvedValueOnce({ rows: [] } as any) // activeInterviews
         .mockResolvedValueOnce({ rows: [] } as any) // failedSends
-        .mockResolvedValueOnce({ rows: [] } as any); // pendingProspects
+        .mockResolvedValueOnce({ rows: [] } as any) // pendingProspects
+        .mockResolvedValueOnce({ rows: [] } as any); // unconfirmedApplications
 
       const res = await request(app)
         .get('/api/stats')

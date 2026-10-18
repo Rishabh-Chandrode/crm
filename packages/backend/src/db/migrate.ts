@@ -604,6 +604,9 @@ export async function migrate(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_job_applications_user_url
       ON job_applications(user_id, job_url)
       WHERE job_url NOT IN ('#', '');
+
+    CREATE INDEX IF NOT EXISTS idx_job_applications_status ON job_applications(status);
+    CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
   `);
 
   console.log('Database migration completed successfully');

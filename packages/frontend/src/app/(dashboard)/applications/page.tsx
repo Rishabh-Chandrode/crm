@@ -21,6 +21,7 @@ const STATUS_OPTIONS = [
   'withdrawn',
   'closed',
   'ineligible',
+  'unconfirmed',
 ] as const;
 
 const PLATFORM_OPTIONS = [
@@ -47,6 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
   withdrawn: 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800',
   closed: 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800',
   ineligible: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800',
+  unconfirmed: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20',
 };
 
 const PLATFORM_ICONS: Record<string, string> = {

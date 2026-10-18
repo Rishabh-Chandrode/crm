@@ -5,5 +5,5 @@
 export function canAskReferral(status?: string | null): boolean {
   if (!status) return true;
   const s = status.trim().toLowerCase();
-  return s !== 'rejected' && s !== 'closed' && s !== 'expired' && s !== 'ineligible';
+  return s !== 'rejected' && s !== 'closed' && s !== 'expired' && s !== 'ineligible' && s !== 'unconfirmed';
 }

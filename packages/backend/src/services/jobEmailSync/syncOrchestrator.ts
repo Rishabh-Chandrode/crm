@@ -7,6 +7,7 @@ import {
   classifyEmail,
   scoreJobAgainstPreferences,
   extractApplicationUpdateDetails,
+  extractJobOpportunitiesWithAi,
 } from './jobClassifierAndScorer.js';
 
 interface UserRow {
@@ -79,15 +80,25 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
         const intent = await classifyEmail(email.subject, email.bodyText, email.from);
 
         if (intent === 'job_recommendation') {
-          const extractedJobs = extractJobsFromEmail(email.subject, email.bodyHtml, email.bodyText);
+          const extractedJobs = await extractJobOpportunitiesWithAi(
+            email.subject,
+            email.bodyText,
+            email.from,
+            email.bodyHtml
+          );
 
           for (const job of extractedJobs) {
+            const cleanUrl = job.url && job.url !== '#' ? job.url : '#';
+
             // Check if already in database by URL or source_email_id
             const existing = await pool.query(
               `SELECT id FROM job_applications
-               WHERE user_id = $1 AND (job_url = $2 OR (source_email_id = $3 AND company_name = $4))
+               WHERE user_id = $1 AND (
+                 (job_url = $2 AND job_url NOT IN ('#', ''))
+                 OR (source_email_id = $3 AND LOWER(company_name) = LOWER($4) AND LOWER(job_title) = LOWER($5))
+               )
                LIMIT 1`,
-              [userId, job.jobUrl, email.id, job.companyName]
+              [userId, cleanUrl, email.id, job.company, job.title]
             );
 
             if (existing.rowCount && existing.rowCount > 0) {
@@ -95,77 +106,187 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
               continue;
             }
 
-            // Scrape description
-            const details = await scrapeJobDetails(job.jobUrl, job.snippet);
-
-            // Fit scoring
-            const score = await scoreJobAgainstPreferences(
-              job.title,
-              job.companyName,
-              details.description,
-              preferences
+            const isConfirmed = Boolean(
+              job.isConfident &&
+              job.isComplete &&
+              job.company &&
+              !['company', 'unknown', 'confidential', 'various'].includes(job.company.trim().toLowerCase()) &&
+              job.title &&
+              job.title.trim().length > 0
             );
 
-            // Optional: Match or associate with company
             let companyId: string | null = null;
-            if (job.companyName && job.companyName !== 'Company') {
+            const trimmedCompany = job.company.trim();
+
+            if (isConfirmed) {
+              // Confident extraction: Auto-resolve or add company to DB if not present
               const compRes = await pool.query<{ id: string }>(
                 `SELECT id FROM companies
-                 WHERE (LOWER(name) = LOWER($1)) AND (created_by = $2 OR created_by IS NULL)
+                 WHERE LOWER(name) = LOWER($1) AND (created_by = $2 OR created_by IS NULL)
                  LIMIT 1`,
-                [job.companyName, userId]
+                [trimmedCompany, userId]
               );
+
               if (compRes.rowCount && compRes.rowCount > 0) {
                 companyId = compRes.rows[0]!.id;
+              } else {
+                try {
+                  const compInsert = await pool.query<{ id: string }>(
+                    `INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id`,
+                    [trimmedCompany, userId]
+                  );
+                  companyId = compInsert.rows[0]?.id || null;
+                } catch {
+                  const compRecheck = await pool.query<{ id: string }>(
+                    `SELECT id FROM companies
+                     WHERE LOWER(name) = LOWER($1) AND (created_by = $2 OR created_by IS NULL)
+                     LIMIT 1`,
+                    [trimmedCompany, userId]
+                  );
+                  companyId = compRecheck.rows[0]?.id || null;
+                }
               }
-            }
 
-            // Also insert into `jobs` table if needed so it links to referrals
-            let jobId: string | null = null;
-            try {
-              const jobInsert = await pool.query<{ id: string }>(
-                `INSERT INTO jobs (title, job_url, company_id, status, created_by, notes)
-                 VALUES ($1, $2, $3, 'open', $4, $5)
-                 RETURNING id`,
-                [job.title, job.jobUrl, companyId, userId, `Imported via email alert: ${email.subject.slice(0, 100)}`]
-              );
-              jobId = jobInsert.rows[0]?.id || null;
-            } catch {
-              // Ignore job insert conflict
-            }
+              // Scrape description if URL is available
+              const details = cleanUrl !== '#'
+                ? await scrapeJobDetails(cleanUrl, job.descriptionSnippet || job.title)
+                : { description: job.descriptionSnippet || job.title, title: job.title };
 
-            await pool.query(
-              `INSERT INTO job_applications (
-                 user_id, company_id, job_id, company_name, job_title, job_url,
-                 platform, status, notes, match_score, match_reasons, missing_skills,
-                 description, source_email_id, email_source, applied_at
-               ) VALUES (
-                 $1, $2, $3, $4, $5, $6, $7, 'not_applied', $8, $9, $10, $11, $12, $13, 'email', $14
-               )
-               ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
-               DO UPDATE SET
-                 match_score = COALESCE(job_applications.match_score, EXCLUDED.match_score),
-                 source_email_id = COALESCE(job_applications.source_email_id, EXCLUDED.source_email_id),
-                 updated_at = NOW()`,
-              [
-                userId,
-                companyId,
-                jobId,
-                job.companyName,
+              // Fit scoring against preferences
+              const score = await scoreJobAgainstPreferences(
                 job.title,
-                job.jobUrl,
-                job.platform,
-                `Discovered from email: "${email.subject.slice(0, 80)}"`,
-                score.matchScore,
-                score.matchReasons,
-                score.missingSkills,
+                job.company,
                 details.description,
-                email.id,
-                email.date,
-              ]
-            );
+                preferences
+              );
 
-            result.discovered++;
+              // Insert into `jobs` table with status 'open'
+              let jobId: string | null = null;
+              try {
+                const jobInsert = await pool.query<{ id: string }>(
+                  `INSERT INTO jobs (title, job_url, company_id, status, created_by, notes)
+                   VALUES ($1, $2, $3, $4, $5, $6)
+                   RETURNING id`,
+                  [job.title, cleanUrl, companyId, 'open', userId, `Imported via email alert: ${email.subject.slice(0, 100)}`]
+                );
+                jobId = jobInsert.rows[0]?.id || null;
+              } catch {
+                // Ignore job insert conflict
+              }
+
+              // Insert confirmed application as 'not_applied'
+              await pool.query(
+                `INSERT INTO job_applications (
+                   user_id, company_id, job_id, company_name, job_title, job_url,
+                   platform, status, notes, match_score, match_reasons, missing_skills,
+                   description, location, salary_range, source_email_id, email_source, applied_at
+                 ) VALUES (
+                   $1, $2, $3, $4, $5, $6, $7, 'not_applied', $8, $9, $10, $11, $12, $13, $14, $15, 'email', $16
+                 )
+                 ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
+                 DO UPDATE SET
+                   match_score = COALESCE(job_applications.match_score, EXCLUDED.match_score),
+                   source_email_id = COALESCE(job_applications.source_email_id, EXCLUDED.source_email_id),
+                   updated_at = NOW()`,
+                [
+                  userId,
+                  companyId,
+                  jobId,
+                  job.company,
+                  job.title,
+                  cleanUrl,
+                  job.platform || 'Email',
+                  `Discovered from email: "${email.subject.slice(0, 80)}"`,
+                  score.matchScore,
+                  score.matchReasons,
+                  score.missingSkills,
+                  details.description,
+                  job.location || null,
+                  job.salaryRange || null,
+                  email.id,
+                  email.date,
+                ]
+              );
+
+              result.discovered++;
+            } else {
+              // Unconfirmed extraction: Do not add company to DB. Link existing if matches.
+              if (trimmedCompany && !['company', 'unknown'].includes(trimmedCompany.toLowerCase())) {
+                const compRes = await pool.query<{ id: string }>(
+                  `SELECT id FROM companies
+                   WHERE LOWER(name) = LOWER($1) AND (created_by = $2 OR created_by IS NULL)
+                   LIMIT 1`,
+                  [trimmedCompany, userId]
+                );
+                if (compRes.rowCount && compRes.rowCount > 0) {
+                  companyId = compRes.rows[0]!.id;
+                }
+              }
+
+              // Insert into `jobs` table with status 'unconfirmed'
+              let jobId: string | null = null;
+              try {
+                const jobInsert = await pool.query<{ id: string }>(
+                  `INSERT INTO jobs (title, job_url, company_id, status, created_by, notes)
+                   VALUES ($1, $2, $3, $4, $5, $6)
+                   RETURNING id`,
+                  [
+                    job.title || 'Unconfirmed Role',
+                    cleanUrl,
+                    companyId,
+                    'unconfirmed',
+                    userId,
+                    `Unconfirmed job from email alert: ${email.subject.slice(0, 100)}`
+                  ]
+                );
+                jobId = jobInsert.rows[0]?.id || null;
+              } catch {
+                // Ignore conflict
+              }
+
+              const unconfirmedNotes = [
+                `Unconfirmed opportunity from email: "${email.subject.slice(0, 80)}"`,
+                job.reasoning ? `AI note: ${job.reasoning}` : null,
+                !job.company || ['company', 'unknown'].includes(job.company.toLowerCase()) ? 'Company name needs verification.' : null,
+                !job.title ? 'Job title needs verification.' : null,
+                cleanUrl === '#' ? 'Job URL needs verification.' : null,
+              ].filter(Boolean).join('\n');
+
+              // Insert unconfirmed application with status 'unconfirmed'
+              await pool.query(
+                `INSERT INTO job_applications (
+                   user_id, company_id, job_id, company_name, job_title, job_url,
+                   platform, status, notes, match_score, match_reasons, missing_skills,
+                   description, location, salary_range, source_email_id, email_source, applied_at
+                 ) VALUES (
+                   $1, $2, $3, $4, $5, $6, $7, 'unconfirmed', $8, $9, $10, $11, $12, $13, $14, $15, 'email', $16
+                 )
+                 ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
+                 DO UPDATE SET
+                   notes = COALESCE(EXCLUDED.notes, job_applications.notes),
+                   updated_at = NOW()`,
+                [
+                  userId,
+                  companyId,
+                  jobId,
+                  job.company || 'Unknown Company',
+                  job.title || 'Job Opportunity',
+                  cleanUrl,
+                  job.platform || 'Email',
+                  unconfirmedNotes,
+                  null,
+                  ['Needs verification in Priority Action Center'],
+                  [],
+                  job.descriptionSnippet || null,
+                  job.location || null,
+                  job.salaryRange || null,
+                  email.id,
+                  email.date,
+                ]
+              );
+
+              result.discovered++;
+            }
           }
         } else if (intent === 'application_update') {
           const update = await extractApplicationUpdateDetails(email.subject, email.bodyText, email.from);

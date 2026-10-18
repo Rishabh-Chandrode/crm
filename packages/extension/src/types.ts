@@ -104,7 +104,7 @@ export interface UserProfile {
 }
 
 // Jobs & Job Opportunities
-export type JobStatus = 'open' | 'referral_requested' | 'applied' | 'interviewing' | 'closed';
+export type JobStatus = 'open' | 'referral_requested' | 'applied' | 'interviewing' | 'closed' | 'unconfirmed';
 
 export interface Job {
   id: string;
@@ -130,7 +130,22 @@ export type JobApplicationStatus =
   | 'rejected'
   | 'withdrawn'
   | 'closed'
-  | 'ineligible';
+  | 'ineligible'
+  | 'unconfirmed';
+
+export interface ExtractedJobOpportunity {
+  title: string;
+  company: string;
+  url: string;
+  platform?: string;
+  location?: string | null;
+  salaryRange?: string | null;
+  descriptionSnippet?: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  isConfident: boolean;
+  isComplete: boolean;
+  reasoning?: string;
+}
 
 export interface CandidatePreferences {
   target_roles: string[];

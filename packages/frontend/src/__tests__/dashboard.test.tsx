@@ -563,5 +563,124 @@ describe('DashboardPage Priority Action Center', () => {
       expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
     });
   });
+
+  it('renders unconfirmed job opportunities in Priority Action Center and allows reviewing and confirming them', async () => {
+    const mockStats = {
+      companies: 2,
+      prospects: 2,
+      templates: 1,
+      applications: 2,
+      emails: { total: 0, sent: 0, failed: 0, pending: 0, opened: 0, openRate: 0 },
+      unconfirmedApplications: [
+        {
+          id: 'app-unconfirmed-1',
+          user_id: 'u1',
+          company_name: 'Unknown Company',
+          job_title: 'Lead Architect',
+          status: 'unconfirmed',
+          platform: 'Email',
+          job_url: '#',
+          notes: 'Company name needs verification.',
+          created_at: new Date().toISOString(),
+          applied_at: new Date().toISOString(),
+        },
+      ],
+      unconfirmedCount: 1,
+      notAppliedApplications: [],
+      notAppliedCount: 0,
+      activeInterviewApplications: [],
+      activeInterviewCount: 0,
+      failedSends: [],
+      recentSends: [],
+      recentApplications: [],
+      upcomingSchedules: [],
+    };
+    (api.stats.get as any).mockResolvedValue(mockStats);
+    (api.applications.update as any).mockResolvedValue({
+      id: 'app-unconfirmed-1',
+      company_name: 'Netflix',
+      job_title: 'Lead Architect',
+      job_url: 'https://netflix.com/jobs/123',
+      status: 'not_applied',
+    });
+
+    render(<DashboardPage />);
+
+    // Check that Unconfirmed Jobs tab and badge are displayed
+    await waitFor(() => {
+      expect(screen.getByText('Unconfirmed Jobs (1)')).toBeInTheDocument();
+      expect(screen.getByText('Lead Architect')).toBeInTheDocument();
+      expect(screen.getByText('Company Needed')).toBeInTheDocument();
+      expect(screen.getByText('⚡ Unconfirmed Details')).toBeInTheDocument();
+    });
+
+    // Click Review & Confirm
+    const reviewBtn = screen.getByText('Review & Confirm');
+    fireEvent.click(reviewBtn);
+
+    // Modal should appear
+    expect(screen.getByText('Review & Confirm Job')).toBeInTheDocument();
+    const companyInput = screen.getByPlaceholderText('e.g. Stripe, Airbnb, Google');
+    fireEvent.change(companyInput, { target: { value: 'Netflix' } });
+
+    const submitBtn = screen.getByText('Confirm & Save to CRM');
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(api.applications.update).toHaveBeenCalledWith('app-unconfirmed-1', {
+        company_name: 'Netflix',
+        job_title: 'Lead Architect',
+        job_url: undefined,
+        status: 'not_applied',
+      });
+    });
+  });
+
+  it('allows dismissing unconfirmed jobs from Priority Action Center using Ineligible button', async () => {
+    const mockStats = {
+      companies: 2,
+      prospects: 2,
+      templates: 1,
+      applications: 2,
+      emails: { total: 0, sent: 0, failed: 0, pending: 0, opened: 0, openRate: 0 },
+      unconfirmedApplications: [
+        {
+          id: 'app-unconfirmed-2',
+          user_id: 'u1',
+          company_name: 'Unknown Company',
+          job_title: 'DevOps Engineer',
+          status: 'unconfirmed',
+          platform: 'Email',
+          job_url: '#',
+          created_at: new Date().toISOString(),
+          applied_at: new Date().toISOString(),
+        },
+      ],
+      unconfirmedCount: 1,
+      notAppliedApplications: [],
+      notAppliedCount: 0,
+      activeInterviewApplications: [],
+      activeInterviewCount: 0,
+      failedSends: [],
+      recentSends: [],
+      recentApplications: [],
+      upcomingSchedules: [],
+    };
+    (api.stats.get as any).mockResolvedValue(mockStats);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('DevOps Engineer')).toBeInTheDocument();
+    });
+
+    const ineligibleBtn = screen.getByText('✕ Ineligible');
+    fireEvent.click(ineligibleBtn);
+
+    await waitFor(() => {
+      expect(api.applications.update).toHaveBeenCalledWith('app-unconfirmed-2', { status: 'ineligible' });
+    });
+    expect(screen.queryByText('DevOps Engineer')).not.toBeInTheDocument();
+  });
 });
 

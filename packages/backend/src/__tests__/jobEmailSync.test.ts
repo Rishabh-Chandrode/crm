@@ -4,7 +4,11 @@ import express from 'express';
 import applicationsRouter from '../routes/applications.js';
 import { unwrapTrackingUrl, detectPlatformFromUrl, extractJobsFromEmail } from '../services/jobEmailSync/jobExtractor.js';
 import { htmlToPlainText } from '../services/jobEmailSync/htmlUtils.js';
-import { classifyEmail, extractApplicationUpdateDetails } from '../services/jobEmailSync/jobClassifierAndScorer.js';
+import {
+  classifyEmail,
+  extractApplicationUpdateDetails,
+  extractJobOpportunitiesWithAi,
+} from '../services/jobEmailSync/jobClassifierAndScorer.js';
 import { LlmProviderFactory } from '../services/llm/factory.js';
 import { systemLogger } from '../services/systemLogger.js';
 import { pool } from '../db/index.js';
@@ -184,6 +188,117 @@ describe('Job Email Sync & Extraction', () => {
       expect(details?.status).toBe('interview');
       expect(capturedPrompt.length).toBeGreaterThan(2500);
       expect(capturedOptions?.purpose).toBe('extract_application_update');
+
+      LlmProviderFactory.reset();
+    });
+
+    it('extractJobOpportunitiesWithAi passes full context and returns confident job opportunity when AI identifies verified company', async () => {
+      let capturedPrompt = '';
+      let capturedOptions: any = null;
+
+      LlmProviderFactory.setProvider({
+        name: 'mock',
+        isAvailable: () => true,
+        generateText: vi.fn(),
+        generateJson: vi.fn().mockImplementation(async (prompt, _sys, options) => {
+          capturedPrompt = prompt;
+          capturedOptions = options;
+          return {
+            jobs: [
+              {
+                title: 'Staff Infrastructure Engineer',
+                company: 'Datadog',
+                url: 'https://careers.datadoghq.com/detail/12345/?trk=email',
+                platform: 'Direct',
+                location: 'Remote',
+                salaryRange: '$200k - $240k',
+                descriptionSnippet: 'Leading cloud monitoring infrastructure scaling.',
+                confidence: 'high',
+                isConfident: true,
+                isComplete: true,
+                reasoning: 'Hiring company explicitly stated as Datadog with clean career portal URL.',
+              },
+            ],
+          };
+        }),
+      });
+
+      const html = '<div><p>Datadog is looking for a Staff Infrastructure Engineer!</p><a href="https://careers.datadoghq.com/detail/12345/?trk=email">Apply here</a></div>';
+      const jobs = await extractJobOpportunitiesWithAi(
+        'Exciting Engineering Role at Datadog',
+        'Datadog is looking for a Staff Infrastructure Engineer to lead cloud infrastructure.',
+        'careers@datadoghq.com',
+        html
+      );
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0]?.title).toBe('Staff Infrastructure Engineer');
+      expect(jobs[0]?.company).toBe('Datadog');
+      expect(jobs[0]?.url).toBe('https://careers.datadoghq.com/detail/12345/');
+      expect(jobs[0]?.isConfident).toBe(true);
+      expect(jobs[0]?.isComplete).toBe(true);
+      expect(capturedPrompt).toContain('careers@datadoghq.com');
+      expect(capturedPrompt).toContain('Exciting Engineering Role at Datadog');
+      expect(capturedOptions?.purpose).toBe('extract_job_opportunities');
+
+      LlmProviderFactory.reset();
+    });
+
+    it('extractJobOpportunitiesWithAi marks isConfident and isComplete false when company name is ambiguous or generic', async () => {
+      LlmProviderFactory.setProvider({
+        name: 'mock',
+        isAvailable: () => true,
+        generateText: vi.fn(),
+        generateJson: vi.fn().mockResolvedValue({
+          jobs: [
+            {
+              title: 'Software Developer',
+              company: 'Company',
+              url: 'https://example.com/apply',
+              confidence: 'low',
+              isConfident: false,
+              isComplete: false,
+              reasoning: 'Newsletter does not specify client employer name.',
+            },
+          ],
+        }),
+      });
+
+      const jobs = await extractJobOpportunitiesWithAi(
+        'Top Jobs in Tech This Week',
+        'Check out open software developer openings across our network.',
+        'newsletter@jobboard.com',
+        '<a href="https://example.com/apply">Apply Now</a>'
+      );
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0]?.company).toBe('Unknown Company');
+      expect(jobs[0]?.isConfident).toBe(false);
+      expect(jobs[0]?.isComplete).toBe(false);
+
+      LlmProviderFactory.reset();
+    });
+
+    it('extractJobOpportunitiesWithAi falls back to heuristic when LLM provider throws error', async () => {
+      LlmProviderFactory.setProvider({
+        name: 'mock',
+        isAvailable: () => true,
+        generateText: vi.fn(),
+        generateJson: vi.fn().mockRejectedValue(new Error('LLM rate limited')),
+      });
+
+      const html = '<a href="https://boards.greenhouse.io/airbnb/jobs/999">Software Engineer at Airbnb</a>';
+      const jobs = await extractJobOpportunitiesWithAi(
+        'Job Alert: Software Engineer at Airbnb',
+        'Software Engineer at Airbnb: https://boards.greenhouse.io/airbnb/jobs/999',
+        'alerts@linkedin.com',
+        html
+      );
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0]?.company).toBe('Airbnb');
+      expect(jobs[0]?.title).toBe('Software Engineer');
+      expect(jobs[0]?.isConfident).toBe(false); // Heuristic fallback is unconfirmed
 
       LlmProviderFactory.reset();
     });

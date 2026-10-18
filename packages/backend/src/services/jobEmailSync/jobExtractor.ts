@@ -164,3 +164,73 @@ export function extractJobsFromEmail(
 
   return jobs;
 }
+
+export interface ExtractedJobCandidateLink {
+  url: string;
+  text: string;
+}
+
+export function extractCandidateLinksFromHtml(html: string): ExtractedJobCandidateLink[] {
+  const links: ExtractedJobCandidateLink[] = [];
+  const seen = new Set<string>();
+  const linkRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gis;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkRegex.exec(html)) !== null) {
+    const rawHref = match[1];
+    const linkText = (match[2] || '').replace(/<[^>]+>/g, '').trim();
+    if (!rawHref || !linkText || linkText.length < 2) continue;
+
+    const lowerText = linkText.toLowerCase();
+    if (
+      lowerText.includes('unsubscribe') ||
+      lowerText.includes('privacy') ||
+      lowerText.includes('terms') ||
+      lowerText.includes('manage preferences') ||
+      lowerText.includes('help center') ||
+      lowerText.includes('view in browser')
+    ) {
+      continue;
+    }
+
+    const cleanUrl = unwrapTrackingUrl(rawHref);
+    if (!cleanUrl.startsWith('http') || seen.has(cleanUrl)) continue;
+    seen.add(cleanUrl);
+
+    links.push({ url: cleanUrl, text: linkText });
+  }
+
+  return links;
+}
+
+export function extractJobOpportunitiesHeuristic(
+  subject: string,
+  bodyText: string,
+  fromHeader: string,
+  bodyHtml?: string
+): import('../../types/index.js').ExtractedJobOpportunity[] {
+  const heuristicJobs = extractJobsFromEmail(subject, bodyHtml || '', bodyText);
+
+  return heuristicJobs.map((j) => {
+    const company = (j.companyName || '').trim();
+    const isGenericCompany = !company || ['company', 'unknown', 'various', 'client', 'confidential'].includes(company.toLowerCase());
+    const hasValidUrl = Boolean(j.jobUrl && j.jobUrl !== '#' && j.jobUrl.startsWith('http'));
+    const isComplete = Boolean(!isGenericCompany && j.title && hasValidUrl);
+
+    return {
+      title: j.title || 'Job Opportunity',
+      company: isGenericCompany ? 'Unknown Company' : company,
+      url: j.jobUrl || '#',
+      platform: j.platform || 'Email',
+      location: j.location || null,
+      salaryRange: j.salaryRange || null,
+      descriptionSnippet: j.snippet || null,
+      confidence: isGenericCompany ? 'low' : 'medium',
+      isConfident: false, // Heuristic cannot guarantee confidence without AI verification
+      isComplete,
+      reasoning: isGenericCompany
+        ? 'Company could not be accurately inferred from link text alone.'
+        : 'Inferred via heuristic anchor text matching.',
+    };
+  });
+}

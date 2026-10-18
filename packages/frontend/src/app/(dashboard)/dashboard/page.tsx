@@ -29,6 +29,8 @@ interface ExtendedStats {
   notAppliedCount?: number;
   activeInterviewApplications?: JobApplication[];
   activeInterviewCount?: number;
+  unconfirmedApplications?: JobApplication[];
+  unconfirmedCount?: number;
   failedSends?: EmailSend[];
   pendingProspects?: PendingProspect[];
   pendingProspectCount?: number;
@@ -39,7 +41,7 @@ interface ExtendedStats {
   dailyActivity?: { day: string; sent: number; failed: number }[];
 }
 
-type ActionFilter = 'all' | 'manual_prospect' | 'referral_sent' | 'ready_to_apply' | 'not_applied' | 'interview' | 'failed';
+type ActionFilter = 'all' | 'unconfirmed' | 'manual_prospect' | 'referral_sent' | 'ready_to_apply' | 'not_applied' | 'interview' | 'failed';
 
 function readStoredIds(key: string): string[] {
   try {
@@ -68,6 +70,8 @@ const APP_STATUS_CONFIG: Record<string, { label: string; color: string; dotColor
   offer: { label: 'Offer', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20', dotColor: 'bg-emerald-500' },
   rejected: { label: 'Rejected', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20', dotColor: 'bg-rose-500' },
   withdrawn: { label: 'Withdrawn', color: 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', dotColor: 'bg-zinc-400' },
+  ineligible: { label: 'Ineligible', color: 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', dotColor: 'bg-zinc-400' },
+  unconfirmed: { label: 'Unconfirmed', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20', dotColor: 'bg-amber-500' },
 };
 
 export default function DashboardPage() {
@@ -163,8 +167,14 @@ export default function DashboardPage() {
     }
   };
 
+  const [confirmingApp, setConfirmingApp] = useState<JobApplication | null>(null);
+  const [confirmCompany, setConfirmCompany] = useState('');
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmUrl, setConfirmUrl] = useState('');
+  const [savingConfirm, setSavingConfirm] = useState(false);
+
   // Handle removing/dismissing an action item from the priority queue
-  const handleDismissAction = async (type: 'ready' | 'referral_sent' | 'not_applied' | 'interview' | 'failed' | 'manual_prospect', id: string) => {
+  const handleDismissAction = async (type: 'ready' | 'referral_sent' | 'not_applied' | 'interview' | 'failed' | 'manual_prospect' | 'unconfirmed', id: string) => {
     try {
       if (type === 'manual_prospect') {
         await api.stats.dismiss([], [], [id]);
@@ -174,6 +184,20 @@ export default function DashboardPage() {
             ...prev,
             pendingProspects: prev.pendingProspects?.filter((p) => p.id !== id),
             pendingProspectCount: Math.max(0, (prev.pendingProspectCount ?? 1) - 1),
+          };
+        });
+        return;
+      }
+
+      if (type === 'unconfirmed') {
+        setActioningId(id);
+        await api.applications.update(id, { status: 'ineligible' });
+        setStats((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            unconfirmedApplications: prev.unconfirmedApplications?.filter((a) => a.id !== id),
+            unconfirmedCount: Math.max(0, (prev.unconfirmedCount ?? 1) - 1),
           };
         });
         return;
@@ -215,14 +239,70 @@ export default function DashboardPage() {
     }
   };
 
+  const handleConfirmApplication = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmingApp) return;
+    try {
+      setSavingConfirm(true);
+      const updated = await api.applications.update(confirmingApp.id, {
+        company_name: confirmCompany.trim(),
+        job_title: confirmTitle.trim(),
+        job_url: confirmUrl.trim() || undefined,
+        status: 'not_applied',
+      });
+      setStats((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          unconfirmedApplications: prev.unconfirmedApplications?.filter((a) => a.id !== confirmingApp.id),
+          unconfirmedCount: Math.max(0, (prev.unconfirmedCount ?? 1) - 1),
+          notAppliedApplications: [updated as unknown as JobApplication, ...(prev.notAppliedApplications || [])],
+          notAppliedCount: (prev.notAppliedCount ?? 0) + 1,
+        };
+      });
+      setConfirmingApp(null);
+    } catch (err) {
+      console.error('Failed to confirm application:', err);
+    } finally {
+      setSavingConfirm(false);
+    }
+  };
+
+  const handleQuickConfirm = async (app: JobApplication) => {
+    try {
+      setActioningId(app.id);
+      const updated = await api.applications.update(app.id, {
+        company_name: app.company_name,
+        job_title: app.job_title,
+        job_url: app.job_url,
+        status: 'not_applied',
+      });
+      setStats((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          unconfirmedApplications: prev.unconfirmedApplications?.filter((a) => a.id !== app.id),
+          unconfirmedCount: Math.max(0, (prev.unconfirmedCount ?? 1) - 1),
+          notAppliedApplications: [updated as unknown as JobApplication, ...(prev.notAppliedApplications || [])],
+          notAppliedCount: (prev.notAppliedCount ?? 0) + 1,
+        };
+      });
+    } catch (err) {
+      console.error('Failed to quick confirm application:', err);
+    } finally {
+      setActioningId(null);
+    }
+  };
+
   // Action items counts
   const pendingCount = stats?.pendingProspectCount ?? stats?.pendingProspects?.length ?? 0;
   const readyCount = stats?.readyToApplyCount ?? stats?.readyToApplyApplications?.length ?? 0;
   const referralSentCount = stats?.referralSentCount ?? stats?.referralSentApplications?.length ?? 0;
   const notAppliedCount = stats?.notAppliedCount ?? stats?.notAppliedApplications?.length ?? 0;
   const interviewCount = stats?.activeInterviewCount ?? stats?.activeInterviewApplications?.length ?? 0;
+  const unconfirmedCount = stats?.unconfirmedCount ?? stats?.unconfirmedApplications?.length ?? 0;
   const failedCount = stats?.failedSends?.length ?? (stats?.emails?.failed ? Math.min(stats.emails.failed, 3) : 0);
-  const totalActionCount = pendingCount + readyCount + referralSentCount + notAppliedCount + interviewCount + (stats?.failedSends?.length ?? 0);
+  const totalActionCount = pendingCount + readyCount + referralSentCount + notAppliedCount + interviewCount + unconfirmedCount + (stats?.failedSends?.length ?? 0);
 
   if (loading) {
     return (
@@ -302,6 +382,20 @@ export default function DashboardPage() {
             >
               All Actions ({totalActionCount})
             </button>
+
+            {unconfirmedCount > 0 && (
+              <button
+                onClick={() => setActionFilter('unconfirmed')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  actionFilter === 'unconfirmed'
+                    ? 'bg-white dark:bg-zinc-900 text-amber-800 dark:text-amber-200 shadow-2xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Unconfirmed Jobs ({unconfirmedCount})
+              </button>
+            )}
 
             {pendingCount > 0 && (
               <button
@@ -387,6 +481,80 @@ export default function DashboardPage() {
 
         {/* Action Items List */}
         <div className="space-y-3">
+          {/* Unconfirmed Job Opportunities (AI missing full details / unverified company) */}
+          {(actionFilter === 'all' || actionFilter === 'unconfirmed') &&
+            stats.unconfirmedApplications &&
+            stats.unconfirmedApplications.map((app) => {
+              const hasGenericCompany = !app.company_name || ['company', 'unknown company', 'unknown'].includes(app.company_name.toLowerCase());
+              return (
+                <div
+                  key={`unconfirmed-${app.id}`}
+                  className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-amber-500/60 relative group"
+                >
+                  <div className="min-w-0 space-y-1 pr-8 md:pr-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-bold ${hasGenericCompany ? 'text-amber-800 dark:text-amber-300 italic' : 'text-zinc-900 dark:text-zinc-100'}`}>
+                        {hasGenericCompany ? 'Company Needed' : app.company_name}
+                      </span>
+                      <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{app.job_title}</span>
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                        ⚡ Unconfirmed Details
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      <span>{app.notes || 'AI could not verify full details from email · Confirmation needed'}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
+                    {app.job_url && app.job_url !== '#' && (
+                      <a
+                        href={app.job_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-secondary text-xs inline-flex items-center justify-center gap-1.5 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg w-full sm:w-auto text-center font-medium"
+                      >
+                        Open Link
+                        <svg className="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                    <button
+                      onClick={() => {
+                        setConfirmingApp(app);
+                        setConfirmCompany(hasGenericCompany ? '' : app.company_name);
+                        setConfirmTitle(app.job_title);
+                        setConfirmUrl(app.job_url === '#' ? '' : app.job_url);
+                      }}
+                      className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center"
+                    >
+                      Review & Confirm
+                    </button>
+                    {!hasGenericCompany && app.job_url && app.job_url !== '#' && (
+                      <button
+                        onClick={() => handleQuickConfirm(app)}
+                        disabled={actioningId === app.id}
+                        className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center"
+                      >
+                        ✓ Confirm
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDismissAction('unconfirmed', app.id)}
+                      disabled={actioningId === app.id}
+                      className="inline-flex items-center justify-center gap-1 text-xs font-semibold text-zinc-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 bg-zinc-100 hover:bg-rose-500/10 dark:bg-zinc-800 dark:hover:bg-rose-500/20 border border-zinc-200 dark:border-zinc-700/80 hover:border-rose-500/30 py-2 px-2.5 sm:py-1.5 sm:px-3 rounded-lg transition-colors cursor-pointer w-full sm:w-auto text-center"
+                      title="Dismiss from action queue"
+                    >
+                      ✕ Ineligible
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
           {/* Manual Prospect Entries (Missing Email from LinkedIn Share) */}
           {(actionFilter === 'all' || actionFilter === 'manual_prospect') &&
             stats.pendingProspects &&
@@ -1018,6 +1186,98 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Review & Confirm Unconfirmed Job Modal */}
+      {confirmingApp && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="card p-6 max-w-lg w-full space-y-4 border-zinc-200 dark:border-zinc-800 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <div>
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                  <span className="text-amber-500">⚡</span> Review & Confirm Job
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Confirm company name, role title, and listing URL to promote this to your active CRM applications.
+                </p>
+              </div>
+              <button
+                onClick={() => setConfirmingApp(null)}
+                className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg p-1 cursor-pointer"
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmApplication} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Company Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={confirmCompany}
+                  onChange={(e) => setConfirmCompany(e.target.value)}
+                  placeholder="e.g. Stripe, Airbnb, Google"
+                  className="input-field text-sm w-full"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Job Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={confirmTitle}
+                  onChange={(e) => setConfirmTitle(e.target.value)}
+                  placeholder="e.g. Senior Backend Engineer"
+                  className="input-field text-sm w-full"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Job / Application URL
+                </label>
+                <input
+                  type="url"
+                  value={confirmUrl}
+                  onChange={(e) => setConfirmUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="input-field text-sm w-full"
+                />
+              </div>
+
+              {confirmingApp.notes && (
+                <div className="p-2.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-[11px] text-zinc-600 dark:text-zinc-400 space-y-1 max-h-32 overflow-y-auto">
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">Email Context:</span>
+                  <p className="whitespace-pre-line">{confirmingApp.notes}</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingApp(null)}
+                  className="btn-secondary text-xs py-2 px-3.5 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingConfirm || !confirmCompany.trim() || !confirmTitle.trim()}
+                  className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {savingConfirm ? 'Saving...' : 'Confirm & Save to CRM'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

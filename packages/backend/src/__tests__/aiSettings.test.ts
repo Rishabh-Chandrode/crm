@@ -48,6 +48,7 @@ describe('AI & LLM Admin Settings & Telemetry API', () => {
     });
 
     it('returns 200 and settings when user is admin', async () => {
+      vi.spyOn(pool, 'query').mockResolvedValue({ rows: [], rowCount: 0 } as any);
       const res = await request(app)
         .get('/api/ai-settings')
         .set('Authorization', `Bearer ${adminToken}`);
@@ -166,6 +167,7 @@ describe('AI & LLM Admin Settings & Telemetry API', () => {
         }),
       } as unknown as Response);
 
+      vi.spyOn(pool, 'query').mockResolvedValue({ rows: [], rowCount: 0 } as any);
       const res = await request(app)
         .post('/api/ai-settings/test')
         .set('Authorization', `Bearer ${adminToken}`)

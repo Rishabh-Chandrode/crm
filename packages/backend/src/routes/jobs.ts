@@ -11,7 +11,7 @@ import {
 
 const router: ReturnType<typeof Router> = Router();
 
-const VALID_JOB_STATUSES = ['open', 'referral_requested', 'applied', 'interviewing', 'closed'];
+const VALID_JOB_STATUSES = ['open', 'referral_requested', 'applied', 'interviewing', 'closed', 'unconfirmed'];
 
 // GET /api/jobs
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {

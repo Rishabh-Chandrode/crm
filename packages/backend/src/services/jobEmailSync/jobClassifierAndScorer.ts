@@ -7,7 +7,119 @@ import {
   type ApplicationUpdateDetails,
   type JobMatchDetails,
 } from '../llm/heuristicFallback.js';
-import type { CandidatePreferences, JobApplicationStatus } from '../../types/index.js';
+import type { CandidatePreferences, JobApplicationStatus, ExtractedJobOpportunity } from '../../types/index.js';
+import {
+  unwrapTrackingUrl,
+  detectPlatformFromUrl,
+  extractCandidateLinksFromHtml,
+  extractJobOpportunitiesHeuristic,
+} from './jobExtractor.js';
+
+export async function extractJobOpportunitiesWithAi(
+  subject: string,
+  bodyText: string,
+  fromHeader: string,
+  bodyHtml?: string
+): Promise<ExtractedJobOpportunity[]> {
+  const candidateLinks = bodyHtml ? extractCandidateLinksFromHtml(bodyHtml) : [];
+  const provider = LlmProviderFactory.getProvider();
+
+  if (provider.isAvailable()) {
+    try {
+      const linksContext = candidateLinks
+        .slice(0, 15)
+        .map((l, idx) => `[Link ${idx + 1}] Text: "${l.text}" | URL: ${l.url}`)
+        .join('\n');
+
+      const prompt = `You are an expert AI recruiting assistant specializing in high-accuracy job data extraction.
+Analyze this job email and extract all open job opportunities mentioned in it.
+
+Email Subject: ${subject}
+From: ${fromHeader}
+Candidate Links in Email:
+${linksContext || 'No candidate links identified from HTML.'}
+
+Email Content:
+${bodyText.slice(0, 8000)}
+
+Instructions:
+1. For each opportunity:
+   - "title": Extract the specific job title (e.g. "Senior Software Engineer", "Product Manager").
+   - "company": Extract the ACTUAL hiring company.
+     * CRITICAL: Do NOT return job board or newsletter names like "LinkedIn", "Naukri", "Indeed", "Glassdoor", "ZipRecruiter", "Wellfound", "Google Alerts", or generic placeholders like "Company", "Client", or "Unknown" unless that is literally the hiring employer.
+     * If this is a job alert from LinkedIn/Naukri recommending a role at "Stripe", the company is "Stripe".
+     * If the company cannot be determined with high certainty, set isConfident: false.
+   - "url": The direct job post or application URL. Match with one of the Candidate Links if applicable, or extract from the text. If no URL exists, return "#".
+   - "platform": Platform name (e.g. "LinkedIn", "Greenhouse", "Lever", "Naukri", "Workday", "Ashby", "Email").
+   - "location": Location or "Remote" if specified, or null.
+   - "salaryRange": Salary/compensation if specified, or null.
+   - "descriptionSnippet": 1-2 sentence summary of requirements or opening, or null.
+   - "confidence": "high" | "medium" | "low".
+   - "isConfident": boolean. Set to true ONLY if you are confident that the hiring company name, job title, and URL are accurate and represent the true job opportunity. If company is ambiguous or uncertain, set isConfident: false.
+   - "isComplete": boolean. Set to true ONLY if all three: (a) a specific job title, (b) a verified specific hiring company name, and (c) a valid job URL (not "#") are present. Otherwise set isComplete: false.
+   - "reasoning": 1 sentence explaining the extraction and confidence.
+
+Return strictly valid JSON:
+{
+  "jobs": [
+    {
+      "title": string,
+      "company": string,
+      "url": string,
+      "platform": string,
+      "location": string | null,
+      "salaryRange": string | null,
+      "descriptionSnippet": string | null,
+      "confidence": "high" | "medium" | "low",
+      "isConfident": boolean,
+      "isComplete": boolean,
+      "reasoning": string
+    }
+  ]
+}`;
+
+      const res = await provider.generateJson<{ jobs?: ExtractedJobOpportunity[] }>(
+        prompt,
+        'You are an expert AI recruiting assistant specializing in high-accuracy job data extraction. Return strictly valid JSON.',
+        { purpose: 'extract_job_opportunities' }
+      );
+
+      if (res && Array.isArray(res.jobs) && res.jobs.length > 0) {
+        return res.jobs.map((job) => {
+          const rawUrl = job.url?.trim() || '#';
+          const cleanUrl = rawUrl.startsWith('http') ? unwrapTrackingUrl(rawUrl) : rawUrl;
+          const platform = job.platform || (cleanUrl.startsWith('http') ? detectPlatformFromUrl(cleanUrl) : 'Email');
+          const company = (job.company || '').trim();
+          const title = (job.title || '').trim();
+          const isGenericCompany = !company || ['company', 'unknown', 'various', 'client', 'confidential'].includes(company.toLowerCase());
+          const isGenericTitle = !title || ['job', 'job opportunity', 'opening', 'role'].includes(title.toLowerCase());
+          const hasValidUrl = cleanUrl.startsWith('http') && cleanUrl !== '#';
+
+          const isConfident = Boolean(job.isConfident && !isGenericCompany && !isGenericTitle && (job.confidence === 'high' || job.confidence === 'medium'));
+          const isComplete = Boolean(job.isComplete && !isGenericCompany && !isGenericTitle && hasValidUrl);
+
+          return {
+            title: title || 'Job Opportunity',
+            company: isGenericCompany ? 'Unknown Company' : company,
+            url: cleanUrl,
+            platform,
+            location: job.location || null,
+            salaryRange: job.salaryRange || null,
+            descriptionSnippet: job.descriptionSnippet || null,
+            confidence: job.confidence || (isConfident ? 'high' : 'low'),
+            isConfident,
+            isComplete,
+            reasoning: job.reasoning || '',
+          };
+        });
+      }
+    } catch {
+      // Fallback to heuristic
+    }
+  }
+
+  return extractJobOpportunitiesHeuristic(subject, bodyText, fromHeader, bodyHtml);
+}
 
 export async function classifyEmail(
   subject: string,

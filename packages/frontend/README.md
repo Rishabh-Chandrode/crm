@@ -17,7 +17,7 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Priority Action Center. Features responsive 2-column grid action buttons on small screens, an explicit ✕ Ineligible button for saved/AI-synced opportunities, corner dismiss controls, error recovery view with retry button, and automatic telemetry ingestion via api.logs.ingest. Dismissals are stored on the server; handles ready-to-apply, referral-sent, saved-jobs, active-interviews, failed-sends, and manual prospect entry items.
+│       ├── dashboard/page.tsx     # Priority Action Center. Features responsive 2-column grid action buttons on small screens, an explicit ✕ Ineligible button for saved/AI-synced opportunities, corner dismiss controls, error recovery view with retry button, automatic telemetry ingestion via api.logs.ingest, and an Unconfirmed Jobs review & confirm modal workflow. Dismissals are stored on the server; handles ready-to-apply, referral-sent, saved-jobs, active-interviews, unconfirmed-jobs, failed-sends, and manual prospect entry items.
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination). Supports ?new=true query parameters to prefill and open create modal, auto-dismissing pending prospects upon save.
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
@@ -27,7 +27,7 @@ src/
 │       ├── scheduled/page.tsx     # Email schedule list + queue management + cancel
 │       ├── jobs/page.tsx          # Redirects /jobs → /applications
 │       ├── share/page.tsx         # Receives an Android share-target link, offers company and role chips, and saves an application. For LinkedIn profiles, tries Prospeo then Apollo; if neither gives an email, routes to manual entry in Priority Action Center without placeholder emails.
-│       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + stages + referral outreach across active and terminal statuses (including ineligible, closed, and rejected), email job sync, and fit scoring linked to profile job preferences
+│       ├── applications/page.tsx  # Unified Job applications & referral outreach tracker — pipeline + stages + referral outreach across active, unconfirmed, and terminal statuses (including unconfirmed, ineligible, closed, and rejected), email job sync, and fit scoring linked to profile job preferences
 │       ├── profile/page.tsx       # Profile editor — personal, job preferences (target roles, tech skills, locations, remote toggle, compensation, and criteria used for email job sync & scoring), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables, and Web Push notifications for scheduled email failures & expired authorizations
 │       ├── users/page.tsx         # Admin-only user management

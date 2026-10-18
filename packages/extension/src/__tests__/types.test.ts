@@ -321,6 +321,23 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(status).toBe('ineligible');
   });
 
+  it('validates JobStatus, JobApplicationStatus, and ExtractedJobOpportunity contracts including unconfirmed', () => {
+    const appStatus: extensionTypes.JobApplicationStatus = 'unconfirmed';
+    const jobStatus: extensionTypes.JobStatus = 'unconfirmed';
+    const extracted: extensionTypes.ExtractedJobOpportunity = {
+      title: 'Senior Software Engineer',
+      company: 'Acme Corp',
+      url: 'https://acme.com/jobs/1',
+      confidence: 'high',
+      isConfident: true,
+      isComplete: true,
+    };
+    expect(appStatus).toBe('unconfirmed');
+    expect(jobStatus).toBe('unconfirmed');
+    expect(extracted.isConfident).toBe(true);
+    expect(extracted.title).toBe('Senior Software Engineer');
+  });
+
   it('validates LlmConfigSettings and LlmProviderType contracts in Trinity sync', () => {
     const provider: extensionTypes.LlmProviderType = 'gemini';
     const config: extensionTypes.LlmConfigSettings = {

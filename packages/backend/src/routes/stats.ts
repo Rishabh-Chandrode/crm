@@ -46,6 +46,7 @@ router.get('/', async (req, res, next) => {
       activeInterviewsRes,
       failedSendsRes,
       pendingProspectsRes,
+      unconfirmedAppsRes,
     ] = await Promise.all([
       pool.query<{ companies: string; prospects: string; templates: string; applications: string }>(
         isAdmin
@@ -229,6 +230,24 @@ router.get('/', async (req, res, next) => {
          LIMIT 10`,
         p
       ),
+      pool.query(
+        `SELECT ja.*,
+                COALESCE(em.email_count, 0)::int AS email_count
+         FROM job_applications ja
+         LEFT JOIN (
+           SELECT es.job_id,
+                  COUNT(es.id) FILTER (WHERE es.status = 'sent') AS email_count
+           FROM email_sends es
+           WHERE es.job_id IS NOT NULL
+           ${sentByOwner}
+           GROUP BY es.job_id
+         ) em ON em.job_id = ja.job_id
+         WHERE ja.status = 'unconfirmed'
+           ${isAdmin ? '' : 'AND ja.user_id = $1'}
+         ORDER BY ja.created_at DESC
+         LIMIT 10`,
+        p
+      ),
     ]);
 
     const counts = countsRes.rows[0] ?? { companies: '0', prospects: '0', templates: '0', applications: '0' };
@@ -265,6 +284,8 @@ router.get('/', async (req, res, next) => {
       notAppliedCount: notAppliedAppsRes.rows.length,
       activeInterviewApplications: activeInterviewsRes.rows,
       activeInterviewCount: activeInterviewsRes.rows.length,
+      unconfirmedApplications: unconfirmedAppsRes.rows,
+      unconfirmedCount: unconfirmedAppsRes.rows.length,
       failedSends: failedSendsRes.rows,
       pendingProspects: pendingProspectsRes.rows,
       pendingProspectCount: pendingProspectsRes.rows.length,

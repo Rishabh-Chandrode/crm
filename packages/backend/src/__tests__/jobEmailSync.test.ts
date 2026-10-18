@@ -6,6 +6,7 @@ import { unwrapTrackingUrl, detectPlatformFromUrl, extractJobsFromEmail } from '
 import { htmlToPlainText } from '../services/jobEmailSync/htmlUtils.js';
 import { classifyEmail, extractApplicationUpdateDetails } from '../services/jobEmailSync/jobClassifierAndScorer.js';
 import { LlmProviderFactory } from '../services/llm/factory.js';
+import { systemLogger } from '../services/systemLogger.js';
 import { pool } from '../db/index.js';
 
 vi.mock('../db/index.js', () => ({
@@ -256,6 +257,80 @@ describe('Job Email Sync & Extraction', () => {
       expect(res.body.data.preferred_locations).toContain('San Francisco, CA');
       expect(res.body.data.min_experience_years).toBe(4);
       expect(res.body.data.min_salary).toBe('$130k');
+    });
+
+    it('POST /api/applications creates a new application, auto-resolving company and linking company_id', async () => {
+      (pool.query as any)
+        // 1. check company
+        .mockResolvedValueOnce({ rows: [{ id: 'company-uuid-1' }] })
+        // 2. insert jobs
+        .mockResolvedValueOnce({ rows: [{ id: 'job-uuid-1' }] })
+        // 3. check existing application
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+        // 4. insert job_applications
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'app-uuid-1',
+            user_id: 'test-user-uuid',
+            company_name: 'Stripe',
+            job_title: 'Backend Engineer',
+            job_url: 'https://stripe.com/jobs/123',
+            platform: 'Generic',
+            status: 'not_applied',
+            company_id: 'company-uuid-1',
+            job_id: 'job-uuid-1',
+          }],
+        });
+
+      const res = await request(app)
+        .post('/api/applications')
+        .send({
+          company_name: 'Stripe',
+          job_title: 'Backend Engineer',
+          job_url: 'https://stripe.com/jobs/123',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBe('app-uuid-1');
+      expect(res.body.company_id).toBe('company-uuid-1');
+      expect(res.body.company_name).toBe('Stripe');
+    });
+
+    it('POST /api/applications returns 400 when required fields are missing', async () => {
+      const res = await request(app)
+        .post('/api/applications')
+        .send({
+          company_name: 'Stripe',
+          // missing job_title and job_url
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('required');
+    });
+
+    it('POST /api/applications logs error to systemLogger and returns 500 when database query fails', async () => {
+      const errorSpy = vi.spyOn(systemLogger, 'error').mockImplementation(() => {});
+      (pool.query as any).mockRejectedValueOnce(new Error('relation job_applications error'));
+
+      const res = await request(app)
+        .post('/api/applications')
+        .send({
+          company_name: 'Stripe',
+          job_title: 'Engineer',
+          job_url: 'https://stripe.com/jobs/1',
+        });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('relation job_applications error');
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Failed to create/track application',
+        expect.any(Error),
+        expect.objectContaining({
+          source: 'backend',
+          statusCode: 500,
+          userId: 'test-user-uuid',
+        })
+      );
     });
   });
 });

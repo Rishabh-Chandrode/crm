@@ -282,5 +282,49 @@ describe('System Logging & Observability', () => {
       expect(res.status).toBe(200);
       expect(res.body.deleted).toBe(12);
     });
+
+    it('allows authenticated users to ingest client errors at POST /api/logs/ingest', async () => {
+      const logSpy = vi.spyOn(systemLogger, 'log').mockResolvedValueOnce();
+
+      const res = await request(app)
+        .post('/api/logs/ingest')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          level: 'error',
+          source: 'extension',
+          message: 'Extension job tracking failed: Network timeout',
+          context: { company: 'Acme', title: 'Engineer' },
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(logSpy).toHaveBeenCalledWith(
+        'error',
+        'Extension job tracking failed: Network timeout',
+        expect.objectContaining({
+          source: 'extension',
+          userId: normalUser.id,
+          context: { company: 'Acme', title: 'Engineer' },
+        })
+      );
+    });
+
+    it('rejects unauthenticated requests to POST /api/logs/ingest with 401', async () => {
+      const res = await request(app)
+        .post('/api/logs/ingest')
+        .send({ message: 'some error' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects POST /api/logs/ingest when message is missing with 400', async () => {
+      const res = await request(app)
+        .post('/api/logs/ingest')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('message is required');
+    });
   });
 });

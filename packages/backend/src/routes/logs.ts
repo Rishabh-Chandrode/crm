@@ -5,7 +5,52 @@ import type { SystemLogLevel } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
 
-// Protect all logs endpoints for admin role only
+/**
+ * POST /api/logs/ingest
+ * Ingest error or telemetry logs from frontend or extension.
+ * Requires authenticated user (accessible to both admin and standard users).
+ */
+router.post('/ingest', authMiddleware, async (req, res, next) => {
+  try {
+    const { level, message, source, context, errorName, stackTrace } = req.body as {
+      level?: SystemLogLevel;
+      message?: string;
+      source?: string;
+      context?: Record<string, unknown>;
+      errorName?: string;
+      stackTrace?: string;
+    };
+
+    if (!message || typeof message !== 'string') {
+      res.status(400).json({ error: 'message is required' });
+      return;
+    }
+
+    const validLevels: SystemLogLevel[] = ['info', 'warn', 'error', 'debug'];
+    const resolvedLevel: SystemLogLevel = validLevels.includes(level as SystemLogLevel)
+      ? (level as SystemLogLevel)
+      : 'error';
+    const resolvedSource = source && typeof source === 'string' ? source.slice(0, 50) : 'client';
+
+    await systemLogger.log(resolvedLevel, message.slice(0, 1000), {
+      source: resolvedSource,
+      context,
+      errorName,
+      stackTrace,
+      userId: req.user?.id,
+      ip: req.ip,
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: resolvedLevel === 'error' ? 500 : 200,
+    });
+
+    res.status(201).json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Protect all management logs endpoints for admin role only
 router.use(authMiddleware, requireRole('admin'));
 
 /**

@@ -322,6 +322,7 @@ export async function migrate(): Promise<void> {
     CREATE TABLE IF NOT EXISTS job_applications (
       id           UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id      UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      company_id   UUID         REFERENCES companies(id) ON DELETE SET NULL,
       company_name TEXT         NOT NULL,
       job_title    TEXT         NOT NULL,
       job_url      TEXT         NOT NULL,
@@ -376,6 +377,14 @@ export async function migrate(): Promise<void> {
   await pool.query(`
     ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS idx_job_applications_job_id ON job_applications(job_id);
+    ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS idx_job_applications_company_id ON job_applications(company_id);
+    UPDATE job_applications ja
+    SET company_id = c.id
+    FROM companies c
+    WHERE ja.company_id IS NULL
+      AND LOWER(c.name) = LOWER(ja.company_name)
+      AND (c.created_by = ja.user_id OR c.created_by IS NULL);
   `);
   await pool.query(`
     ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;

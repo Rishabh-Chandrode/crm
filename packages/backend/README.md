@@ -383,6 +383,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 |--------|------|---------------|----------|
 | `GET` | `/api/logs` | **Query:** `level?` (`error` \| `warn` \| `info` \| `debug`), `source?`, `search?`, `startDate?`, `endDate?`, `page?`, `limit?` | `{ data: SystemLog[], total: number, page: number, limit: number, totalPages: number }` |
 | `GET` | `/api/logs/stats` | — | `{ total: number, errors: number, warnings: number, info: number, last24Hours: number }` |
+| `POST` | `/api/logs/ingest` | `{ level: 'error' \| 'warn' \| 'info' \| 'debug', message: string, source?: string, meta?: any }` | `{ success: true }` — client/extension error reporting (authenticated users). |
 | `DELETE` | `/api/logs` | **Query:** `beforeDate?` (ISO date string) | `{ deleted: number }` — purges all logs or logs prior to `beforeDate`. Audited with warning. |
 | `POST` | `/api/logs/prune` | `{ days?: number }` (default: 30) | `{ deleted: number, retentionDays: number }` — manual trigger for retention cleanup. |
 
@@ -431,7 +432,7 @@ jobs             (id UUID PK, company_id→companies, title, job_url,
                   status,       -- open|referral_requested|applied|interviewing|closed
                   notes, created_by→users, created_at, updated_at)
 
-job_applications (id UUID PK, user_id→users, job_id→jobs,
+job_applications (id UUID PK, user_id→users, job_id→jobs, company_id→companies,
                   company_name, job_title, job_url, platform,
                   status,       -- not_applied|applied|screening|interview|offer|rejected|withdrawn|closed|ineligible
                   match_score, match_reasons, missing_skills, description,

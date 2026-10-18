@@ -5,6 +5,7 @@ import {
   defaultDocumentSelection,
   type AutofillDocument,
 } from './documentPicker';
+import { extractJobInfoFromTab, formatJobTrackError, type TrackJobInfo } from './jobTracker';
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -134,12 +135,12 @@ const STORAGE_KEYS: (keyof ProspectData)[] = [
   'firstName', 'lastName', 'email', 'company', 'jobTitle', 'gender', 'linkedinUrl',
 ];
 
-declare const BACKEND_URL: string;
-declare const FRONTEND_URL: string;
+declare const BACKEND_URL: string | undefined;
+declare const FRONTEND_URL: string | undefined;
 
 let currentToken = '';
-const currentBackendUrl = BACKEND_URL;
-const currentFrontendUrl = FRONTEND_URL;
+const currentBackendUrl = typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : 'http://localhost:3001';
+const currentFrontendUrl = typeof FRONTEND_URL !== 'undefined' ? FRONTEND_URL : 'http://localhost:3002';
 let currentAuth: AuthState | null = null;
 
 function getFormData(): ProspectData {
@@ -603,13 +604,6 @@ function checkCurrentTab(): void {
   chrome.runtime.sendMessage({ action: 'getActiveTabUrl' });
 }
 
-interface TrackJobInfo {
-  company_name: string;
-  job_title:    string;
-  job_url:      string;
-  platform:     string;
-}
-
 function openTrackJobPanel(info: Partial<TrackJobInfo>): void {
   trackCompanyEl.value       = info.company_name ?? '';
   trackTitleEl.value         = info.job_title    ?? '';
@@ -645,62 +639,46 @@ async function saveTrackedJob(): Promise<void> {
   trackJobErrorEl.style.display = 'none';
 
   try {
-    await fetch(`${currentBackendUrl}/api/applications`, {
+    const res = await fetch(`${currentBackendUrl}/api/applications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${currentToken}`,
       },
       body: JSON.stringify({ company_name: company, job_title: title, job_url: url, platform, notes: notes || undefined }),
-    }).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
     });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => null);
+      throw new Error(formatJobTrackError(res.status, errJson));
+    }
+
     closeTrackJobPanel();
     showAutofillStatus('Application saved to tracker!', 'success');
-  } catch {
-    trackJobErrorEl.textContent = 'Failed to save — please try again.';
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : 'Failed to save — please try again.';
+    trackJobErrorEl.textContent = errorMsg;
     trackJobErrorEl.style.display = 'block';
     trackSaveBtn.disabled    = false;
     trackSaveBtn.textContent = 'Save to Tracker';
-  }
-}
 
-function extractJobInfoFromTab(tab: chrome.tabs.Tab): TrackJobInfo {
-  const url      = tab.url ?? '';
-  const hostname = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
-  let jobTitle   = (tab.title ?? '').replace(/\s*[-|·—]\s*.+$/, '').trim();
-  let company    = '';
-  let platform   = 'Generic';
-
-  if (hostname.includes('greenhouse.io')) {
-    platform = 'Greenhouse';
-    const m = url.match(/greenhouse\.io\/([^/?#]+)/);
-    company = m?.[1]?.replace(/-/g, ' ') ?? '';
-  } else if (hostname.includes('lever.co')) {
-    platform = 'Lever';
-    const m = url.match(/lever\.co\/([^/?#]+)/);
-    company = m?.[1]?.replace(/-/g, ' ') ?? '';
-  } else if (hostname.includes('workday.com') || hostname.includes('myworkdayjobs.com')) {
-    platform = 'Workday';
-    company = hostname.split('.')[0] ?? '';
-  } else if (hostname.includes('ashbyhq.com')) {
-    platform = 'Ashby';
-    const m = url.match(/ashbyhq\.com\/([^/?#]+)/);
-    company = m?.[1]?.replace(/-/g, ' ') ?? '';
-  } else if (hostname.includes('linkedin.com')) {
-    platform = 'LinkedIn';
-  }
-
-  if (!company && hostname) {
-    const parts = hostname.split('.');
-    const main = parts.length >= 2 ? parts[parts.length - 2] : hostname;
-    if (main && !['jobs', 'careers', 'apply', 'app', 'hire', 'work', 'www'].includes(main)) {
-      company = main.charAt(0).toUpperCase() + main.slice(1);
+    // Report error to backend systemLogger for centralized observability
+    if (currentToken && currentBackendUrl) {
+      fetch(`${currentBackendUrl}/api/logs/ingest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentToken}`,
+        },
+        body: JSON.stringify({
+          level: 'error',
+          source: 'extension',
+          message: `Extension job tracking failed: ${errorMsg}`,
+          context: { company, title, url, platform },
+        }),
+      }).catch(() => undefined);
     }
   }
-
-  return { company_name: company, job_title: jobTitle, job_url: url, platform };
 }
 
 trackCancelBtn.addEventListener('click', closeTrackJobPanel);

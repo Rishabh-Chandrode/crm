@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { pool } from '../db/index.js';
+import { systemLogger } from '../services/systemLogger.js';
 import type { JobApplication } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -82,7 +83,14 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({ applications: rows.rows, total: parseInt(countRow.rows[0].count as string) });
   } catch (err) {
-    console.error(err);
+    systemLogger.error('Failed to fetch applications', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+    });
+    console.error('Error fetching applications:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -94,6 +102,13 @@ router.post('/sync-emails', async (req: Request, res: Response) => {
     const result = await syncJobEmailsForUser(userId);
     res.json({ data: result });
   } catch (err) {
+    systemLogger.error('Failed to sync job emails', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+    });
     console.error('Error in /api/applications/sync-emails:', err);
     res.status(500).json({ error: 'Failed to sync job emails' });
   }
@@ -149,6 +164,13 @@ router.get('/preferences', async (req: Request, res: Response) => {
 
     res.json({ data: prefs });
   } catch (err) {
+    systemLogger.error('Failed to retrieve candidate preferences', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+    });
     console.error('Error in GET /api/applications/preferences:', err);
     res.status(500).json({ error: 'Failed to retrieve candidate preferences' });
   }
@@ -197,6 +219,14 @@ router.put('/preferences', async (req: Request, res: Response) => {
 
     res.json({ data: updated });
   } catch (err) {
+    systemLogger.error('Failed to update candidate preferences', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+      context: { body: req.body },
+    });
     console.error('Error in PUT /api/applications/preferences:', err);
     res.status(500).json({ error: 'Failed to update candidate preferences' });
   }
@@ -245,7 +275,15 @@ router.get('/:id/emails', async (req: Request, res: Response) => {
 
     res.json({ data: emails.rows });
   } catch (err) {
-    console.error(err);
+    systemLogger.error('Failed to fetch application emails', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+      context: { id: req.params.id },
+    });
+    console.error('Error fetching application emails:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -288,11 +326,19 @@ router.post('/', async (req: Request, res: Response) => {
     if (existingComp.rows.length > 0) {
       resolvedCompanyId = existingComp.rows[0]!.id;
     } else {
-      const newComp = await pool.query<{ id: string }>(
-        `INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id`,
-        [trimmedCompanyName, userId]
-      );
-      resolvedCompanyId = newComp.rows[0]!.id;
+      try {
+        const newComp = await pool.query<{ id: string }>(
+          `INSERT INTO companies (name, created_by) VALUES ($1, $2) RETURNING id`,
+          [trimmedCompanyName, userId]
+        );
+        resolvedCompanyId = newComp.rows[0]!.id;
+      } catch {
+        const recheck = await pool.query<{ id: string }>(
+          `SELECT id FROM companies WHERE LOWER(name) = LOWER($1) AND (created_by = $2 OR created_by IS NULL) LIMIT 1`,
+          [trimmedCompanyName, userId]
+        );
+        resolvedCompanyId = recheck.rows[0]?.id || null;
+      }
     }
 
     let targetJobId = job_id || jobId || null;
@@ -306,10 +352,14 @@ router.post('/', async (req: Request, res: Response) => {
       );
       targetJobId = jobRes.rows[0]!.id;
     } else if (resolvedCompanyId) {
-      await pool.query(
-        `UPDATE jobs SET company_id = COALESCE(company_id, $1), updated_at = NOW() WHERE id = $2 AND created_by = $3`,
-        [resolvedCompanyId, targetJobId, userId]
-      ).catch(() => undefined);
+      try {
+        await pool.query(
+          `UPDATE jobs SET company_id = COALESCE(company_id, $1), updated_at = NOW() WHERE id = $2 AND created_by = $3`,
+          [resolvedCompanyId, targetJobId, userId]
+        );
+      } catch {
+        // Ignore non-critical job company update error
+      }
     }
 
     const trimmedTitle = job_title.trim();
@@ -435,16 +485,30 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     if (targetJobId) {
-      pool.query(
-        `UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2 AND created_by = $3`,
-        [normalizedStatus, targetJobId, userId]
-      ).catch(() => undefined);
+      try {
+        await pool.query(
+          `UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2 AND created_by = $3`,
+          [normalizedStatus, targetJobId, userId]
+        );
+      } catch {
+        // Ignore non-critical job status update error
+      }
     }
 
     res.status(201).json({ ...resultRow, company_id: resolvedCompanyId });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    systemLogger.error('Failed to create/track application', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+      context: {
+        body: req.body,
+      },
+    });
+    console.error('Error creating/tracking application:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' });
   }
 });
 
@@ -588,7 +652,15 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     res.json({ ...updatedApp, company_id: resolvedCompanyId });
   } catch (err) {
-    console.error(err);
+    systemLogger.error('Failed to update application', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+      context: { body: req.body, id: req.params.id },
+    });
+    console.error('Error updating application:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -612,7 +684,15 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    systemLogger.error('Failed to delete application', err, {
+      source: 'backend',
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: 500,
+      userId: req.user?.id,
+      context: { id: req.params.id },
+    });
+    console.error('Error deleting application:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

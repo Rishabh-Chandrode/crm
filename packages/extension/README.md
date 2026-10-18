@@ -39,6 +39,7 @@ extension/
 ├── popup.css                       # Side panel styles
 ├── src/
 │   ├── popup.ts                    # Main logic — auth gate, tabs, API calls, match card, autofill
+│   ├── jobTracker.ts               # Active tab job extraction and error formatting
 │   ├── contentScript.ts            # Passive listener on linkedin.com/in/* — only scrolls/scrapes on explicit user request
 │   ├── background.ts               # Service worker — tab queries, scrape trigger, tab URL events
 │   ├── types.ts                    # Shared TypeScript interfaces mirroring backend contracts (including LlmConfigSettings, LlmProviderType, PushNotificationPayload & PushNotificationAction contracts, JobApplicationStatus with ineligible, SystemLog telemetry, PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
@@ -138,7 +139,7 @@ Workday (`*.myworkdayjobs.com`) renders a multi-step application. `detectStep()`
 
 ### Application tracking
 
-When the form is submitted, a `submit` or button-click listener fires `{ action: 'applicationSubmitted', company_name, job_title, job_url, platform }` to the side panel, which auto-POSTs to `POST /api/applications`.
+When the form is submitted, a `submit` or button-click listener fires `{ action: 'applicationSubmitted', company_name, job_title, job_url, platform }` to the side panel, which auto-POSTs to `POST /api/applications`. The side panel extracts page details, displays transparent error feedback if saving fails, and forwards failure telemetry to `POST /api/logs/ingest`.
 
 ---
 
@@ -221,5 +222,6 @@ Test suites live in `src/__tests__/`:
 - `platforms.test.ts` — ATS platform detector and selectors
 - `profileSearch.test.ts` — Profile field search filtering and match highlighting
 - `theme.test.ts` — Light/Dark/System theme switching and root class management
+- `trackJob.test.ts` — Active tab job metadata extraction and error message formatting
 - `types.test.ts` — Scrape message structure, autofill results, UserProfile contracts, Job, JobApplication (including fit score and match reasons), CandidatePreferences, LlmConfigSettings, LlmProviderType, VariableSource, PendingProspect, LinkedInProspectResult, getGmailSearchUrl utility (direct #all/<threadId> and rfc822msgid search), and Type Trinity synchronization
 

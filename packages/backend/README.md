@@ -29,7 +29,7 @@ src/
 ├── middleware/
 │   ├── auth.ts                  # JWT verification, attaches req.user
 │   ├── ownerFilter.ts           # Row-level isolation helper
-│   └── errorHandler.ts          # Global Express error handler
+│   └── errorHandler.ts          # Global Express error handler with systemLogger logging for unhandled database errors (23505, 23503, 22P02)
 ├── routes/
 │   ├── index.ts                 # Mounts all routers
 │   ├── auth.ts                  # /auth — login, signup, me, profile
@@ -347,7 +347,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
-| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, pendingProspects, pendingProspectCount, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. `Cache-Control: no-store`. Before returning, links unassigned sends to the user's only open job at that company and counts **sent** emails. `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. `failedSends` and `pendingProspects` omit rows with `dismissed_at` set. |
+| `GET` | `/api/stats` | — | `{ companies, prospects, templates, applications, emails: { total, sent, failed, pending, opened, openRate }, applicationsByStatus, recentApplications, readyToApplyApplications, readyToApplyCount, referralSentApplications, referralSentCount, notAppliedApplications, notAppliedCount, activeInterviewApplications, activeInterviewCount, failedSends, pendingProspects, pendingProspectCount, prospectsByCategory, topCompanies, recentSends, upcomingSchedules, dailyActivity }` — scoped to user; admin sees all. `Cache-Control: no-store`. Before returning, runs `syncOutreachForDashboard` (links unassigned sends, updates jobs/applications status, and links/upserts missing applications via `ON CONFLICT DO UPDATE` with error isolation and `systemLogger` capture). `referralSentApplications` are referral requests from the last 2 days (with `email_count`). `readyToApplyApplications` are the same status after the 2-day window. `failedSends` and `pendingProspects` omit rows with `dismissed_at` set. |
 | `POST` | `/api/stats/dismissals` | `{ application_ids?: uuid[], failed_send_ids?: uuid[], pending_prospect_ids?: uuid[] }` | `{ closed, dismissed, pending_dismissed }` — closes the caller's applications, sets `dismissed_at` on the caller's failed sends, and sets `dismissed_at` on the caller's pending prospects. Other users' ids are ignored. |
 
 ---

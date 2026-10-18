@@ -592,6 +592,7 @@ describe('Backend API Feature Routes', () => {
       vi.spyOn(pool, 'query')
         .mockResolvedValueOnce({ rowCount: 0 } as any) // link unassigned sends
         .mockResolvedValueOnce({ rowCount: 0 } as any) // mark jobs referral_requested
+        .mockResolvedValueOnce({ rowCount: 0 } as any) // link unlinked apps to jobs by URL
         .mockResolvedValueOnce({ rowCount: 0 } as any) // create missing applications
         .mockResolvedValueOnce({ rowCount: 0 } as any) // promote saved apps that already have sends
         .mockResolvedValueOnce({ rows: [{ companies: '5', prospects: '20', templates: '3', applications: '8' }] } as any) // counts

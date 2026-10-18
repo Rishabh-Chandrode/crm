@@ -611,6 +611,18 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ days }),
       }),
+    ingest: (body: {
+      level?: 'info' | 'warn' | 'error' | 'debug';
+      message: string;
+      source?: string;
+      context?: Record<string, unknown>;
+      errorName?: string;
+      stackTrace?: string;
+    }) =>
+      request<{ success: boolean }>('/logs/ingest', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
 
   aiSettings: {

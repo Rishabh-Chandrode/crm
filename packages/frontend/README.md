@@ -17,7 +17,7 @@ src/
 │   ├── signup/page.tsx            # Signup form — username/password + Google sign-in (dark/light themed)
 │   └── (dashboard)/               # Route group — shares sidebar layout
 │       ├── layout.tsx             # Renders <Sidebar> + <main> container
-│       ├── dashboard/page.tsx     # Priority Action Center. Features responsive 2-column grid action buttons on small screens, an explicit ✕ Ineligible button for saved/AI-synced opportunities, and corner dismiss controls. Dismissals are stored on the server; handles ready-to-apply, referral-sent, saved-jobs, active-interviews, failed-sends, and manual prospect entry items.
+│       ├── dashboard/page.tsx     # Priority Action Center. Features responsive 2-column grid action buttons on small screens, an explicit ✕ Ineligible button for saved/AI-synced opportunities, corner dismiss controls, error recovery view with retry button, and automatic telemetry ingestion via api.logs.ingest. Dismissals are stored on the server; handles ready-to-apply, referral-sent, saved-jobs, active-interviews, failed-sends, and manual prospect entry items.
 │       ├── companies/page.tsx     # Company CRUD (table + modal + merge)
 │       ├── prospects/page.tsx     # Prospect list (table + filters + gender badge + pagination). Supports ?new=true query parameters to prefill and open create modal, auto-dismissing pending prospects upon save.
 │       ├── prospects/[id]/page.tsx# Prospect detail view — full profile with gender + email history
@@ -239,7 +239,7 @@ pnpm test:watch
 ```
 
 Test suites live in `src/__tests__/`:
-- `dashboard.test.tsx` — Priority Action Center rendering, filters, server dismissals, one-time localStorage upload, loading skeletons, and empty states
+- `dashboard.test.tsx` — Priority Action Center rendering, filters, server dismissals, one-time localStorage upload, loading skeletons, empty states, error fallback rendering, and retry handling
 - `applications.test.tsx` — Applications tracker page, status summary cards, interactive status filters, full application editing modal, manual application creation, and referral outreach email history modal with Send History and Gmail navigation
 - `history.test.tsx` — Email history log viewer, status filter pills, search query parameter support, Open in Gmail integration, and delivery retry
 - `jobs.test.tsx` — Jobs & referral outreach tracker, KPI summary cards, status filters, create/edit modals, and email history drawer

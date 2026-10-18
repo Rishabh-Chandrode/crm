@@ -493,8 +493,26 @@ export async function syncOutreachForDashboard(userId: string): Promise<void> {
   );
 
   await pool.query(
-    `INSERT INTO job_applications (user_id, job_id, company_name, job_title, job_url, platform, status)
-     SELECT
+    `UPDATE job_applications ja
+     SET job_id = j.id,
+         company_id = COALESCE(ja.company_id, j.company_id),
+         updated_at = NOW()
+     FROM jobs j
+     WHERE ja.user_id = $1
+       AND j.created_by = $1
+       AND ja.job_id IS NULL
+       AND j.job_url IS NOT NULL
+       AND j.job_url NOT IN ('#', '')
+       AND (
+         ja.job_url = j.job_url
+         OR split_part(ja.job_url, '?', 1) = split_part(j.job_url, '?', 1)
+       )`,
+    [userId]
+  );
+
+  await pool.query(
+    `INSERT INTO job_applications (user_id, job_id, company_name, job_title, job_url, platform, status, company_id)
+     SELECT DISTINCT ON (j.created_by, j.job_url)
        j.created_by,
        j.id,
        COALESCE(c.name, 'Company'),
@@ -507,15 +525,33 @@ export async function syncOutreachForDashboard(userId: string): Promise<void> {
            WHERE es.job_id = j.id AND es.status = 'sent' AND es.created_by = j.created_by
          ) THEN 'referral_requested'
          ELSE 'not_applied'
-       END
+       END,
+       j.company_id
      FROM jobs j
      LEFT JOIN companies c ON c.id = j.company_id
      WHERE j.created_by = $1
        AND j.status <> 'closed'
+       AND j.job_url IS NOT NULL
        AND NOT EXISTS (
          SELECT 1 FROM job_applications ja
-         WHERE ja.job_id = j.id AND ja.user_id = j.created_by
-       )`,
+         WHERE ja.user_id = j.created_by
+           AND (
+             ja.job_id = j.id
+             OR (
+               j.job_url NOT IN ('#', '')
+               AND (
+                 ja.job_url = j.job_url
+                 OR split_part(ja.job_url, '?', 1) = split_part(j.job_url, '?', 1)
+               )
+             )
+           )
+       )
+     ORDER BY j.created_by, j.job_url, j.updated_at DESC, j.created_at DESC
+     ON CONFLICT (user_id, job_url) WHERE job_url NOT IN ('#', '')
+     DO UPDATE SET
+       job_id = COALESCE(job_applications.job_id, EXCLUDED.job_id),
+       company_id = COALESCE(job_applications.company_id, EXCLUDED.company_id),
+       updated_at = NOW()`,
     [userId]
   );
 

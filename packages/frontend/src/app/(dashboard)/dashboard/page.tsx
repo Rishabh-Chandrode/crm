@@ -73,35 +73,42 @@ const APP_STATUS_CONFIG: Record<string, { label: string; color: string; dotColor
 export default function DashboardPage() {
   const [stats, setStats] = useState<ExtendedStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all');
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const applicationIds = readStoredIds('crm_dismissed_actions');
-        const failedSendIds = readStoredIds('crm_dismissed_failed_sends');
-        if (applicationIds.length > 0 || failedSendIds.length > 0) {
-          await api.stats.dismiss(applicationIds, failedSendIds);
-          localStorage.removeItem('crm_dismissed_actions');
-          localStorage.removeItem('crm_dismissed_failed_sends');
-        }
-        const data = await api.stats.get();
-        if (!cancelled) setStats(data as unknown as ExtendedStats);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (!cancelled) setLoading(false);
+  const fetchStats = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const applicationIds = readStoredIds('crm_dismissed_actions');
+      const failedSendIds = readStoredIds('crm_dismissed_failed_sends');
+      if (applicationIds.length > 0 || failedSendIds.length > 0) {
+        await api.stats.dismiss(applicationIds, failedSendIds);
+        localStorage.removeItem('crm_dismissed_actions');
+        localStorage.removeItem('crm_dismissed_failed_sends');
       }
+      const data = await api.stats.get();
+      setStats(data as unknown as ExtendedStats);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load dashboard stats';
+      console.error('Failed to load dashboard:', err);
+      setError(msg);
+      api.logs.ingest({
+        level: 'error',
+        message: `Dashboard stats fetch failed: ${msg}`,
+        source: 'frontend-dashboard',
+        errorName: err instanceof Error ? err.name : 'DashboardLoadError',
+        stackTrace: err instanceof Error ? err.stack : undefined,
+      }).catch(() => null);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    void fetchStats();
   }, []);
 
   // Handle 1-click status upgrade to 'applied'
@@ -232,7 +239,36 @@ export default function DashboardPage() {
     );
   }
 
-  if (!stats) return null;
+  if (error || !stats) {
+    return (
+      <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+        <div className="card p-8 border-rose-500/20 bg-rose-500/5 dark:bg-rose-950/20 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto text-xl font-bold">
+            ⚠
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+              Unable to load dashboard
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+              {error || 'An unexpected error occurred while loading dashboard statistics.'}
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => void fetchStats()}
+              className="btn-primary text-xs flex items-center gap-2 cursor-pointer"
+            >
+              <span>↻ Retry</span>
+            </button>
+            <Link href="/applications" className="btn-secondary text-xs">
+              View Applications
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">

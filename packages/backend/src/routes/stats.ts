@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/index.js';
 import { syncOutreachForDashboard } from '../services/jobs.js';
+import { systemLogger } from '../services/systemLogger.js';
 import type { PendingProspect } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -17,7 +18,16 @@ router.get('/', async (req, res, next) => {
     const sentByOwner = isAdmin ? '' : 'AND es.created_by = $1';
 
     if (!isAdmin) {
-      await syncOutreachForDashboard(userId);
+      try {
+        await syncOutreachForDashboard(userId);
+      } catch (syncErr) {
+        systemLogger.error('syncOutreachForDashboard failed during dashboard stats generation', syncErr, {
+          userId,
+          source: 'stats-route',
+          method: req.method,
+          path: req.originalUrl || req.url,
+        });
+      }
     }
 
     const [

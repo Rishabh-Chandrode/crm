@@ -14,6 +14,9 @@ vi.mock('../lib/api', () => ({
     applications: {
       update: vi.fn(),
     },
+    logs: {
+      ingest: vi.fn().mockResolvedValue({ success: true }),
+    },
   },
 }));
 
@@ -510,6 +513,55 @@ describe('DashboardPage Priority Action Center', () => {
       expect(api.applications.update).toHaveBeenCalledWith('app-ai-1', { status: 'ineligible' });
     });
     expect(screen.queryByText('Stripe')).not.toBeInTheDocument();
+  });
+
+  it('renders an error message and retry button when stats fetching fails', async () => {
+    vi.mocked(api.stats.get).mockRejectedValueOnce(new Error('A record with that value already exists'));
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to load dashboard')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('A record with that value already exists')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(api.logs.ingest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining('A record with that value already exists'),
+        source: 'frontend-dashboard',
+      })
+    );
+  });
+
+  it('re-fetches stats when the retry button is clicked after an error', async () => {
+    vi.mocked(api.stats.get).mockRejectedValueOnce(new Error('Network error'));
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to load dashboard')).toBeInTheDocument();
+    });
+
+    const mockStats = {
+      companies: 1,
+      prospects: 2,
+      templates: 1,
+      applications: 1,
+      emails: { total: 1, sent: 1, failed: 0, pending: 0, opened: 0, openRate: 0 },
+      recentSends: [],
+      recentApplications: [],
+      upcomingSchedules: [],
+    };
+    vi.mocked(api.stats.get).mockResolvedValueOnce(mockStats as any);
+
+    fireEvent.click(screen.getByRole('button', { name: /Retry/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Unable to load dashboard')).not.toBeInTheDocument();
+      expect(screen.getByText('Priority Action Center')).toBeInTheDocument();
+    });
   });
 });
 

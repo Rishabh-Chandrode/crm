@@ -63,6 +63,18 @@ const SENSITIVE_KEYS = new Set([
 export function isSensitiveKey(key: string): boolean {
   const lower = key.toLowerCase();
   if (SENSITIVE_KEYS.has(lower)) return true;
+
+  // Non-sensitive token count & limit parameters commonly found in LLM configurations & responses
+  if (
+    lower.endsWith('tokens') ||
+    lower.endsWith('tokencount') ||
+    lower.includes('tokencount') ||
+    lower === 'maxtokens' ||
+    lower === 'maxoutputtokens'
+  ) {
+    return false;
+  }
+
   if (
     lower.includes('password') ||
     lower.includes('secret') ||
@@ -104,7 +116,7 @@ export function sanitizeLogData(data: unknown): unknown {
  * Recursively truncates large strings and large arrays/objects
  * to prevent excessive payload sizes in Postgres JSONB logs.
  */
-export function truncatePayload(data: unknown, maxDepth = 4): unknown {
+export function truncatePayload(data: unknown, maxDepth = 10): unknown {
   if (data === null || data === undefined) return data;
   if (typeof data === 'string') {
     if (data.length > 10000) {

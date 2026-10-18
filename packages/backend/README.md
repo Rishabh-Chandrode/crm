@@ -59,6 +59,7 @@ src/
 │   │   └── providers/           # GeminiProvider, OpenAiProvider, NullLlmProvider
 │   ├── jobEmailSync/
 │   │   ├── gmailFetcher.ts      # Queries Gmail API for job recommendations & updates
+│   │   ├── htmlUtils.ts         # Visible plain-text extraction from HTML emails with entity decoding
 │   │   ├── jobExtractor.ts      # Unwraps tracking links and parses jobs from HTML
 │   │   ├── jobScraper.ts        # Server-side description scraper (LinkedIn guest API, fallback)
 │   │   ├── jobClassifierAndScorer.ts # Coordinates LLM & heuristic scoring against preferences
@@ -577,9 +578,10 @@ Resolution in `services/templateEngine.ts → resolveTemplate()`:
 
 Outgoing requests made to the Google Gemini API (`generateContent`) are intercepted and logged into the `system_logs` database table with `source: 'gemini'`. The default model configured is `gemini-3.8-flash` (customizable dynamically via the Admin Panel under `/ai-settings` and persisted in the database, with no reliance on static `.env` variables).
 
-- **Captured Fields:** Request method (`POST`), endpoint path (`/v1beta/models/${model}:generateContent`), HTTP status code, round-trip latency (`durationMs`), model name, request body (`contents`, `generationConfig`), and response body (`candidates` or error payload).
-- **Security & Redaction:** Gemini API keys passed in URL query strings are strictly stripped to prevent token exposure. All sensitive fields in payload contexts are recursively sanitized via `sanitizeLogData()`.
-- **Payload Truncation:** Large prompts or candidate structures are recursively truncated via `truncatePayload()` to prevent Postgres JSONB table bloat.
+- **Captured Fields:** Request method (`POST`), endpoint path (`/v1beta/models/${model}:generateContent`), HTTP status code, round-trip latency (`durationMs`), model name, request body (`contents`, `generationConfig`), and response body (`candidates` or error payload). When `options.purpose` is supplied (e.g. `classify_email`, `extract_application_update`, `score_job_preferences`), the log message and context include a `[purpose]` tag for prompt refinement and monitoring.
+- **Security & Redaction:** Gemini API keys passed in URL query strings are strictly stripped to prevent token exposure. All sensitive credential fields in payload contexts are recursively sanitized via `sanitizeLogData()`. Non-sensitive AI parameters (such as `maxOutputTokens`, `promptTokenCount`, `candidatesTokenCount`) are exempted from redaction.
+- **Payload Truncation & Depth:** `truncatePayload()` recursively preserves up to 10 object depths so nested Gemini contents and part texts are not replaced with truncation placeholders, while safeguarding JSONB columns against oversized strings exceeding 10,000 characters.
+- **Full Email Context Extraction:** When fetching emails from Gmail, `htmlToPlainText()` parses visible text from HTML emails, strips scripts/styles/metadata, and decodes HTML entities. Up to 10,000 characters of clean visible text are fed to the LLM during classification and update extraction.
 - **Observability:** Rendered in the frontend Admin Observability dashboard (`/logs`) with dedicated JSON viewer drawers for inspection and debugging.
 
 ---
@@ -602,6 +604,7 @@ Test suites live in `src/__tests__/`:
 - `llm.test.ts` — LLM provider factory, heuristic fallback rules, and Gemini API request/response telemetry logging
 - `aiSettings.test.ts` — AI & LLM admin settings CRUD, validation, authorization, and test connection diagnostics
 - `logs.test.ts` — System logging service, retention pruning, and admin log endpoints
+- `jobEmailSync.test.ts` — Gmail email sync, tracking URL unwrapping, visible HTML text extraction, and prompt passing
 - `genderInference.test.ts` — Automated pronoun parsing and first-name dictionary inference
 - `templateEngine.test.ts` — Variable resolution, customizable salutations (Sir/Ma'am), HTML converters, tracking pixel injection
 - `types.test.ts` — Backend types, getGmailSearchUrl utility, and Trinity sync validation

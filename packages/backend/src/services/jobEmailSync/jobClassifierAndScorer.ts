@@ -25,7 +25,8 @@ export async function classifyEmail(
 
 Email Subject: ${subject}
 From: ${fromHeader}
-Snippet / Content: ${bodyText.slice(0, 1000)}
+Email Content:
+${bodyText.slice(0, 10000)}
 
 Return JSON:
 {
@@ -35,7 +36,8 @@ Return JSON:
 
       const res = await provider.generateJson<{ category?: EmailIntent }>(
         prompt,
-        'You are an expert career email assistant. Return strictly valid JSON.'
+        'You are an expert career email assistant. Return strictly valid JSON.',
+        { purpose: 'classify_email' }
       );
 
       if (res?.category && ['job_recommendation', 'application_update', 'irrelevant'].includes(res.category)) {
@@ -82,7 +84,11 @@ Return JSON:
         matchScore?: number;
         matchReasons?: string[];
         missingSkills?: string[];
-      }>(prompt, 'You are an objective technical recruiter scoring job fit. Return strictly valid JSON.');
+      }>(
+        prompt,
+        'You are an objective technical recruiter scoring job fit. Return strictly valid JSON.',
+        { purpose: 'score_job_preferences' }
+      );
 
       if (typeof res?.matchScore === 'number') {
         return {
@@ -113,7 +119,7 @@ export async function extractApplicationUpdateDetails(
 From: ${fromHeader}
 Subject: ${subject}
 Body:
-${bodyText.slice(0, 1500)}
+${bodyText.slice(0, 10000)}
 
 Allowed status values:
 - "applied" (application confirmed or received)
@@ -133,7 +139,11 @@ Return JSON:
         companyName?: string;
         status?: JobApplicationStatus;
         note?: string;
-      }>(prompt, 'You extract job application tracking updates. Return strictly valid JSON.');
+      }>(
+        prompt,
+        'You extract job application tracking updates. Return strictly valid JSON.',
+        { purpose: 'extract_application_update' }
+      );
 
       if (res?.companyName && res.status && ['applied', 'screening', 'interview', 'offer', 'rejected'].includes(res.status)) {
         return {

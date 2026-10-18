@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { app } from '../app.js';
 import { pool } from '../db/index.js';
 import { CONFIG } from '../config.js';
-import { systemLogger, sanitizeLogData } from '../services/systemLogger.js';
+import { systemLogger, sanitizeLogData, isSensitiveKey, truncatePayload } from '../services/systemLogger.js';
 import type { AuthenticatedUser } from '../types/index.js';
 
 describe('System Logging & Observability', () => {
@@ -61,6 +61,47 @@ describe('System Logging & Observability', () => {
       expect(sanitizeLogData(undefined)).toBeUndefined();
       expect(sanitizeLogData('test string')).toBe('test string');
       expect(sanitizeLogData(123)).toBe(123);
+    });
+
+    it('does not redact LLM token metrics or limit configurations', () => {
+      expect(isSensitiveKey('maxOutputTokens')).toBe(false);
+      expect(isSensitiveKey('maxTokens')).toBe(false);
+      expect(isSensitiveKey('promptTokenCount')).toBe(false);
+      expect(isSensitiveKey('candidatesTokenCount')).toBe(false);
+      expect(isSensitiveKey('totalTokenCount')).toBe(false);
+
+      // But still redacts real sensitive keys
+      expect(isSensitiveKey('token')).toBe(true);
+      expect(isSensitiveKey('access_token')).toBe(true);
+      expect(isSensitiveKey('password')).toBe(true);
+      expect(isSensitiveKey('api_key')).toBe(true);
+    });
+  });
+
+  describe('truncatePayload', () => {
+    it('preserves deep nested objects like Gemini contents and parts without truncating at depth 6', () => {
+      const geminiBody = {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: 'Classify this email please',
+              },
+            ],
+          },
+        ],
+      };
+
+      const truncated = truncatePayload(geminiBody) as any;
+      expect(truncated.contents[0].parts[0].text).toBe('Classify this email please');
+    });
+
+    it('truncates excessively long strings beyond 10k characters', () => {
+      const longStr = 'a'.repeat(12000);
+      const truncated = truncatePayload(longStr) as string;
+      expect(truncated.length).toBeLessThan(11000);
+      expect(truncated).toContain('... [TRUNCATED]');
     });
   });
 

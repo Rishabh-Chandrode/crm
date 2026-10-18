@@ -1,4 +1,5 @@
 import { ensureFreshGmailToken } from '../email/gmailToken.js';
+import { htmlToPlainText } from './htmlUtils.js';
 
 export interface FetchedEmailMessage {
   id: string;
@@ -103,6 +104,10 @@ export async function fetchJobAndStatusEmails(
       const snippet = msgData.snippet || '';
 
       const { text, html } = extractBodies(msgData.payload);
+      const textFromHtml = html ? htmlToPlainText(html) : '';
+      const resolvedBodyText = (text && text.trim().length > 30)
+        ? text.trim()
+        : (textFromHtml || text || snippet || '');
 
       results.push({
         id: item.id,
@@ -111,7 +116,7 @@ export async function fetchJobAndStatusEmails(
         from,
         date: isNaN(date.getTime()) ? new Date() : date,
         snippet,
-        bodyText: text || snippet,
+        bodyText: resolvedBodyText,
         bodyHtml: html || text || snippet,
       });
     } catch (err) {

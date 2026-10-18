@@ -3,6 +3,9 @@ import request from 'supertest';
 import express from 'express';
 import applicationsRouter from '../routes/applications.js';
 import { unwrapTrackingUrl, detectPlatformFromUrl, extractJobsFromEmail } from '../services/jobEmailSync/jobExtractor.js';
+import { htmlToPlainText } from '../services/jobEmailSync/htmlUtils.js';
+import { classifyEmail, extractApplicationUpdateDetails } from '../services/jobEmailSync/jobClassifierAndScorer.js';
+import { LlmProviderFactory } from '../services/llm/factory.js';
 import { pool } from '../db/index.js';
 
 vi.mock('../db/index.js', () => ({
@@ -93,6 +96,95 @@ describe('Job Email Sync & Extraction', () => {
       expect(jobs[1]?.title).toBe('Full Stack Developer');
       expect(jobs[1]?.companyName).toBe('Figma');
       expect(jobs[1]?.platform).toBe('Greenhouse');
+    });
+  });
+
+  describe('htmlToPlainText', () => {
+    it('returns empty string for empty or falsy inputs', () => {
+      expect(htmlToPlainText('')).toBe('');
+      expect(htmlToPlainText(null as any)).toBe('');
+    });
+
+    it('strips script, style, head, and noscript tags along with their inner contents', () => {
+      const html = `
+        <html>
+          <head><title>Email Title</title><style>.hidden { display: none; }</style></head>
+          <body>
+            <script>console.log("tracking code");</script>
+            <noscript>Enable JS</noscript>
+            <p>Hello Applicant,</p>
+          </body>
+        </html>
+      `;
+      const text = htmlToPlainText(html);
+      expect(text).toBe('Hello Applicant,');
+      expect(text).not.toContain('Email Title');
+      expect(text).not.toContain('tracking code');
+      expect(text).not.toContain('Enable JS');
+    });
+
+    it('converts block elements into newlines and decodes common HTML entities', () => {
+      const html = `
+        <div>Thank you for applying to Acme &amp; Co!&nbsp;</div>
+        <p>Status: &#39;Interview Scheduled&#39; &bull; Round 1</p>
+        <br/>
+        <div>Salary: &gt; $100k &lt; $150k &quot;Full-Time&quot;</div>
+      `;
+      const text = htmlToPlainText(html);
+      expect(text).toContain('Thank you for applying to Acme & Co!');
+      expect(text).toContain("Status: 'Interview Scheduled' • Round 1");
+      expect(text).toContain('Salary: > $100k < $150k "Full-Time"');
+    });
+  });
+
+  describe('AI Prompt Full Context & Purpose', () => {
+    it('passes complete body text beyond 1000 characters and purpose to AI provider in classifyEmail', async () => {
+      const longBody = 'Important job context paragraph. '.repeat(100); // ~3300 characters
+      let capturedPrompt = '';
+      let capturedOptions: any = null;
+
+      LlmProviderFactory.setProvider({
+        name: 'mock',
+        isAvailable: () => true,
+        generateText: vi.fn(),
+        generateJson: vi.fn().mockImplementation(async (prompt, _sys, options) => {
+          capturedPrompt = prompt;
+          capturedOptions = options;
+          return { category: 'application_update' };
+        }),
+      });
+
+      const category = await classifyEmail('Update on your application', longBody, 'recruiter@stripe.com');
+      expect(category).toBe('application_update');
+      expect(capturedPrompt.length).toBeGreaterThan(2000);
+      expect(capturedOptions?.purpose).toBe('classify_email');
+
+      LlmProviderFactory.reset();
+    });
+
+    it('passes complete body text beyond 1500 characters and purpose to AI provider in extractApplicationUpdateDetails', async () => {
+      const longBody = 'Stripe recruiter feedback notes and schedule details. '.repeat(80); // ~4300 characters
+      let capturedPrompt = '';
+      let capturedOptions: any = null;
+
+      LlmProviderFactory.setProvider({
+        name: 'mock',
+        isAvailable: () => true,
+        generateText: vi.fn(),
+        generateJson: vi.fn().mockImplementation(async (prompt, _sys, options) => {
+          capturedPrompt = prompt;
+          capturedOptions = options;
+          return { companyName: 'Stripe', status: 'interview', note: 'Technical interview next week' };
+        }),
+      });
+
+      const details = await extractApplicationUpdateDetails('Interview with Stripe', longBody, 'jobs@stripe.com');
+      expect(details?.companyName).toBe('Stripe');
+      expect(details?.status).toBe('interview');
+      expect(capturedPrompt.length).toBeGreaterThan(2500);
+      expect(capturedOptions?.purpose).toBe('extract_application_update');
+
+      LlmProviderFactory.reset();
     });
   });
 

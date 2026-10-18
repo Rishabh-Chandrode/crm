@@ -27,13 +27,15 @@ export class GeminiProvider implements ILlmProvider {
     responseBody: unknown,
     statusCode: number,
     durationMs: number,
-    error?: string
+    error?: string,
+    purpose?: string
   ): void {
     const level: SystemLogLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
     const path = `/v1beta/models/${model}:generateContent`;
+    const purposeTag = purpose ? ` [${purpose}]` : '';
     const message = error
-      ? `Gemini API POST /models/${model}:generateContent error: ${error} (${durationMs}ms)`
-      : `Gemini API POST /models/${model}:generateContent ${statusCode} (${durationMs}ms)`;
+      ? `Gemini API${purposeTag} POST /models/${model}:generateContent error: ${error} (${durationMs}ms)`
+      : `Gemini API${purposeTag} POST /models/${model}:generateContent ${statusCode} (${durationMs}ms)`;
 
     void systemLogger.log(level, message, {
       source: 'gemini',
@@ -41,6 +43,7 @@ export class GeminiProvider implements ILlmProvider {
       path,
       statusCode,
       context: {
+        purpose,
         durationMs,
         model,
         requestBody: truncatePayload(requestBody),
@@ -107,7 +110,7 @@ export class GeminiProvider implements ILlmProvider {
         } catch {
           // keep as string
         }
-        this.logGeminiCall(model, body, errorPayload, res.status, durationMs);
+        this.logGeminiCall(model, body, errorPayload, res.status, durationMs, undefined, options?.purpose);
         return null;
       }
 
@@ -119,7 +122,7 @@ export class GeminiProvider implements ILlmProvider {
         }>;
       };
 
-      this.logGeminiCall(model, body, data, res.status, durationMs);
+      this.logGeminiCall(model, body, data, res.status, durationMs, undefined, options?.purpose);
 
       const candidate = data.candidates?.[0];
       const text = candidate?.content?.parts?.[0]?.text;
@@ -128,7 +131,7 @@ export class GeminiProvider implements ILlmProvider {
       const durationMs = Date.now() - startTime;
       const errMsg = err instanceof Error ? err.message : String(err);
       console.warn('[GeminiProvider] Network or timeout error:', errMsg);
-      this.logGeminiCall(model, body, { error: errMsg }, 500, durationMs, errMsg);
+      this.logGeminiCall(model, body, { error: errMsg }, 500, durationMs, errMsg, options?.purpose);
       return null;
     } finally {
       clearTimeout(timeout);
@@ -193,7 +196,7 @@ export class GeminiProvider implements ILlmProvider {
         } catch {
           // keep as string
         }
-        this.logGeminiCall(model, body, errorPayload, res.status, durationMs);
+        this.logGeminiCall(model, body, errorPayload, res.status, durationMs, undefined, options?.purpose);
         return null;
       }
 
@@ -205,7 +208,7 @@ export class GeminiProvider implements ILlmProvider {
         }>;
       };
 
-      this.logGeminiCall(model, body, data, res.status, durationMs);
+      this.logGeminiCall(model, body, data, res.status, durationMs, undefined, options?.purpose);
 
       const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!raw) return null;
@@ -216,7 +219,7 @@ export class GeminiProvider implements ILlmProvider {
       const durationMs = Date.now() - startTime;
       const errMsg = err instanceof Error ? err.message : String(err);
       console.warn('[GeminiProvider] JSON parse or network error:', errMsg);
-      this.logGeminiCall(model, body, { error: errMsg }, 500, durationMs, errMsg);
+      this.logGeminiCall(model, body, { error: errMsg }, 500, durationMs, errMsg, options?.purpose);
       return null;
     } finally {
       clearTimeout(timeout);

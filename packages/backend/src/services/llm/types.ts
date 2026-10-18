@@ -2,6 +2,7 @@ export interface LlmCompletionOptions {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+  purpose?: string;
 }
 
 export interface ILlmProvider {

@@ -141,6 +141,32 @@ describe('LLM Module & Heuristic Fallback', () => {
       );
     });
 
+    it('includes purpose tag in log message and context when purpose is provided', async () => {
+      const logSpy = vi.spyOn(systemLogger, 'log').mockResolvedValue();
+      const provider = new GeminiProvider({ apiKey: 'test-key' });
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: '{"category": "application_update"}' }],
+              },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+      await provider.generateJson('Classify email', undefined, { purpose: 'classify_email' });
+
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      const [, message, options] = logSpy.mock.calls[0];
+      expect(message).toContain('[classify_email]');
+      expect(options?.context?.purpose).toBe('classify_email');
+    });
+
     it('logs warn and error payload on non-200 HTTP responses', async () => {
       const logSpy = vi.spyOn(systemLogger, 'log').mockResolvedValue();
       const provider = new GeminiProvider({ apiKey: 'test-key' });

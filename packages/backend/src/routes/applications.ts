@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { pool } from '../db/index.js';
 import { systemLogger } from '../services/systemLogger.js';
+import { pushNotificationService } from '../services/pushNotificationService.js';
 import type { JobApplication } from '../types/index.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -389,6 +390,7 @@ router.post('/', async (req: Request, res: Response) => {
       [userId, normalizedUrl, trimmedCompanyName, trimmedTitle, trimmedUrl]
     );
 
+    let isNewJobCreated = false;
     let targetJobId = job_id || jobId || existingAppRes.rows[0]?.job_id || null;
 
     if (!targetJobId) {
@@ -410,6 +412,7 @@ router.post('/', async (req: Request, res: Response) => {
           [trimmedTitle, normalizedUrl, resolvedCompanyId, normalizedStatus, trimmedNotes, userId]
         );
         targetJobId = jobRes.rows[0]!.id;
+        isNewJobCreated = true;
       }
     } else if (resolvedCompanyId) {
       try {
@@ -423,6 +426,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     let resultRow: any;
+    const isExistingAppUpdated = Boolean(existingAppRes.rowCount && existingAppRes.rowCount > 0);
 
     if (existingAppRes.rowCount && existingAppRes.rowCount > 0) {
       const existingApp = existingAppRes.rows[0]!;
@@ -539,6 +543,35 @@ router.post('/', async (req: Request, res: Response) => {
       } catch {
         // Ignore non-critical job status update error
       }
+    }
+
+    if (isNewJobCreated && targetJobId) {
+      void pushNotificationService.notifyJobAdded(userId, {
+        jobId: targetJobId,
+        title: trimmedTitle,
+        companyName: trimmedCompanyName,
+        jobUrl: normalizedUrl,
+      }).catch((err) => {
+        systemLogger.warn(
+          `Failed to dispatch job added notification: ${err instanceof Error ? err.message : String(err)}`,
+          { source: 'backend', userId }
+        );
+      });
+    }
+
+    if (isExistingAppUpdated && resultRow) {
+      void pushNotificationService.notifyApplicationUpdated(resultRow.user_id, {
+        applicationId: resultRow.id,
+        jobTitle: resultRow.job_title,
+        companyName: resultRow.company_name,
+        status: resultRow.status,
+        notes: resultRow.notes,
+      }).catch((err) => {
+        systemLogger.warn(
+          `Failed to dispatch application updated notification: ${err instanceof Error ? err.message : String(err)}`,
+          { source: 'backend', userId: resultRow.user_id }
+        );
+      });
     }
 
     res.status(201).json({ ...resultRow, company_id: resolvedCompanyId });
@@ -667,6 +700,20 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     const updatedApp = result.rows[0];
+
+    void pushNotificationService.notifyApplicationUpdated(updatedApp.user_id, {
+      applicationId: updatedApp.id,
+      jobTitle: updatedApp.job_title,
+      companyName: updatedApp.company_name,
+      status: updatedApp.status,
+      notes: updatedApp.notes,
+    }).catch((err) => {
+      systemLogger.warn(
+        `Failed to dispatch application updated notification: ${err instanceof Error ? err.message : String(err)}`,
+        { source: 'backend', userId: updatedApp.user_id }
+      );
+    });
+
     const targetJob = updatedApp.job_id;
     if (targetJob) {
       const jobUpdates: string[] = ['updated_at = NOW()'];

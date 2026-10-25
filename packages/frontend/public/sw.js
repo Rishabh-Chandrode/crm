@@ -51,6 +51,10 @@ self.addEventListener('notificationclick', (event) => {
     targetUrl = '/settings?tab=gmail';
   } else if (event.action === 'retry') {
     targetUrl = '/scheduled';
+  } else if (event.action === 'view_jobs') {
+    targetUrl = '/jobs';
+  } else if (event.action === 'view_applications') {
+    targetUrl = '/applications';
   }
 
   event.waitUntil(

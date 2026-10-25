@@ -19,6 +19,13 @@ vi.mock('../db/index.js', () => ({
   },
 }));
 
+vi.mock('../services/pushNotificationService.js', () => ({
+  pushNotificationService: {
+    notifyJobAdded: vi.fn().mockResolvedValue(0),
+    notifyApplicationUpdated: vi.fn().mockResolvedValue(0),
+  },
+}));
+
 vi.mock('../services/jobEmailSync/syncOrchestrator.js', () => ({
   syncJobEmailsForUser: vi.fn().mockResolvedValue({
     discovered: 2,

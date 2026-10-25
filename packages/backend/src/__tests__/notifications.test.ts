@@ -265,6 +265,89 @@ describe('Web Push Notifications API & Service', () => {
       expect(sentPayload.url).toBe('/settings?tab=gmail');
       expect(sentPayload.actions).toEqual([{ action: 'reconnect_gmail', title: 'Reconnect Gmail' }]);
     });
+
+    it('dispatches job added notification with company name and view_jobs action', async () => {
+      let capturedUser = '';
+      let capturedPayload: any;
+      vi.spyOn(pushNotificationService, 'notifyUser').mockImplementation(async (userId, payload) => {
+        capturedUser = userId;
+        capturedPayload = payload;
+        return 1;
+      });
+
+      const count = await pushNotificationService.notifyJobAdded('user-42', {
+        jobId: 'job-123',
+        title: 'Senior Software Engineer',
+        companyName: 'Acme Corp',
+        jobUrl: 'https://acme.com/jobs/123',
+      });
+
+      expect(count).toBe(1);
+      expect(capturedUser).toBe('user-42');
+      expect(capturedPayload.title).toBe('💼 New Job Added');
+      expect(capturedPayload.body).toContain('"Senior Software Engineer" at Acme Corp has been added to your jobs.');
+      expect(capturedPayload.url).toBe('/jobs');
+      expect(capturedPayload.tag).toBe('job-added-job-123');
+      expect(capturedPayload.actions).toEqual([{ action: 'view_jobs', title: 'View Jobs' }]);
+    });
+
+    it('dispatches job added notification without company name', async () => {
+      let capturedPayload: any;
+      vi.spyOn(pushNotificationService, 'notifyUser').mockImplementation(async (_userId, payload) => {
+        capturedPayload = payload;
+        return 1;
+      });
+
+      await pushNotificationService.notifyJobAdded('user-42', {
+        title: 'General Engineer',
+      });
+
+      expect(capturedPayload.title).toBe('💼 New Job Added');
+      expect(capturedPayload.body).toBe('"General Engineer" has been added to your jobs.');
+      expect(capturedPayload.url).toBe('/jobs');
+    });
+
+    it('dispatches application updated notification with formatted status and view_applications action', async () => {
+      let capturedUser = '';
+      let capturedPayload: any;
+      vi.spyOn(pushNotificationService, 'notifyUser').mockImplementation(async (userId, payload) => {
+        capturedUser = userId;
+        capturedPayload = payload;
+        return 1;
+      });
+
+      const count = await pushNotificationService.notifyApplicationUpdated('user-99', {
+        applicationId: 'app-555',
+        jobTitle: 'Backend Developer',
+        companyName: 'Stripe',
+        status: 'referral_requested',
+      });
+
+      expect(count).toBe(1);
+      expect(capturedUser).toBe('user-99');
+      expect(capturedPayload.title).toBe('📝 Application Updated');
+      expect(capturedPayload.body).toContain('Application for "Backend Developer" at Stripe was updated (Status: Referral Requested).');
+      expect(capturedPayload.url).toBe('/applications');
+      expect(capturedPayload.tag).toBe('application-updated-app-555');
+      expect(capturedPayload.actions).toEqual([{ action: 'view_applications', title: 'View Applications' }]);
+    });
+
+    it('dispatches application updated notification without status', async () => {
+      let capturedPayload: any;
+      vi.spyOn(pushNotificationService, 'notifyUser').mockImplementation(async (_userId, payload) => {
+        capturedPayload = payload;
+        return 1;
+      });
+
+      await pushNotificationService.notifyApplicationUpdated('user-99', {
+        applicationId: 'app-555',
+        jobTitle: 'Backend Developer',
+        companyName: 'Stripe',
+      });
+
+      expect(capturedPayload.title).toBe('📝 Application Updated');
+      expect(capturedPayload.body).toBe('Application for "Backend Developer" at Stripe was updated.');
+    });
   });
 });
 

@@ -173,8 +173,8 @@ export function PushNotificationCard() {
             </span>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-xl">
-            Receive instant lock-screen alerts on your phone whenever a scheduled email fails to send,
-            with direct buttons to retry the send or reconnect expired Gmail credentials.
+            Receive instant lock-screen alerts on your phone whenever a job is added, an application is updated, or a scheduled email fails to send,
+            with direct buttons to review details or retry.
           </p>
         </div>
 

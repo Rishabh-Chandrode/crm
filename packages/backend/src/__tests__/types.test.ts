@@ -77,5 +77,24 @@ describe('Backend Types & Utilities', () => {
       };
       expect(quickAdd.pending_dismissed).toBe(true);
     });
+
+    it('validates JobAddedNotificationDetails and ApplicationUpdatedNotificationDetails structures', () => {
+      const jobDetails: import('../types/index.js').JobAddedNotificationDetails = {
+        jobId: 'j-1',
+        title: 'Backend Engineer',
+        companyName: 'Acme',
+        jobUrl: 'https://acme.com',
+      };
+      expect(jobDetails.title).toBe('Backend Engineer');
+
+      const appDetails: import('../types/index.js').ApplicationUpdatedNotificationDetails = {
+        applicationId: 'a-1',
+        jobTitle: 'Backend Engineer',
+        companyName: 'Acme',
+        status: 'applied',
+        notes: 'Submitted resume',
+      };
+      expect(appDetails.status).toBe('applied');
+    });
   });
 });

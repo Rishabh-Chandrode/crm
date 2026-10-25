@@ -4,7 +4,15 @@ import type {
   PushNotificationPayload,
   SubscribePushPayload,
   PushSubscriptionRecord,
+  JobAddedNotificationDetails,
+  ApplicationUpdatedNotificationDetails,
 } from '../types/index.js';
+
+function formatStatus(status: string): string {
+  return status
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export class PushNotificationService {
   private vapidInitialized = false;
@@ -228,6 +236,45 @@ export class PushNotificationService {
 
     const sentCount = await this.notifyAdmins(payload);
     return sentCount > 0;
+  }
+
+  /**
+   * Dispatches a push notification to a user when a new job is added.
+   */
+  async notifyJobAdded(userId: string, details: JobAddedNotificationDetails): Promise<number> {
+    const companySuffix = details.companyName?.trim() ? ` at ${details.companyName.trim()}` : '';
+    const payload: PushNotificationPayload = {
+      title: '💼 New Job Added',
+      body: `"${details.title}"${companySuffix} has been added to your jobs.`,
+      url: '/jobs',
+      tag: `job-added-${details.jobId || Date.now()}`,
+      actions: [
+        { action: 'view_jobs', title: 'View Jobs' },
+      ],
+    };
+
+    return this.notifyUser(userId, payload);
+  }
+
+  /**
+   * Dispatches a push notification to a user when their application is updated.
+   */
+  async notifyApplicationUpdated(
+    userId: string,
+    details: ApplicationUpdatedNotificationDetails
+  ): Promise<number> {
+    const statusStr = details.status ? ` (Status: ${formatStatus(details.status)})` : '';
+    const payload: PushNotificationPayload = {
+      title: '📝 Application Updated',
+      body: `Application for "${details.jobTitle}" at ${details.companyName} was updated${statusStr}.`,
+      url: '/applications',
+      tag: `application-updated-${details.applicationId}`,
+      actions: [
+        { action: 'view_applications', title: 'View Applications' },
+      ],
+    };
+
+    return this.notifyUser(userId, payload);
   }
 }
 

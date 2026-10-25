@@ -1,5 +1,7 @@
 import { pool } from '../db/index.js';
 import type { Job, EmailSend, Company, JobApplication } from '../types/index.js';
+import { pushNotificationService } from './pushNotificationService.js';
+import { systemLogger } from './systemLogger.js';
 
 export interface ListJobsOptions {
   companyId?: string;
@@ -233,6 +235,18 @@ export async function createJob(
       applicationStatusForJob(job.status),
     ]
   );
+
+  void pushNotificationService.notifyJobAdded(userId, {
+    jobId: job.id,
+    title: job.title,
+    companyName: job.company?.name || input.company_name?.trim() || null,
+    jobUrl: job.job_url,
+  }).catch((err) => {
+    systemLogger.warn(
+      `Failed to dispatch job added notification: ${err instanceof Error ? err.message : String(err)}`,
+      { source: 'backend', userId }
+    );
+  });
 
   return job;
 }

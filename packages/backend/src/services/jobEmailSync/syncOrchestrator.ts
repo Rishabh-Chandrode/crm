@@ -1,5 +1,6 @@
 import { pool } from '../../db/index.js';
 import type { CandidatePreferences, JobEmailSyncResult, JobApplication } from '../../types/index.js';
+import { pushNotificationService } from '../pushNotificationService.js';
 import { fetchJobAndStatusEmails } from './gmailFetcher.js';
 import { extractJobsFromEmail } from './jobExtractor.js';
 import { scrapeJobDetails } from './jobScraper.js';
@@ -170,6 +171,14 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                   [job.title, cleanUrl, companyId, 'open', userId, `Imported via email alert: ${email.subject.slice(0, 100)}`]
                 );
                 jobId = jobInsert.rows[0]?.id || null;
+                if (jobId) {
+                  void pushNotificationService.notifyJobAdded(userId, {
+                    jobId,
+                    title: job.title,
+                    companyName: job.company,
+                    jobUrl: cleanUrl,
+                  }).catch(() => undefined);
+                }
               } catch {
                 // Ignore job insert conflict
               }
@@ -240,6 +249,14 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                   ]
                 );
                 jobId = jobInsert.rows[0]?.id || null;
+                if (jobId) {
+                  void pushNotificationService.notifyJobAdded(userId, {
+                    jobId,
+                    title: job.title || 'Unconfirmed Role',
+                    companyName: job.company,
+                    jobUrl: cleanUrl,
+                  }).catch(() => undefined);
+                }
               } catch {
                 // Ignore conflict
               }
@@ -317,6 +334,13 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                 [update.status, updatedNotes, target.id]
               );
               result.updated++;
+              void pushNotificationService.notifyApplicationUpdated(userId, {
+                applicationId: target.id,
+                jobTitle: target.job_title,
+                companyName: target.company_name,
+                status: update.status,
+                notes: updatedNotes,
+              }).catch(() => undefined);
             } else {
               // Create an application record with this update status
               await pool.query(

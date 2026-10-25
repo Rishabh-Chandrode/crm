@@ -7,6 +7,7 @@ import jobsRouter from '../routes/jobs.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { pool } from '../db/index.js';
 import { resolveOutreachJobId, recordReferralOutreach } from '../services/jobs.js';
+import { pushNotificationService } from '../services/pushNotificationService.js';
 
 const app = express();
 app.use(express.json());
@@ -18,6 +19,8 @@ const userToken = jwt.sign(testUser, CONFIG.jwtSecret);
 describe('Jobs Routes', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(pushNotificationService, 'notifyJobAdded').mockResolvedValue(0);
+    vi.spyOn(pushNotificationService, 'notifyApplicationUpdated').mockResolvedValue(0);
   });
 
   describe('GET /api/jobs', () => {
@@ -189,6 +192,44 @@ describe('Jobs Routes', () => {
       expect(res.status).toBe(201);
       expect(res.body.data.id).toBe('job-new');
       expect(res.body.data.company.name).toBe('OpenAI');
+    });
+
+    it('dispatches job added push notification to respective user', async () => {
+      const notifySpy = vi.spyOn(pushNotificationService, 'notifyJobAdded').mockResolvedValue(1);
+
+      vi.spyOn(pool, 'query')
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'job-notify',
+              title: 'DevOps Engineer',
+              job_url: 'https://jobs.lever.co/test/3',
+              company_id: 'comp-1',
+              status: 'open',
+              created_by: 'user-123',
+            },
+          ],
+        } as any)
+        .mockResolvedValueOnce({
+          rows: [{ id: 'comp-1', name: 'OpenAI' }],
+        } as any)
+        .mockResolvedValueOnce({ rows: [{ id: 'app-new' }] } as any);
+
+      const res = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          title: 'DevOps Engineer',
+          job_url: 'https://jobs.lever.co/test/3',
+          company_id: 'comp-1',
+        });
+
+      expect(res.status).toBe(201);
+      expect(notifySpy).toHaveBeenCalledWith('user-123', expect.objectContaining({
+        jobId: 'job-notify',
+        title: 'DevOps Engineer',
+        companyName: 'OpenAI',
+      }));
     });
 
     it('auto-resolves company by company_name when company_id is omitted', async () => {

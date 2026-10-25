@@ -202,6 +202,24 @@ describe('Frontend Types & Utility Functions', () => {
       expect(pref.enabled).toBe(true);
       expect(pref.last_synced_at).toContain('2026-10-14');
     });
+
+    it('validates JobAddedNotificationDetails and ApplicationUpdatedNotificationDetails', () => {
+      const jobDetails: import('../lib/types').JobAddedNotificationDetails = {
+        jobId: 'job-1',
+        title: 'Fullstack Engineer',
+        companyName: 'OpenAI',
+        jobUrl: 'https://openai.com/careers/1',
+      };
+      expect(jobDetails.title).toBe('Fullstack Engineer');
+
+      const appDetails: import('../lib/types').ApplicationUpdatedNotificationDetails = {
+        applicationId: 'app-1',
+        jobTitle: 'Fullstack Engineer',
+        companyName: 'OpenAI',
+        status: 'interview',
+      };
+      expect(appDetails.status).toBe('interview');
+    });
   });
 });
 

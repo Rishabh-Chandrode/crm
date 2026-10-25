@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { app } from '../app.js';
 import { CONFIG } from '../config.js';
 import { pool } from '../db/index.js';
+import { pushNotificationService } from '../services/pushNotificationService.js';
 
 describe('Backend API Feature Routes', () => {
   const userToken = jwt.sign(
@@ -21,6 +22,8 @@ describe('Backend API Feature Routes', () => {
     // Never fall through to the real pool. A one-off mock that runs out otherwise
     // waits on a live connection until the test times out.
     vi.spyOn(pool, 'query').mockResolvedValue({ rows: [], rowCount: 0 } as any);
+    vi.spyOn(pushNotificationService, 'notifyJobAdded').mockResolvedValue(0);
+    vi.spyOn(pushNotificationService, 'notifyApplicationUpdated').mockResolvedValue(0);
   });
 
   describe('Companies API (/api/companies)', () => {
@@ -537,10 +540,12 @@ describe('Backend API Feature Routes', () => {
       expect(res.body.status).toBe('ineligible');
     });
 
-    it('allows admin to update application created by another user via PATCH /api/applications/:id', async () => {
+    it('allows admin to update application created by another user via PATCH /api/applications/:id and notifies respective user', async () => {
+      const notifySpy = vi.spyOn(pushNotificationService, 'notifyApplicationUpdated').mockResolvedValue(1);
+
       vi.spyOn(pool, 'query').mockResolvedValueOnce({
         rowCount: 1,
-        rows: [{ id: 'app-99', company_name: 'Stripe', status: 'closed', job_id: null }],
+        rows: [{ id: 'app-99', user_id: 'user-other', company_name: 'Stripe', job_title: 'Fullstack Eng', status: 'closed', job_id: null }],
       } as any);
 
       const res = await request(app)
@@ -550,6 +555,11 @@ describe('Backend API Feature Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('closed');
+      expect(notifySpy).toHaveBeenCalledWith('user-other', expect.objectContaining({
+        applicationId: 'app-99',
+        companyName: 'Stripe',
+        status: 'closed',
+      }));
     });
 
     it('allows admin to delete application via DELETE /api/applications/:id', async () => {

@@ -503,4 +503,19 @@ export interface PushNotificationPayload {
   actions?: PushNotificationAction[];
 }
 
+export interface JobAddedNotificationDetails {
+  jobId?: string;
+  title: string;
+  companyName?: string | null;
+  jobUrl?: string;
+}
+
+export interface ApplicationUpdatedNotificationDetails {
+  applicationId: string;
+  jobTitle: string;
+  companyName: string;
+  status?: string;
+  notes?: string | null;
+}
+
 

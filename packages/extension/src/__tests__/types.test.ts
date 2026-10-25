@@ -376,6 +376,22 @@ describe('Extension Data Shapes & Message Contracts', () => {
     expect(subPayload.keys.p256dh).toBe('BNc...');
     expect(notif.title).toBe('Scheduled Email Failed');
     expect(notif.actions?.[0]?.action).toBe('reconnect_gmail');
+
+    const jobNotif: extensionTypes.JobAddedNotificationDetails = {
+      jobId: 'job-1',
+      title: 'DevOps Engineer',
+      companyName: 'Acme',
+      jobUrl: 'https://acme.com',
+    };
+    expect(jobNotif.title).toBe('DevOps Engineer');
+
+    const appNotif: extensionTypes.ApplicationUpdatedNotificationDetails = {
+      applicationId: 'app-1',
+      jobTitle: 'DevOps Engineer',
+      companyName: 'Acme',
+      status: 'interview',
+    };
+    expect(appNotif.status).toBe('interview');
   });
 });
 

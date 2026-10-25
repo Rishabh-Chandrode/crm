@@ -11,6 +11,13 @@ vi.mock('../db/index.js', () => ({
   },
 }));
 
+vi.mock('../services/pushNotificationService.js', () => ({
+  pushNotificationService: {
+    notifyJobAdded: vi.fn().mockResolvedValue(0),
+    notifyApplicationUpdated: vi.fn().mockResolvedValue(0),
+  },
+}));
+
 describe('syncOrchestrator - AI Extraction, Confident Company Insertion & Unconfirmed Jobs', () => {
   const userId = '11111111-2222-3333-4444-555555555555';
 

@@ -399,6 +399,11 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `POST` | `/api/notifications/test` | — | `{ success: true, sent: number, failed: number }` — dispatches a test push notification to user's registered devices. |
 
 - **VAPID Keys:** Automatically generated on first retrieval and persisted in the `settings` key-value table (`vapid_public_key`, `vapid_private_key`).
+- **Automated Dispatches:**
+  - `notifyJobAdded(userId, details)`: Dispatches push alerts to the respective user whenever a new job is added (via `POST /api/jobs`, `POST /api/applications`, or background email sync). Includes quick action button to view `/jobs`.
+  - `notifyApplicationUpdated(userId, details)`: Dispatches push alerts to the respective application owner whenever their job application is updated (via `PATCH /api/applications/:id`, `POST /api/applications` deduplication, or background email sync). Includes quick action button to view `/applications`.
+  - `notifyScheduledEmailFailure(userId, details)`: Dispatches failure alerts with retry and Gmail reconnect actions.
+  - `notifyLlmFailure(errorDetails)`: Dispatches throttled alerts to administrators when LLM calls fail.
 ---
 
 ## Database

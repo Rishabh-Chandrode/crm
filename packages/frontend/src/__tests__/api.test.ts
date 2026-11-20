@@ -82,4 +82,31 @@ describe('Frontend API Client (src/lib/api.ts)', () => {
     expect(res).toEqual(mockLookup);
     expect(mockFetch.mock.calls[0]?.[0]).toContain('/prospects/lookup?linkedin_url=https%3A%2F%2Flinkedin.com%2Fin%2Fjane');
   });
+
+  it('calls autofill.aiFill with POST request and returns answers', async () => {
+    const mockResponse = {
+      success: true,
+      answers: [{ id: 'q1', value: 'Yes', optionIndex: 0 }],
+      modelUsed: 'gemini',
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockResponse,
+    });
+    global.fetch = mockFetch;
+
+    const res = await api.autofill.aiFill({
+      job_title: 'Software Engineer',
+      fields: [{ id: 'q1', label: 'Eligible?', type: 'select', options: ['Yes', 'No'] }],
+    });
+
+    expect(res).toEqual(mockResponse);
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain('/autofill/ai-fill');
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toEqual({
+      job_title: 'Software Engineer',
+      fields: [{ id: 'q1', label: 'Eligible?', type: 'select', options: ['Yes', 'No'] }],
+    });
+  });
 });

@@ -1000,6 +1000,49 @@ textarea.input {
   background-position: right 6px center;
 }
 
+.apply-ai-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 2px 0 4px;
+}
+
+.ai-assist-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+}
+
+.ai-assist-toggle input {
+  display: none;
+}
+
+.ai-assist-toggle-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-hover, #f1f5f9);
+  border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-muted, #64748b);
+  transition: all 0.15s ease;
+  font-weight: 500;
+  font-size: 10.5px;
+}
+
+.ai-assist-toggle input:checked + .ai-assist-toggle-box {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.ai-assist-toggle input:checked + .ai-assist-toggle-box svg {
+  color: #6366f1;
+}
+
 .apply-search-row {
   position: relative;
   width: 100%;

@@ -1,5 +1,14 @@
 export type UserRole = 'admin' | 'user';
 
+export interface WorkExperienceEntry {
+  company: string;
+  title: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  location?: string | null;
+  description?: string | null;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -15,6 +24,28 @@ export interface User {
   phone_country_code: string | null;
   website: string | null;
   bio: string | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  address_line1?: string | null;
+  postal_code?: string | null;
+  work_authorization?: string | null;
+  location?: string | null;
+  hometown?: string | null;
+  years_of_experience?: string | null;
+  notice_period?: string | null;
+  current_ctc?: string | null;
+  expected_ctc?: string | null;
+  education?: string | null;
+  college_name?: string | null;
+  graduation_year?: string | null;
+  skills?: string[];
+  projects?: unknown[];
+  work_experiences?: WorkExperienceEntry[];
+  gender?: string | null;
+  veteran_status?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -517,5 +548,37 @@ export interface ApplicationUpdatedNotificationDetails {
   status?: string;
   notes?: string | null;
 }
+
+export interface AiAutofillFieldQuery {
+  id: string;
+  name?: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox';
+  placeholder?: string;
+  options?: string[];
+}
+
+export interface AiAutofillRequest {
+  job_title?: string;
+  company_name?: string;
+  job_description?: string;
+  fields: AiAutofillFieldQuery[];
+}
+
+export interface AiAutofillFieldAnswer {
+  id: string;
+  value: string;
+  optionIndex?: number;
+  confidence?: number;
+  reasoning?: string;
+}
+
+export interface AiAutofillResponse {
+  success: boolean;
+  answers: AiAutofillFieldAnswer[];
+  modelUsed?: string;
+  error?: string;
+}
+
 
 

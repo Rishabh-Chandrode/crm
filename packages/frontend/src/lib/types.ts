@@ -17,6 +17,15 @@ export interface WorkExperience {
   description: string;
 }
 
+export interface WorkExperienceEntry {
+  company: string;
+  title: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  location?: string | null;
+  description?: string | null;
+}
+
 export interface CrmUser {
   id: string;
   username: string;
@@ -678,5 +687,37 @@ export interface ApplicationUpdatedNotificationDetails {
   status?: string;
   notes?: string | null;
 }
+
+export interface AiAutofillFieldQuery {
+  id: string;
+  name?: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox';
+  placeholder?: string;
+  options?: string[];
+}
+
+export interface AiAutofillRequest {
+  job_title?: string;
+  company_name?: string;
+  job_description?: string;
+  fields: AiAutofillFieldQuery[];
+}
+
+export interface AiAutofillFieldAnswer {
+  id: string;
+  value: string;
+  optionIndex?: number;
+  confidence?: number;
+  reasoning?: string;
+}
+
+export interface AiAutofillResponse {
+  success: boolean;
+  answers: AiAutofillFieldAnswer[];
+  modelUsed?: string;
+  error?: string;
+}
+
 
 

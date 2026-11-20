@@ -11,7 +11,7 @@ Manifest V3 Chrome side panel extension. Scrapes contact info from LinkedIn prof
 - **LinkedIn scraper** — click **Scrape LinkedIn** from any LinkedIn profile tab. The content script is completely passive on load and will never scroll or scrape automatically. When the user explicitly clicks the button, the extension sends a `SCRAPE_PAGE` message to trigger incremental scrolling for lazy-loading the experience section and extracts name, job title, company, pronouns/gender, contact email (if available), and LinkedIn URL.
 
 - **Quick-add to CRM** — review the extracted (or manually entered) data including gender / salutation base and save it as a new prospect via `POST /api/prospects/quick-add`.
-- **Form autofiller** — click **Autofill** to fill any job application form (Greenhouse, Lever, Workday, Google Forms, or generic) with your CRM profile data. Optionally select a document from **Profile → Documents** to attach it to file upload inputs. After you submit the form, the extension auto-records the application in the CRM dashboard.
+- **Form autofiller & AI Screening Assistant** — click **Autofill** to fill any job application form (Greenhouse, Lever, Workday, Google Forms, or generic) with your CRM profile data. The integrated **AI Screening Assistant** detects custom screening questions, short-answer essays ("Why do you want to work here?"), complex dropdowns, and radio buttons, answers them via backend LLM using candidate context, and applies answers directly to the DOM. Optionally select a document from **Profile → Documents** to attach it to file upload inputs. After you submit the form, the extension auto-records the application in the CRM dashboard.
 - **Compose email** — select a template (the latest live version, labeled `name vN`) and send an email to a prospect without leaving the side panel.
 - **Modern UI & Dark Mode** — built with the Apple and shadcn/ui-inspired Zinc design tokens (`zinc-50` through `zinc-950`), custom segmented pill controls, glassmorphic header, and automatic light/dark/system theme synchronization.
 - **JWT auth** — authenticates via the CRM backend and stores the token in `chrome.storage.sync`. A login gate shows automatically when the token is missing or expired.
@@ -46,6 +46,7 @@ extension/
 │   └── formFiller/                 # Form autofill subsystem
 │       ├── index.ts                # Orchestrator — platform detection, field loop, resume injection
 │       ├── detector.ts             # Label-based field detection: getLabelText, PATTERNS, classifyElement, detectAllFields
+│       ├── aiAssistant.ts          # AI-assisted question extractor, job context scraper, and answer applier
 │       ├── filler.ts               # Low-level fill helpers: simulateInput, fillSelect, iti phone, resume file
 │       ├── types.ts                # FieldType union, UserProfile (includes target_roles), FillResult, ALL_FIELD_TYPES
 │       └── platforms/              # Per-platform custom fill logic
@@ -132,6 +133,13 @@ Workday (`*.myworkdayjobs.com`) renders a multi-step application. `detectStep()`
 **`fillWorkdayDateViaPicker(wrapperId, mm, yyyy)`** — clicks the calendar icon, navigates year spinners until the year matches, then clicks the target `li[data-uxi-monthpicker-month]` tile. Avoids React internals entirely.
 
 **Touched state** — Workday's form library only clears required-field validation errors after a real focus→blur cycle. Every fill helper ends with a blur call or `document.body.click()`.
+
+### AI-Assisted Form Filling & Screening Questions (`aiAssistant.ts`)
+
+- **Screening Essays & Custom Textareas:** Scrapes the job title and job description from the page, queries the backend AI autofill endpoint (`POST /api/autofill/ai-fill`), and generates concise, truthful responses grounded strictly in the candidate's real profile, skills, and work experience.
+- **Complex Select Dropdowns & Radio Buttons:** For questions with custom option strings (e.g. visa sponsorship status, education levels), the LLM maps the candidate's background to the exact option index and text choice in the DOM.
+- **Deterministic Heuristic Fallback:** When the LLM provider is unavailable or unconfigured, the backend automatically falls back to deterministic heuristic rules for legal work authorization, notice period, and compensation questions.
+- **Visual Feedback:** All AI-filled fields are highlighted in the side panel status chips with a `✨` prefix so candidates can review answers before submission.
 
 ### Resume detection
 

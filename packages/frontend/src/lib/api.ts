@@ -658,4 +658,12 @@ export const api = {
         method: 'POST',
       }),
   },
+
+  autofill: {
+    aiFill: (body: import('./types').AiAutofillRequest) =>
+      request<import('./types').AiAutofillResponse>('/autofill/ai-fill', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
 };

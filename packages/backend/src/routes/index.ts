@@ -19,6 +19,7 @@ import jobsRouter from './jobs.js';
 import logsRouter from './logs.js';
 import aiSettingsRouter from './aiSettings.js';
 import notificationsRouter from './notifications.js';
+import autofillRouter from './autofill.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -44,5 +45,6 @@ router.use('/jobs',              authMiddleware, jobsRouter);
 router.use('/logs',              logsRouter);
 router.use('/ai-settings',       aiSettingsRouter);
 router.use('/notifications',     notificationsRouter);
+router.use('/autofill',          authMiddleware, autofillRouter);
 
 export default router;

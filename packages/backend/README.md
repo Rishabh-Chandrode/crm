@@ -48,9 +48,11 @@ src/
 │   ├── settings.ts              # /settings — key/value store
 │   ├── aiSettings.ts            # /ai-settings — admin-only LLM provider, credentials & model configuration
 │   ├── track.ts                 # /track — email open pixel (public, no auth)
+│   ├── autofill.ts              # /autofill — AI-assisted form filler & screening question resolution
 │   ├── notifications.ts         # /notifications — Web Push VAPID key & browser subscriptions with systemLogger error tracking
 │   └── logs.ts                  # /logs — admin-only system logs, stats, and retention pruning
 ├── services/
+│   ├── aiAutofillService.ts     # AI-driven screening question answers, option selection, and heuristic fallback
 │   ├── llm/
 │   │   ├── types.ts             # ILlmProvider interface & options
 │   │   ├── factory.ts           # LlmProviderFactory (Strategy & Factory pattern)
@@ -386,6 +388,14 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 | `POST` | `/api/logs/ingest` | `{ level: 'error' \| 'warn' \| 'info' \| 'debug', message: string, source?: string, meta?: any }` | `{ success: true }` — client/extension error reporting (authenticated users). |
 | `DELETE` | `/api/logs` | **Query:** `beforeDate?` (ISO date string) | `{ deleted: number }` — purges all logs or logs prior to `beforeDate`. Audited with warning. |
 | `POST` | `/api/logs/prune` | `{ days?: number }` (default: 30) | `{ deleted: number, retentionDays: number }` — manual trigger for retention cleanup. |
+
+---
+
+### AI Autofill & Screening Resolution
+
+| Method | Path | Body / Params | Response |
+|--------|------|---------------|----------|
+| `POST` | `/api/autofill/ai-fill` | `{ job_title?: string, company_name?: string, job_description?: string, fields: AiAutofillFieldQuery[] }` | `{ success: boolean, answers: AiAutofillFieldAnswer[], modelUsed?: string }` — uses active LLM provider (or heuristic fallback) with candidate profile and job context to resolve screening questions, dropdowns, and text fields. |
 
 ---
 

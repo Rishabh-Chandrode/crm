@@ -7,6 +7,12 @@ import { SELECTOR_MAP as LEVER }      from './platforms/lever';
 import { fill as fillWorkday }        from './platforms/workday';
 import { SELECTOR_MAP as GENERIC }    from './platforms/generic';
 import { fill as fillGoogleForms }    from './platforms/google-forms';
+import {
+  detectUnfilledQuestions,
+  extractPageJobContext,
+  applyAiAnswers,
+  queryAiAutofillBackend,
+} from './aiAssistant';
 
 function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -376,26 +382,59 @@ function setupSubmitDetector(): void {
   });
 }
 
-chrome.storage.local.get(['autofillProfile', 'autofillResume'], (stored) => {
-  const profile = stored['autofillProfile'] as UserProfile | undefined;
-  const resume  = stored['autofillResume']  as StoredResume | null | undefined;
+chrome.storage.local.get(
+  ['autofillProfile', 'autofillResume', 'autofillBackendUrl', 'autofillToken', 'aiAutofillEnabled'],
+  (stored) => {
+    const profile = stored['autofillProfile'] as UserProfile | undefined;
+    const resume  = stored['autofillResume']  as StoredResume | null | undefined;
+    const backendUrl = stored['autofillBackendUrl'] as string | undefined;
+    const token = stored['autofillToken'] as string | undefined;
+    const aiEnabled = stored['aiAutofillEnabled'] !== false;
 
-  if (!profile) {
-    void chrome.runtime.sendMessage({ action: 'autofillResult', filled: [], skipped: [], platform: 'unknown', error: 'No profile data' });
-    return;
-  }
-
-  run(profile).then(result => {
-    // Fill resume file inputs after text fields
-    if (resume) {
-      const inputs = detectResumeInputs();
-      for (const input of inputs) {
-        const ok = fillResumeInput(input, resume.base64, resume.filename, resume.mimeType);
-        if (ok) result.filled.push('resume');
-      }
+    if (!profile) {
+      void chrome.runtime.sendMessage({ action: 'autofillResult', filled: [], skipped: [], platform: 'unknown', error: 'No profile data' });
+      return;
     }
-    void chrome.runtime.sendMessage({ action: 'autofillResult', ...result });
-    // Set up submit detection so the application is tracked on form submission
-    setupSubmitDetector();
-  });
-});
+
+    run(profile).then(async (result) => {
+      const alreadyFilledElements = new Set<Element>();
+
+      // Fill resume file inputs after text fields
+      if (resume) {
+        const inputs = detectResumeInputs();
+        for (const input of inputs) {
+          const ok = fillResumeInput(input, resume.base64, resume.filename, resume.mimeType);
+          if (ok) {
+            result.filled.push('resume');
+            alreadyFilledElements.add(input);
+          }
+        }
+      }
+
+      // AI Autofill Pass: resolve screening questions, custom essays, and option dropdowns
+      if (aiEnabled && backendUrl && token) {
+        try {
+          const { queries, targetMap, labelMap } = detectUnfilledQuestions(alreadyFilledElements);
+          if (queries.length > 0) {
+            const context = extractPageJobContext();
+            const aiRes = await queryAiAutofillBackend(backendUrl, token, {
+              ...context,
+              fields: queries,
+            });
+
+            if (aiRes.success && Array.isArray(aiRes.answers) && aiRes.answers.length > 0) {
+              const aiFilled = await applyAiAnswers(aiRes.answers, targetMap, labelMap);
+              result.filled.push(...aiFilled);
+            }
+          }
+        } catch (err) {
+          console.warn('[FormFiller] AI screening assist failed, skipping:', err);
+        }
+      }
+
+      void chrome.runtime.sendMessage({ action: 'autofillResult', ...result });
+      // Set up submit detection so the application is tracked on form submission
+      setupSubmitDetector();
+    });
+  }
+);

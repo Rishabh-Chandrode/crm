@@ -171,6 +171,9 @@ api.notifications.getVapidKey()       // GET  /api/notifications/vapid-key
 api.notifications.subscribe(payload)  // POST /api/notifications/subscribe
 api.notifications.unsubscribe(payload)// POST /api/notifications/unsubscribe
 api.notifications.test()              // POST /api/notifications/test
+
+// AI Autofill Assistant
+api.autofill.aiFill(payload)          // POST /api/autofill/ai-fill
 ```
 
 ---

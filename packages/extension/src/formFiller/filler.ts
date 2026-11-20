@@ -320,6 +320,13 @@ export async function fillElement(el: Element, value: string): Promise<boolean> 
   if (el instanceof HTMLSelectElement) {
     return fillSelect(el, value);
   }
+  if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
+    if (!el.checked) {
+      el.click();
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return true;
+  }
   // React Select and other custom comboboxes backed by a real <input>
   if (el instanceof HTMLInputElement && el.getAttribute('role') === 'combobox') {
     return fillReactSelect(el, value);
@@ -509,8 +516,15 @@ function fillTextLike(el: HTMLInputElement | HTMLTextAreaElement, value: string)
   // pipeline. React 16/17/18 delegates events to the root container and reads
   // event.target.value from this pipeline — this is what makes controlled inputs
   // update their internal state, unlike a bare Event('input') which React can ignore.
-  document.execCommand('selectAll', false);
-  const inserted = document.execCommand('insertText', false, value);
+  let inserted = false;
+  if (typeof document.execCommand === 'function') {
+    try {
+      document.execCommand('selectAll', false);
+      inserted = document.execCommand('insertText', false, value);
+    } catch {
+      inserted = false;
+    }
+  }
 
   if (!inserted || el.value !== value) {
     // execCommand unavailable (e.g. some sandboxed frames) — fall back to native setter

@@ -87,6 +87,7 @@ const profileIncompleteEl   = $<HTMLDivElement>('profileIncompleteNote');
 const resumePickerEl        = $<HTMLSelectElement>('resumePicker');
 const resumePickerNoteEl    = $<HTMLDivElement>('resumePickerNote');
 const autofillBtn           = $<HTMLButtonElement>('autofillBtn');
+const aiAutofillToggleEl    = $<HTMLInputElement>('aiAutofillToggle');
 const autofillSpinnerEl     = $<HTMLDivElement>('autofillSpinner');
 const autofillStatusEl      = $<HTMLDivElement>('autofillStatus');
 const autofillResultEl      = $<HTMLDivElement>('autofillResult');
@@ -1498,6 +1499,17 @@ function renderAutofillResult(msg: AutofillResultMessage): void {
   }
 }
 
+// Restore AI assist preference
+chrome.storage.local.get(['aiAutofillEnabled'], (data) => {
+  if (aiAutofillToggleEl && data['aiAutofillEnabled'] !== undefined) {
+    aiAutofillToggleEl.checked = !!data['aiAutofillEnabled'];
+  }
+});
+
+aiAutofillToggleEl?.addEventListener('change', () => {
+  void chrome.storage.local.set({ aiAutofillEnabled: aiAutofillToggleEl.checked });
+});
+
 autofillBtn.addEventListener('click', () => {
   if (!cachedProfile || !currentToken) {
     showAutofillStatus('Profile not loaded yet. Try again.', 'error');
@@ -1545,7 +1557,13 @@ autofillBtn.addEventListener('click', () => {
         }
       }
 
-      await chrome.storage.local.set({ autofillProfile: cachedProfile, autofillResume });
+      await chrome.storage.local.set({
+        autofillProfile: cachedProfile,
+        autofillResume,
+        autofillBackendUrl: currentBackendUrl,
+        autofillToken: currentToken,
+        aiAutofillEnabled: aiAutofillToggleEl?.checked ?? true,
+      });
 
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id, allFrames: true },

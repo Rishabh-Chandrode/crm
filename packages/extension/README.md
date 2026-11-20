@@ -13,6 +13,7 @@ Manifest V3 Chrome side panel extension. Scrapes contact info from LinkedIn prof
 - **Quick-add to CRM** — review the extracted (or manually entered) data including gender / salutation base and save it as a new prospect via `POST /api/prospects/quick-add`.
 - **Form autofiller & AI Screening Assistant** — click **Autofill** to fill any job application form (Greenhouse, Lever, Workday, Google Forms, or generic) with your CRM profile data. The integrated **AI Screening Assistant** detects custom screening questions, short-answer essays ("Why do you want to work here?"), complex dropdowns, and radio buttons, answers them via backend LLM using candidate context, and applies answers directly to the DOM. Optionally select a document from **Profile → Documents** to attach it to file upload inputs. After you submit the form, the extension auto-records the application in the CRM dashboard.
 - **Compose email** — select a template (the latest live version, labeled `name vN`) and send an email to a prospect without leaving the side panel.
+- **Right-Click "Add to CRM Prospects"** — right-click on any text or link pointing to a LinkedIn profile (from search results, company team pages, or social profiles). The extension captures the URL and candidate name, enriches via Prospeo/Apollo, and either adds the contact directly to CRM prospects or places them in Priority Action Center for manual review with instant desktop notification feedback.
 - **Modern UI & Dark Mode** — built with the Apple and shadcn/ui-inspired Zinc design tokens (`zinc-50` through `zinc-950`), custom segmented pill controls, glassmorphic header, and automatic light/dark/system theme synchronization.
 - **JWT auth** — authenticates via the CRM backend and stores the token in `chrome.storage.sync`. A login gate shows automatically when the token is missing or expired.
 
@@ -41,7 +42,7 @@ extension/
 │   ├── popup.ts                    # Main logic — auth gate, tabs, API calls, match card, autofill
 │   ├── jobTracker.ts               # Active tab job extraction, URL canonicalization, and error formatting
 │   ├── contentScript.ts            # Passive listener on linkedin.com/in/* — only scrolls/scrapes on explicit user request
-│   ├── background.ts               # Service worker — tab queries, scrape trigger, tab URL events
+│   ├── background.ts               # Service worker — tab queries, scrape trigger, tab URL events, right-click context menu ("Add to CRM Prospects"), and desktop notifications
 │   ├── types.ts                    # Shared TypeScript interfaces mirroring backend contracts (including LlmConfigSettings, LlmProviderType, PushNotificationPayload & PushNotificationAction contracts, JobAddedNotificationDetails, ApplicationUpdatedNotificationDetails, JobStatus & JobApplicationStatus with unconfirmed & ineligible, ExtractedJobOpportunity, SystemLog telemetry, PendingProspect, LinkedInProspectResult). Email-send dismissals stay on the server.
 │   └── formFiller/                 # Form autofill subsystem
 │       ├── index.ts                # Orchestrator — platform detection, field loop, resume injection

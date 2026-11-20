@@ -121,7 +121,7 @@ api.companies.create(body)
 api.companies.update(id, body)
 api.companies.delete(id)
 api.companies.merge(targetId, sourceId)
-api.prospects.fromLinkedIn({ linkedin_url }) // POST /api/prospects/from-linkedin
+api.prospects.fromLinkedIn({ linkedin_url, name? }) // POST /api/prospects/from-linkedin
 api.prospects.lookup({ linkedin_url?, email? }) // GET /api/prospects/lookup
 
 // Jobs & Referral Outreach

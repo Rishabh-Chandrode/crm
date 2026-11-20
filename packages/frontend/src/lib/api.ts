@@ -184,7 +184,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    fromLinkedIn: (body: { linkedin_url: string }) =>
+    fromLinkedIn: (body: import('./types').CreateProspectFromLinkedInPayload) =>
       request<import('./types').LinkedInProspectResult>('/prospects/from-linkedin', {
         method: 'POST',
         body: JSON.stringify(body),

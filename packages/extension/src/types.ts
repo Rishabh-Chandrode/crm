@@ -310,6 +310,11 @@ export interface PendingProspect {
   updated_at: string | Date;
 }
 
+export interface CreateProspectFromLinkedInPayload {
+  linkedin_url: string;
+  name?: string;
+}
+
 export interface LinkedInProspectResult {
   data?: Prospect & { company_name?: string | null };
   pendingProspect?: PendingProspect;

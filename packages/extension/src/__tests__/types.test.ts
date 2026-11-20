@@ -392,6 +392,12 @@ describe('Extension Data Shapes & Message Contracts', () => {
       status: 'interview',
     };
     expect(appNotif.status).toBe('interview');
+
+    const fromLinkedInPayload: extensionTypes.CreateProspectFromLinkedInPayload = {
+      linkedin_url: 'https://linkedin.com/in/alex',
+      name: 'Alex Smith',
+    };
+    expect(fromLinkedInPayload.name).toBe('Alex Smith');
   });
 });
 

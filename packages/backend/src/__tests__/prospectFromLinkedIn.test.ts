@@ -10,11 +10,12 @@ import { ProspeoProvider } from '../services/enrichment/providers/prospeo.js';
 const PROFILE = 'https://www.linkedin.com/in/jane-doe';
 const NORMALIZED = 'https://www.linkedin.com/in/jane-doe';
 
+const userToken = jwt.sign(
+  { id: 'user-123', username: 'testuser', role: 'user' },
+  CONFIG.jwtSecret,
+);
+
 describe('POST /api/prospects/from-linkedin', () => {
-  const userToken = jwt.sign(
-    { id: 'user-123', username: 'testuser', role: 'user' },
-    CONFIG.jwtSecret,
-  );
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -437,6 +438,37 @@ describe('Enrichment provider name mapping', () => {
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(body).toEqual({ linkedin_url: PROFILE });
+  });
+
+  it('uses provided name fallback for pending prospect when email is not found', async () => {
+    vi.spyOn(pool, 'query')
+      .mockResolvedValueOnce({ rows: [] } as any) // findByLinkedIn
+      .mockResolvedValueOnce({ rows: [] } as any) // check existing pending
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'pending-custom-name',
+          user_id: 'user-123',
+          first_name: 'Sarah',
+          last_name: 'Connor',
+          linkedin_url: NORMALIZED,
+        }],
+      } as any);
+
+    // Both enrichments return null or throw
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('API error')));
+
+    const res = await request(app)
+      .post('/api/prospects/from-linkedin')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        linkedin_url: PROFILE,
+        name: 'Sarah Connor',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('manual_required', true);
+    expect(res.body.pendingProspect).toHaveProperty('first_name', 'Sarah');
+    expect(res.body.pendingProspect).toHaveProperty('last_name', 'Connor');
   });
 
   it('Apollo still requires a first name when no LinkedIn URL is given', async () => {

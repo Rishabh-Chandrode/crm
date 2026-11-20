@@ -780,7 +780,14 @@ function accumulateAutofillResult(msg: AutofillResultMessage): void {
   }
 }
 
-chrome.runtime.onMessage.addListener((message: ScrapeMessage | AutofillResultMessage | { action: 'scrapeError'; error: string } | { action: 'tabUrlChanged'; url: string } | { action: 'applicationSubmitted'; company_name: string; job_title: string; job_url: string; platform: string }) => {
+chrome.runtime.onMessage.addListener((message: ScrapeMessage | AutofillResultMessage | { action: 'scrapeError'; error: string } | { action: 'tabUrlChanged'; url: string } | { action: 'applicationSubmitted'; company_name: string; job_title: string; job_url: string; platform: string } | { action: 'prospectAddedFromContextMenu'; result?: unknown }) => {
+  if (message.action === 'prospectAddedFromContextMenu') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const activeUrl = tabs[0]?.url;
+      if (activeUrl && currentToken) handleTabUrl(activeUrl);
+    });
+    return;
+  }
   if (message.action === 'applicationSubmitted') {
     const msg = message as { action: string; company_name: string; job_title: string; job_url: string; platform: string };
     openTrackJobPanel({ company_name: msg.company_name, job_title: msg.job_title, job_url: msg.job_url, platform: msg.platform });

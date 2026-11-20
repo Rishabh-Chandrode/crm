@@ -3,7 +3,7 @@
   "name": "Outreach CRM",
   "version": "1.0.0",
   "description": "Add LinkedIn prospects to your Outreach CRM",
-  "permissions": ["cookies", "activeTab", "tabs", "storage", "scripting", "clipboardRead", "sidePanel"],
+  "permissions": ["cookies", "activeTab", "tabs", "storage", "scripting", "clipboardRead", "sidePanel", "contextMenus", "notifications"],
   "action": {
     "default_icon": "image.png"
   },

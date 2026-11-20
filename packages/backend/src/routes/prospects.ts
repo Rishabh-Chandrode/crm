@@ -316,13 +316,13 @@ router.get('/lookup', async (req, res, next) => {
 
 router.post('/from-linkedin', async (req, res, next) => {
   try {
-    const { linkedin_url } = req.body as { linkedin_url?: string };
+    const { linkedin_url, name } = req.body as { linkedin_url?: string; name?: string };
     if (!linkedin_url?.trim()) {
       res.status(400).json({ error: 'linkedin_url is required' });
       return;
     }
 
-    const result = await createProspectFromLinkedIn(req.user!.id, linkedin_url);
+    const result = await createProspectFromLinkedIn(req.user!.id, linkedin_url, name);
     res.status(result.created ? 201 : 200).json(result);
   } catch (err) {
     if (err instanceof LinkedInProfileError) {

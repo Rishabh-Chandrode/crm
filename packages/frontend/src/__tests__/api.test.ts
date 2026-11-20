@@ -83,6 +83,29 @@ describe('Frontend API Client (src/lib/api.ts)', () => {
     expect(mockFetch.mock.calls[0]?.[0]).toContain('/prospects/lookup?linkedin_url=https%3A%2F%2Flinkedin.com%2Fin%2Fjane');
   });
 
+  it('calls prospects.fromLinkedIn with linkedin_url and name', async () => {
+    const mockResult = { created: true, data: { id: 'p-1', first_name: 'Jane', last_name: 'Doe' } };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockResult,
+    });
+    global.fetch = mockFetch;
+
+    const res = await api.prospects.fromLinkedIn({
+      linkedin_url: 'https://linkedin.com/in/jane-doe',
+      name: 'Jane Doe',
+    });
+
+    expect(res).toEqual(mockResult);
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain('/prospects/from-linkedin');
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toEqual({
+      linkedin_url: 'https://linkedin.com/in/jane-doe',
+      name: 'Jane Doe',
+    });
+  });
+
   it('calls autofill.aiFill with POST request and returns answers', async () => {
     const mockResponse = {
       success: true,

@@ -96,6 +96,7 @@ async function resolveCompanyId(userId: string, companyName: string | undefined)
 export async function createProspectFromLinkedIn(
   userId: string,
   linkedinUrl: string,
+  candidateName?: string,
 ): Promise<CreateProspectFromLinkedInResult> {
   const trimmed = linkedinUrl.trim();
   if (!isLinkedInProfileUrl(trimmed)) {
@@ -108,12 +109,24 @@ export async function createProspectFromLinkedIn(
     return { data: existing, created: false };
   }
 
+  let fallbackFirst: string | null = null;
+  let fallbackLast: string | null = null;
+  if (candidateName?.trim()) {
+    const parts = candidateName.trim().split(/\s+/);
+    fallbackFirst = parts[0] || null;
+    fallbackLast = parts.slice(1).join(' ') || null;
+  }
+
   let enriched: EnrichmentResult | null = null;
 
   // 1. First try with Prospeo
   try {
     const prospeo = new ProspeoProvider();
-    const res = await prospeo.enrich({ linkedin_url: normalized });
+    const res = await prospeo.enrich({
+      linkedin_url: normalized,
+      first_name: fallbackFirst || undefined,
+      last_name: fallbackLast || undefined,
+    });
     if (res && (res.first_name || res.email || res.company_name || res.job_title)) {
       enriched = res;
     }
@@ -127,8 +140,8 @@ export async function createProspectFromLinkedIn(
       const apollo = new ApolloProvider();
       const apolloRes = await apollo.enrich({
         linkedin_url: normalized,
-        first_name: enriched?.first_name,
-        last_name: enriched?.last_name,
+        first_name: enriched?.first_name || fallbackFirst || undefined,
+        last_name: enriched?.last_name || fallbackLast || undefined,
         company_name: enriched?.company_name,
       });
 
@@ -136,8 +149,8 @@ export async function createProspectFromLinkedIn(
         if (apolloRes.email?.trim()) {
           enriched = {
             email: apolloRes.email.trim(),
-            first_name: apolloRes.first_name?.trim() || enriched?.first_name,
-            last_name: apolloRes.last_name?.trim() || enriched?.last_name,
+            first_name: apolloRes.first_name?.trim() || enriched?.first_name || fallbackFirst || undefined,
+            last_name: apolloRes.last_name?.trim() || enriched?.last_name || fallbackLast || undefined,
             job_title: apolloRes.job_title?.trim() || enriched?.job_title,
             company_name: apolloRes.company_name?.trim() || enriched?.company_name,
             linkedin_url: apolloRes.linkedin_url?.trim() || enriched?.linkedin_url || normalized,
@@ -156,8 +169,8 @@ export async function createProspectFromLinkedIn(
   // 3. If both APIs don't give the email:
   // "if both api don't give the email of the person then don't add it to prospect instead make a entry in priority section to manually enter the prospect. don't add the dummy email if email not found in all the apis"
   if (!enriched || !email) {
-    let firstName = enriched?.first_name?.trim() || null;
-    let lastName = enriched?.last_name?.trim() || null;
+    let firstName = enriched?.first_name?.trim() || fallbackFirst || null;
+    let lastName = enriched?.last_name?.trim() || fallbackLast || null;
     if (!firstName) {
       const fromSlug = extractNameFromSlug(normalized);
       firstName = fromSlug.first_name || null;
@@ -199,12 +212,12 @@ export async function createProspectFromLinkedIn(
   }
 
   // 4. Email was found by one of the APIs! Add to prospects
-  const firstName = enriched.first_name?.trim();
+  const firstName = enriched.first_name?.trim() || fallbackFirst;
   if (!firstName) {
     throw new LinkedInProfileError('Enrichment did not return a name for this profile', 400);
   }
 
-  const lastName = enriched.last_name?.trim() || null;
+  const lastName = enriched.last_name?.trim() || fallbackLast || null;
   const companyName = enriched.company_name?.trim() || undefined;
   const jobTitle = enriched.job_title?.trim() || null;
   const companyId = await resolveCompanyId(userId, companyName);

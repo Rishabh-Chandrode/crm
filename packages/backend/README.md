@@ -62,10 +62,10 @@ src/
 │   ├── jobEmailSync/
 │   │   ├── gmailFetcher.ts      # Queries Gmail API for job recommendations & updates
 │   │   ├── htmlUtils.ts         # Visible plain-text extraction from HTML emails with entity decoding
-│   │   ├── jobExtractor.ts      # Unwraps tracking links, candidate link extraction, and HTML parsing
+│   │   ├── jobExtractor.ts      # Unwraps tracking links (incl. Indeed params), extracts candidate links with nearby HTML context for company inference
 │   │   ├── jobScraper.ts        # Server-side description scraper (LinkedIn guest API, fallback)
-│   │   ├── jobClassifierAndScorer.ts # Coordinates LLM & heuristic scoring against preferences, full-context AI job opportunity extraction (title, company, URL, confidence, completeness)
-│   │   └── syncOrchestrator.ts  # End-to-end sync workflow: confident extractions auto-insert companies and open jobs, unconfident extractions create unconfirmed jobs and applications for Priority Center review
+│   │   ├── jobClassifierAndScorer.ts # Coordinates LLM & heuristic scoring against preferences, full-context AI job opportunity extraction (title, company, URL, confidence, completeness) & status update extraction (companyName, jobTitle, status)
+│   │   └── syncOrchestrator.ts  # End-to-end sync workflow: deduplicates alerts by URL and (company, title), matches status/interview emails across job_applications and jobs (with corporate suffix normalization) and syncs both statuses
 │   ├── email/
 │   │   ├── types.ts             # EmailProvider interface
 │   │   ├── resend.ts            # Resend implementation

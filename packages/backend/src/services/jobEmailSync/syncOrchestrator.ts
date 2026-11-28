@@ -23,6 +23,66 @@ interface UserRow {
   job_email_sync_enabled: boolean;
 }
 
+function normalizeCompanyCore(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[.,]+/g, ' ')
+    .replace(/\b(inc|llc|ltd|pvt|corp|corporation|co|limited|technologies|technology|tech|solutions|services|group|labs)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function mapAppStatusToJobStatus(appStatus: string): string | null {
+  if (appStatus === 'screening' || appStatus === 'interview') return 'interviewing';
+  if (appStatus === 'applied') return 'applied';
+  if (appStatus === 'offer' || appStatus === 'rejected') return 'closed';
+  return null;
+}
+
+async function findOrCreateJob(
+  userId: string,
+  title: string,
+  cleanUrl: string,
+  companyId: string | null,
+  status: 'open' | 'unconfirmed',
+  notes: string,
+  companyNameForNotify: string
+): Promise<string | null> {
+  try {
+    const existingJob = await pool.query<{ id: string }>(
+      `SELECT id FROM jobs
+       WHERE created_by = $1 AND (
+         (job_url = $2 AND job_url NOT IN ('#', ''))
+         OR ($3::uuid IS NOT NULL AND company_id = $3 AND LOWER(TRIM(title)) = LOWER(TRIM($4)))
+       )
+       LIMIT 1`,
+      [userId, cleanUrl, companyId, title]
+    );
+    if (existingJob.rowCount && existingJob.rowCount > 0) {
+      return existingJob.rows[0]!.id;
+    }
+
+    const jobInsert = await pool.query<{ id: string }>(
+      `INSERT INTO jobs (title, job_url, company_id, status, created_by, notes)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [title, cleanUrl, companyId, status, userId, notes]
+    );
+    const jobId = jobInsert.rows[0]?.id || null;
+    if (jobId) {
+      void pushNotificationService.notifyJobAdded(userId, {
+        jobId,
+        title,
+        companyName: companyNameForNotify,
+        jobUrl: cleanUrl,
+      }).catch(() => undefined);
+    }
+    return jobId;
+  } catch {
+    return null;
+  }
+}
+
 export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSyncResult> {
   const result: JobEmailSyncResult = {
     discovered: 0,
@@ -91,12 +151,17 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
           for (const job of extractedJobs) {
             const cleanUrl = job.url && job.url !== '#' ? job.url : '#';
 
-            // Check if already in database by URL or source_email_id
+            // Check if already in database by URL, source_email_id, or same (company, title)
             const existing = await pool.query(
               `SELECT id FROM job_applications
                WHERE user_id = $1 AND (
                  (job_url = $2 AND job_url NOT IN ('#', ''))
                  OR (source_email_id = $3 AND LOWER(company_name) = LOWER($4) AND LOWER(job_title) = LOWER($5))
+                 OR (
+                   LOWER(TRIM(company_name)) = LOWER(TRIM($4))
+                   AND LOWER(TRIM(job_title)) = LOWER(TRIM($5))
+                   AND LOWER(TRIM(company_name)) NOT IN ('unknown company', 'company', '')
+                 )
                )
                LIMIT 1`,
               [userId, cleanUrl, email.id, job.company, job.title]
@@ -161,27 +226,16 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                 preferences
               );
 
-              // Insert into `jobs` table with status 'open'
-              let jobId: string | null = null;
-              try {
-                const jobInsert = await pool.query<{ id: string }>(
-                  `INSERT INTO jobs (title, job_url, company_id, status, created_by, notes)
-                   VALUES ($1, $2, $3, $4, $5, $6)
-                   RETURNING id`,
-                  [job.title, cleanUrl, companyId, 'open', userId, `Imported via email alert: ${email.subject.slice(0, 100)}`]
-                );
-                jobId = jobInsert.rows[0]?.id || null;
-                if (jobId) {
-                  void pushNotificationService.notifyJobAdded(userId, {
-                    jobId,
-                    title: job.title,
-                    companyName: job.company,
-                    jobUrl: cleanUrl,
-                  }).catch(() => undefined);
-                }
-              } catch {
-                // Ignore job insert conflict
-              }
+              // Insert into `jobs` table with status 'open' (deduplicated)
+              const jobId = await findOrCreateJob(
+                userId,
+                job.title,
+                cleanUrl,
+                companyId,
+                'open',
+                `Imported via email alert: ${email.subject.slice(0, 100)}`,
+                job.company
+              );
 
               // Insert confirmed application as 'not_applied'
               await pool.query(
@@ -232,34 +286,16 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                 }
               }
 
-              // Insert into `jobs` table with status 'unconfirmed'
-              let jobId: string | null = null;
-              try {
-                const jobInsert = await pool.query<{ id: string }>(
-                  `INSERT INTO jobs (title, job_url, company_id, status, created_by, notes)
-                   VALUES ($1, $2, $3, $4, $5, $6)
-                   RETURNING id`,
-                  [
-                    job.title || 'Unconfirmed Role',
-                    cleanUrl,
-                    companyId,
-                    'unconfirmed',
-                    userId,
-                    `Unconfirmed job from email alert: ${email.subject.slice(0, 100)}`
-                  ]
-                );
-                jobId = jobInsert.rows[0]?.id || null;
-                if (jobId) {
-                  void pushNotificationService.notifyJobAdded(userId, {
-                    jobId,
-                    title: job.title || 'Unconfirmed Role',
-                    companyName: job.company,
-                    jobUrl: cleanUrl,
-                  }).catch(() => undefined);
-                }
-              } catch {
-                // Ignore conflict
-              }
+              // Insert into `jobs` table with status 'unconfirmed' (deduplicated)
+              const jobId = await findOrCreateJob(
+                userId,
+                job.title || 'Unconfirmed Role',
+                cleanUrl,
+                companyId,
+                'unconfirmed',
+                `Unconfirmed job from email alert: ${email.subject.slice(0, 100)}`,
+                job.company
+              );
 
               const unconfirmedNotes = [
                 `Unconfirmed opportunity from email: "${email.subject.slice(0, 80)}"`,
@@ -306,21 +342,38 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
             }
           }
         } else if (intent === 'application_update') {
+          // Skip if this exact status email was already processed
+          const alreadyProcessed = await pool.query(
+            `SELECT id FROM job_applications WHERE user_id = $1 AND source_email_id = $2 LIMIT 1`,
+            [userId, email.id]
+          );
+          if (alreadyProcessed.rowCount && alreadyProcessed.rowCount > 0) {
+            result.skipped++;
+            continue;
+          }
+
           const update = await extractApplicationUpdateDetails(email.subject, email.bodyText, email.from);
           if (update && update.companyName) {
-            // Find application for this company (prioritize actual job applications over placeholders)
+            const coreCompany = normalizeCompanyCore(update.companyName);
+            const corePattern = coreCompany.length >= 3 ? `%${coreCompany}%` : `%${update.companyName}%`;
+            const titlePattern = update.jobTitle ? `%${update.jobTitle}%` : '';
+
+            // 1. Find existing application for this company (prioritize job title match & real applications over placeholders)
             const matchRes = await pool.query<JobApplication>(
-              `SELECT id, status, notes FROM job_applications
+              `SELECT id, job_id, status, notes, job_title, company_name FROM job_applications
                WHERE user_id = $1 AND (
                  LOWER(company_name) = LOWER($2)
                  OR LOWER(company_name) LIKE LOWER($3)
                  OR LOWER($2) LIKE '%' || LOWER(company_name) || '%'
+                 OR LOWER(company_name) LIKE LOWER($4)
                )
                ORDER BY
+                 CASE WHEN $5 != '' AND (LOWER(job_title) = LOWER($6) OR LOWER(job_title) LIKE LOWER($5)) THEN 0 ELSE 1 END,
                  CASE WHEN job_url != '#' AND job_title NOT ILIKE 'Role at %' THEN 0 ELSE 1 END,
+                 updated_at DESC,
                  created_at DESC
                LIMIT 1`,
-              [userId, update.companyName, `%${update.companyName}%`]
+              [userId, update.companyName, `%${update.companyName}%`, corePattern, titlePattern, update.jobTitle || '']
             );
 
             if (matchRes.rowCount && matchRes.rowCount > 0) {
@@ -333,6 +386,15 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                  WHERE id = $3`,
                 [update.status, updatedNotes, target.id]
               );
+
+              const mappedJobStatus = mapAppStatusToJobStatus(update.status);
+              if (target.job_id && mappedJobStatus) {
+                await pool.query(
+                  `UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2`,
+                  [mappedJobStatus, target.job_id]
+                ).catch(() => undefined);
+              }
+
               result.updated++;
               void pushNotificationService.notifyApplicationUpdated(userId, {
                 applicationId: target.id,
@@ -342,26 +404,94 @@ export async function syncJobEmailsForUser(userId: string): Promise<JobEmailSync
                 notes: updatedNotes,
               }).catch(() => undefined);
             } else {
-              // Create an application record with this update status
-              await pool.query(
-                `INSERT INTO job_applications (
-                   user_id, company_name, job_title, job_url, platform,
-                   status, notes, source_email_id, email_source, applied_at
-                 ) VALUES (
-                   $1, $2, $3, $4, 'Email', $5, $6, $7, 'email', $8
-                 )`,
-                [
-                  userId,
-                  update.companyName,
-                  'Role at ' + update.companyName,
-                  '#',
-                  update.status,
-                  `Auto-tracked from status email: "${email.subject.slice(0, 80)}"`,
-                  email.id,
-                  email.date,
-                ]
+              // 2. Check if the job exists in `jobs` + `companies` (e.g. saved job or referral outreach without an application row yet)
+              const jobMatchRes = await pool.query<{
+                id: string;
+                title: string;
+                job_url: string | null;
+                company_id: string | null;
+                company_name: string | null;
+              }>(
+                `SELECT j.id, j.title, j.job_url, j.company_id, c.name AS company_name
+                 FROM jobs j
+                 LEFT JOIN companies c ON c.id = j.company_id
+                 WHERE j.created_by = $1 AND c.name IS NOT NULL AND (
+                   LOWER(c.name) = LOWER($2)
+                   OR LOWER(c.name) LIKE LOWER($3)
+                   OR LOWER($2) LIKE '%' || LOWER(c.name) || '%'
+                   OR LOWER(c.name) LIKE LOWER($4)
+                 )
+                 ORDER BY
+                   CASE WHEN $5 != '' AND (LOWER(j.title) = LOWER($6) OR LOWER(j.title) LIKE LOWER($5)) THEN 0 ELSE 1 END,
+                   j.created_at DESC
+                 LIMIT 1`,
+                [userId, update.companyName, `%${update.companyName}%`, corePattern, titlePattern, update.jobTitle || '']
               );
-              result.updated++;
+
+              const matchedJob = jobMatchRes.rows[0];
+              if (matchedJob) {
+                const insertedApp = await pool.query<{ id: string }>(
+                  `INSERT INTO job_applications (
+                     user_id, company_id, job_id, company_name, job_title, job_url, platform,
+                     status, notes, source_email_id, email_source, applied_at
+                   ) VALUES (
+                     $1, $2, $3, $4, $5, $6, 'Email', $7, $8, $9, 'email', $10
+                   )
+                   RETURNING id`,
+                  [
+                    userId,
+                    matchedJob.company_id,
+                    matchedJob.id,
+                    matchedJob.company_name || update.companyName,
+                    matchedJob.title,
+                    matchedJob.job_url || '#',
+                    update.status,
+                    `[Update ${new Date().toISOString().split('T')[0]}] ${update.note}`,
+                    email.id,
+                    email.date,
+                  ]
+                );
+
+                const mappedJobStatus = mapAppStatusToJobStatus(update.status);
+                if (mappedJobStatus) {
+                  await pool.query(
+                    `UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2`,
+                    [mappedJobStatus, matchedJob.id]
+                  ).catch(() => undefined);
+                }
+
+                result.updated++;
+                if (insertedApp.rows[0]?.id) {
+                  void pushNotificationService.notifyApplicationUpdated(userId, {
+                    applicationId: insertedApp.rows[0].id,
+                    jobTitle: matchedJob.title,
+                    companyName: matchedJob.company_name || update.companyName,
+                    status: update.status,
+                    notes: update.note,
+                  }).catch(() => undefined);
+                }
+              } else {
+                // 3. No matching application or saved job — create a placeholder application record
+                await pool.query(
+                  `INSERT INTO job_applications (
+                     user_id, company_name, job_title, job_url, platform,
+                     status, notes, source_email_id, email_source, applied_at
+                   ) VALUES (
+                     $1, $2, $3, $4, 'Email', $5, $6, $7, 'email', $8
+                   )`,
+                  [
+                    userId,
+                    update.companyName,
+                    update.jobTitle || ('Role at ' + update.companyName),
+                    '#',
+                    update.status,
+                    `Auto-tracked from status email: "${email.subject.slice(0, 80)}"`,
+                    email.id,
+                    email.date,
+                  ]
+                );
+                result.updated++;
+              }
             }
           }
         } else {

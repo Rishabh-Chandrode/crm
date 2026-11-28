@@ -4,6 +4,7 @@ export type EmailIntent = 'job_recommendation' | 'application_update' | 'irrelev
 
 export interface ApplicationUpdateDetails {
   companyName: string;
+  jobTitle?: string | null;
   status: JobApplicationStatus;
   note: string;
 }

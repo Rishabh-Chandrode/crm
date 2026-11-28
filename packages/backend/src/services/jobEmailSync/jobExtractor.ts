@@ -18,11 +18,14 @@ export function unwrapTrackingUrl(rawUrl: string): string {
       if (target) url = target;
     }
 
-    // Clean tracking query params from common platforms
+    // Clean tracking query params from common platforms (LinkedIn, Indeed, UTM, etc.)
     const parsed = new URL(url);
     const trackingParams = [
       'trk', 'refId', 'trackingId', 'midToken', 'trkEmail', 'otpToken', 'utm_source',
       'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'source',
+      'fbclid', 'gclid', 'mc_cid', 'mc_eid',
+      // Indeed tracking params (keep `jk` / `vjk` as they identify the job)
+      'tk', 'alid', 'bb', 'xpse', 'xkcb', 'from', 'vjs', 'adid', 'pub', 'rgtk', 'advn', 'sj', 'fromage',
     ];
     for (const p of trackingParams) {
       parsed.searchParams.delete(p);
@@ -51,6 +54,43 @@ export function detectPlatformFromUrl(url: string): string {
   if (lower.includes('indeed.com')) return 'Indeed';
   if (lower.includes('wellfound.com') || lower.includes('angel.co')) return 'Wellfound';
   return 'Email';
+}
+
+const NON_COMPANY_NOISE = /^(indeed|linkedin|naukri|glassdoor|ziprecruiter|wellfound|easy apply|apply now|apply|view job|just posted|today|yesterday|urgently hiring|actively hiring|responsive employer|new|remote|hybrid|on-site|onsite|full-time|part-time|contract|internship|temporary|\d+\s*(days?|hours?|mins?)\s*ago|\d+(\.\d+)?\s*★?)$/i;
+
+function extractNearbyTextAfterAnchor(html: string, anchorEndIndex: number, maxChars = 350): string {
+  const slice = html.slice(anchorEndIndex, anchorEndIndex + maxChars);
+  // Stop before the next anchor tag so we don't bleed into the next job card
+  const nextAnchorIdx = slice.search(/<a\b/i);
+  const bounded = nextAnchorIdx !== -1 ? slice.slice(0, nextAnchorIdx) : slice;
+  return bounded
+    .replace(/<\/(?:div|td|tr|p|li|span|h[1-6])>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+function extractCompanyFromNearbyHtml(html: string, anchorEndIndex: number): string | null {
+  const nearby = extractNearbyTextAfterAnchor(html, anchorEndIndex, 350);
+  if (!nearby) return null;
+
+  const segments = nearby
+    .split(/\n|[•·|]|(?:\s+[-—]\s+)/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2 && s.length <= 80);
+
+  for (const seg of segments) {
+    // Strip trailing rating like "Acme Corp 4.2" or "Acme Corp 4.2 ★"
+    const cleaned = seg.replace(/\s+\d(?:\.\d)?\s*★?$/, '').trim();
+    if (!cleaned || cleaned.length < 2) continue;
+    if (NON_COMPANY_NOISE.test(cleaned)) continue;
+    if (/^[\$₹€£]\s*\d/.test(cleaned) || /\bper\s+(year|month|hour|annum)\b/i.test(cleaned)) continue;
+    return cleaned;
+  }
+  return null;
 }
 
 /**
@@ -94,6 +134,10 @@ export function extractJobsFromEmail(
       lowerHref.includes('/job-listings-') ||
       lowerHref.includes('/job/') ||
       lowerHref.includes('/career') ||
+      lowerHref.includes('indeed.com/rc/clk') ||
+      lowerHref.includes('indeed.com/viewjob') ||
+      lowerHref.includes('indeed.com/pagead/clk') ||
+      lowerHref.includes('indeed.com/job') ||
       lowerHref.includes('greenhouse.io') ||
       lowerHref.includes('lever.co') ||
       lowerHref.includes('workday') ||
@@ -118,9 +162,16 @@ export function extractJobsFromEmail(
     if (atMatch && atMatch[1] && atMatch[2]) {
       title = atMatch[1].trim();
       companyName = atMatch[2].trim();
-    } else if (lowerText === 'view job' || lowerText === 'apply' || lowerText === 'apply now') {
-      // Use subject as fallback title
-      title = subject.replace(/^(jobs?|new jobs?|recommended jobs?|alert:?)\s*[-:]?\s*/i, '').slice(0, 100);
+    } else {
+      if (lowerText === 'view job' || lowerText === 'apply' || lowerText === 'apply now') {
+        // Use subject as fallback title
+        title = subject.replace(/^(jobs?|new jobs?|recommended jobs?|alert:?)\s*[-:]?\s*/i, '').slice(0, 100);
+      }
+      // Look at nearby HTML after </a> (crucial for Indeed, Naukri, and Glassdoor alerts)
+      const nearbyCompany = extractCompanyFromNearbyHtml(html, linkRegex.lastIndex);
+      if (nearbyCompany) {
+        companyName = nearbyCompany;
+      }
     }
 
     jobs.push({
@@ -168,6 +219,7 @@ export function extractJobsFromEmail(
 export interface ExtractedJobCandidateLink {
   url: string;
   text: string;
+  context?: string;
 }
 
 export function extractCandidateLinksFromHtml(html: string): ExtractedJobCandidateLink[] {
@@ -197,7 +249,15 @@ export function extractCandidateLinksFromHtml(html: string): ExtractedJobCandida
     if (!cleanUrl.startsWith('http') || seen.has(cleanUrl)) continue;
     seen.add(cleanUrl);
 
-    links.push({ url: cleanUrl, text: linkText });
+    const rawContext = extractNearbyTextAfterAnchor(html, linkRegex.lastIndex, 180)
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    links.push({
+      url: cleanUrl,
+      text: linkText,
+      ...(rawContext ? { context: rawContext } : {}),
+    });
   }
 
   return links;

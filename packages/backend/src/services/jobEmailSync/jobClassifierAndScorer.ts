@@ -27,8 +27,8 @@ export async function extractJobOpportunitiesWithAi(
   if (provider.isAvailable()) {
     try {
       const linksContext = candidateLinks
-        .slice(0, 15)
-        .map((l, idx) => `[Link ${idx + 1}] Text: "${l.text}" | URL: ${l.url}`)
+        .slice(0, 25)
+        .map((l, idx) => `[Link ${idx + 1}] Text: "${l.text}"${l.context ? ` | Nearby Text: "${l.context}"` : ''} | URL: ${l.url}`)
         .join('\n');
 
       const prompt = `You are an expert AI recruiting assistant specializing in high-accuracy job data extraction.
@@ -40,7 +40,7 @@ Candidate Links in Email:
 ${linksContext || 'No candidate links identified from HTML.'}
 
 Email Content:
-${bodyText.slice(0, 8000)}
+${bodyText.slice(0, 12000)}
 
 Instructions:
 1. For each opportunity:
@@ -242,13 +242,15 @@ Allowed status values:
 
 Return JSON:
 {
-  "companyName": "extracted company name",
+  "companyName": "extracted hiring company name (without legal suffixes like Inc/LLC or ATS names)",
+  "jobTitle": "extracted job title if mentioned in the email, or null",
   "status": "applied" | "screening" | "interview" | "offer" | "rejected",
   "note": "one sentence summary of the update"
 }`;
 
       const res = await provider.generateJson<{
         companyName?: string;
+        jobTitle?: string | null;
         status?: JobApplicationStatus;
         note?: string;
       }>(
@@ -260,6 +262,7 @@ Return JSON:
       if (res?.companyName && res.status && ['applied', 'screening', 'interview', 'offer', 'rejected'].includes(res.status)) {
         return {
           companyName: res.companyName.trim(),
+          jobTitle: res.jobTitle?.trim() || null,
           status: res.status,
           note: res.note?.trim() || `Status updated to ${res.status}`,
         };

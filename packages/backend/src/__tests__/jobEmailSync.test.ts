@@ -68,6 +68,12 @@ describe('Job Email Sync & Extraction', () => {
       const clean = unwrapTrackingUrl(commUrl);
       expect(clean).toBe('https://www.linkedin.com/jobs/view/4012345678/');
     });
+
+    it('strips Indeed tracking params while preserving the job key (jk)', () => {
+      const indeedUrl = 'https://www.indeed.com/rc/clk?jk=abc123def456&tk=1hxyz&from=ja&alid=999&bb=123&vjs=3&utm_source=email';
+      const clean = unwrapTrackingUrl(indeedUrl);
+      expect(clean).toBe('https://www.indeed.com/rc/clk?jk=abc123def456');
+    });
   });
 
   describe('detectPlatformFromUrl', () => {
@@ -108,6 +114,39 @@ describe('Job Email Sync & Extraction', () => {
       expect(jobs[1]?.title).toBe('Full Stack Developer');
       expect(jobs[1]?.companyName).toBe('Figma');
       expect(jobs[1]?.platform).toBe('Greenhouse');
+    });
+
+    it('extracts Indeed job links and infers company name from surrounding HTML outside the anchor tag', () => {
+      const html = `
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.indeed.com/rc/clk?jk=job999&tk=track123&from=ja">Staff Frontend Engineer</a>
+              <div>Stripe • 4.5 ★</div>
+              <span>Remote</span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a href="https://www.indeed.com/viewjob?jk=job888&vjs=3">Platform Engineer</a>
+              <div>Linear - San Francisco, CA</div>
+            </td>
+          </tr>
+        </table>
+      `;
+
+      const jobs = extractJobsFromEmail('Indeed Job Alert', html, '');
+      expect(jobs.length).toBe(2);
+
+      expect(jobs[0]?.title).toBe('Staff Frontend Engineer');
+      expect(jobs[0]?.companyName).toBe('Stripe');
+      expect(jobs[0]?.platform).toBe('Indeed');
+      expect(jobs[0]?.jobUrl).toBe('https://www.indeed.com/rc/clk?jk=job999');
+
+      expect(jobs[1]?.title).toBe('Platform Engineer');
+      expect(jobs[1]?.companyName).toBe('Linear');
+      expect(jobs[1]?.platform).toBe('Indeed');
+      expect(jobs[1]?.jobUrl).toBe('https://www.indeed.com/viewjob?jk=job888');
     });
   });
 

@@ -233,4 +233,156 @@ describe('syncOrchestrator - AI Extraction, Confident Company Insertion & Unconf
     expect(appInsertCall[1][3]).toBe('Unknown Company');
     expect(appInsertCall[1][7]).toContain('Unconfirmed opportunity');
   });
+
+  it('updates existing job_application and linked job on interview email even with company suffix differences', async () => {
+    vi.spyOn(pool, 'query').mockImplementation(async (query: any, params?: any) => {
+      const q = typeof query === 'string' ? query : query?.text || '';
+
+      if (q.includes('FROM users WHERE id = $1')) {
+        return {
+          rowCount: 1,
+          rows: [{ id: userId, job_email_sync_enabled: true, last_job_email_synced_at: null }],
+        } as any;
+      }
+
+      if (q.includes('WHERE user_id = $1 AND source_email_id = $2')) {
+        return { rowCount: 0, rows: [] } as any;
+      }
+
+      if (q.includes('SELECT id, job_id, status, notes, job_title, company_name FROM job_applications')) {
+        // Verify core company pattern "%acme%" is passed
+        expect(params[3]).toBe('%acme%');
+        return {
+          rowCount: 1,
+          rows: [
+            {
+              id: 'app-existing-1',
+              job_id: 'job-existing-1',
+              status: 'applied',
+              notes: 'Applied on company site',
+              job_title: 'Senior Backend Engineer',
+              company_name: 'Acme Corp',
+            },
+          ],
+        } as any;
+      }
+
+      return { rowCount: 1, rows: [] } as any;
+    });
+
+    vi.spyOn(gmailFetcher, 'fetchJobAndStatusEmails').mockResolvedValueOnce([
+      {
+        id: 'msg-interview-1',
+        threadId: 't-int-1',
+        subject: 'Interview Invitation: Senior Backend Engineer at Acme Inc.',
+        from: 'recruiting@acme.com',
+        date: new Date('2026-03-11T10:00:00Z'),
+        snippet: 'We would love to schedule an interview',
+        bodyText: 'Hi, we would like to invite you to an interview for Senior Backend Engineer at Acme Inc.',
+        bodyHtml: '',
+      },
+    ]);
+
+    vi.spyOn(classifierAndScorer, 'classifyEmail').mockResolvedValueOnce('application_update');
+    vi.spyOn(classifierAndScorer, 'extractApplicationUpdateDetails').mockResolvedValueOnce({
+      companyName: 'Acme Inc.',
+      jobTitle: 'Senior Backend Engineer',
+      status: 'interview',
+      note: 'Technical interview invitation received.',
+    });
+
+    const result = await syncJobEmailsForUser(userId);
+    expect(result.updated).toBe(1);
+
+    const calls = (pool.query as any).mock.calls;
+    const appUpdateCall = calls.find((c: any) => String(c[0]).includes('UPDATE job_applications'));
+    expect(appUpdateCall).toBeDefined();
+    expect(appUpdateCall[1][0]).toBe('interview');
+    expect(appUpdateCall[1][2]).toBe('app-existing-1');
+
+    const jobUpdateCall = calls.find((c: any) => String(c[0]).includes('UPDATE jobs SET status'));
+    expect(jobUpdateCall).toBeDefined();
+    expect(jobUpdateCall[1][0]).toBe('interviewing');
+    expect(jobUpdateCall[1][1]).toBe('job-existing-1');
+
+    const insertAppCall = calls.find((c: any) => String(c[0]).includes('INSERT INTO job_applications'));
+    expect(insertAppCall).toBeUndefined();
+  });
+
+  it('links interview email to an existing saved job in jobs table when no job_applications row exists yet', async () => {
+    vi.spyOn(pool, 'query').mockImplementation(async (query: any) => {
+      const q = typeof query === 'string' ? query : query?.text || '';
+
+      if (q.includes('FROM users WHERE id = $1')) {
+        return {
+          rowCount: 1,
+          rows: [{ id: userId, job_email_sync_enabled: true, last_job_email_synced_at: null }],
+        } as any;
+      }
+
+      if (q.includes('WHERE user_id = $1 AND source_email_id = $2')) {
+        return { rowCount: 0, rows: [] } as any;
+      }
+
+      if (q.includes('SELECT id, job_id, status, notes, job_title, company_name FROM job_applications')) {
+        return { rowCount: 0, rows: [] } as any;
+      }
+
+      if (q.includes('FROM jobs j')) {
+        return {
+          rowCount: 1,
+          rows: [
+            {
+              id: 'saved-job-99',
+              title: 'Full Stack Engineer',
+              job_url: 'https://stripe.com/jobs/99',
+              company_id: 'comp-stripe',
+              company_name: 'Stripe',
+            },
+          ],
+        } as any;
+      }
+
+      if (q.includes('INSERT INTO job_applications')) {
+        return { rowCount: 1, rows: [{ id: 'app-linked-99' }] } as any;
+      }
+
+      return { rowCount: 1, rows: [] } as any;
+    });
+
+    vi.spyOn(gmailFetcher, 'fetchJobAndStatusEmails').mockResolvedValueOnce([
+      {
+        id: 'msg-interview-2',
+        threadId: 't-int-2',
+        subject: 'Next steps with Stripe',
+        from: 'jobs@stripe.com',
+        date: new Date('2026-03-11T12:00:00Z'),
+        snippet: 'Schedule your technical screen',
+        bodyText: 'Let us schedule your screen for Full Stack Engineer.',
+        bodyHtml: '',
+      },
+    ]);
+
+    vi.spyOn(classifierAndScorer, 'classifyEmail').mockResolvedValueOnce('application_update');
+    vi.spyOn(classifierAndScorer, 'extractApplicationUpdateDetails').mockResolvedValueOnce({
+      companyName: 'Stripe',
+      jobTitle: 'Full Stack Engineer',
+      status: 'interview',
+      note: 'Interview scheduled.',
+    });
+
+    const result = await syncJobEmailsForUser(userId);
+    expect(result.updated).toBe(1);
+
+    const calls = (pool.query as any).mock.calls;
+    const insertAppCall = calls.find((c: any) => String(c[0]).includes('INSERT INTO job_applications'));
+    expect(insertAppCall).toBeDefined();
+    expect(insertAppCall[1][2]).toBe('saved-job-99'); // Linked to saved job_id
+    expect(insertAppCall[1][4]).toBe('Full Stack Engineer'); // Real title, not "Role at Stripe"
+    expect(insertAppCall[1][5]).toBe('https://stripe.com/jobs/99'); // Real URL, not "#"
+
+    const jobUpdateCall = calls.find((c: any) => String(c[0]).includes('UPDATE jobs SET status'));
+    expect(jobUpdateCall).toBeDefined();
+    expect(jobUpdateCall[1][0]).toBe('interviewing');
+  });
 });

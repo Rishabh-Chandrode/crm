@@ -2,6 +2,7 @@ import { CONFIG } from '../../../config.js';
 import type { EnrichmentProvider, EnrichmentRequest, EnrichmentResult, DiscoverPeopleResult } from '../types.js';
 import type { DiscoverPeopleRequest, DiscoveredPerson } from '../../../types/index.js';
 import { inferRoleCategory } from '../../roleCategory.js';
+import { loggedFetch } from '../../httpClient.js';
 
 function getTargetTitles(roleCategory?: string, customTitles?: string[]): string[] {
   if (customTitles && customTitles.length > 0) return customTitles;
@@ -47,7 +48,9 @@ export class ApolloProvider implements EnrichmentProvider {
     if (request.company_name?.trim()) payload.organization_name = request.company_name.trim();
     if (request.linkedin_url?.trim()) payload.linkedin_url = request.linkedin_url.trim();
 
-    const response = await fetch('https://api.apollo.io/v1/people/match', {
+    const response = await loggedFetch('https://api.apollo.io/v1/people/match', {
+      source: 'apollo',
+      purpose: 'enrich_person',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -124,7 +127,9 @@ export class ApolloProvider implements EnrichmentProvider {
       payload['person_seniorities'] = seniorities;
     }
 
-    const response = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+    const response = await loggedFetch('https://api.apollo.io/v1/mixed_people/search', {
+      source: 'apollo',
+      purpose: 'discover_people',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import type { ILlmProvider, LlmCompletionOptions } from '../types.js';
+import { loggedFetch } from '../../httpClient.js';
 
 export interface OpenAiProviderConfig {
   apiKey: string;
@@ -39,7 +40,9 @@ export class OpenAiProvider implements ILlmProvider {
     const timeout = setTimeout(() => controller.abort(), 20000);
 
     try {
-      const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      const res = await loggedFetch(`${this.baseUrl}/chat/completions`, {
+        source: 'openai',
+        purpose: options?.purpose || 'generate_text',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,7 +99,9 @@ export class OpenAiProvider implements ILlmProvider {
     const timeout = setTimeout(() => controller.abort(), 20000);
 
     try {
-      const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      const res = await loggedFetch(`${this.baseUrl}/chat/completions`, {
+        source: 'openai',
+        purpose: options?.purpose || 'generate_json',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

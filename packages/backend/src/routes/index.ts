@@ -20,6 +20,7 @@ import logsRouter from './logs.js';
 import aiSettingsRouter from './aiSettings.js';
 import notificationsRouter from './notifications.js';
 import autofillRouter from './autofill.js';
+import adminRouter from './admin.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -46,5 +47,6 @@ router.use('/logs',              logsRouter);
 router.use('/ai-settings',       aiSettingsRouter);
 router.use('/notifications',     notificationsRouter);
 router.use('/autofill',          authMiddleware, autofillRouter);
+router.use('/admin',             adminRouter);
 
 export default router;

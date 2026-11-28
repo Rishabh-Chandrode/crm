@@ -398,6 +398,24 @@ describe('Extension Data Shapes & Message Contracts', () => {
       name: 'Alex Smith',
     };
     expect(fromLinkedInPayload.name).toBe('Alex Smith');
+
+    const monitoring: extensionTypes.AdminMonitoringOverview = {
+      users: { total: 5, active: 4, admins: 1, gmailConnected: 3, jobSyncEnabled: 2 },
+      applicationTotals: {
+        companies: 10,
+        prospects: 20,
+        templates: 5,
+        emailsSent: 50,
+        emailsFailed: 1,
+        emailsPending: 0,
+        jobs: 15,
+        applications: 12,
+      },
+      cronJobs: [],
+      sourceTelemetry: [],
+      recentErrors: [],
+    };
+    expect(monitoring.users.total).toBe(5);
   });
 });
 

@@ -15,10 +15,12 @@ vi.mock('../lib/api', () => ({
 }));
 
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
   useRouter: () => ({
     push: mockPush,
+    replace: mockReplace,
   }),
 }));
 
@@ -66,7 +68,7 @@ describe('Sidebar Component', () => {
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 
-  it('renders Admin navigation link when user has admin role', async () => {
+  it('renders ONLY Admin monitoring navigation links and hides user features when user has admin role', async () => {
     vi.mocked(api.auth.me).mockResolvedValue({
       user: { username: 'adminuser', role: 'admin' } as any,
     });
@@ -81,7 +83,17 @@ describe('Sidebar Component', () => {
       expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
     });
 
+    expect(screen.getAllByText('Monitoring').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Users').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('System Logs').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('AI & LLM').length).toBeGreaterThan(0);
+
+    // User outreach features must be hidden from admin
+    expect(screen.queryByText('Companies')).not.toBeInTheDocument();
+    expect(screen.queryByText('Prospects')).not.toBeInTheDocument();
+    expect(screen.queryByText('Send Emails')).not.toBeInTheDocument();
+    expect(screen.queryByText('Applications')).not.toBeInTheDocument();
+    expect(mockReplace).toHaveBeenCalledWith('/admin');
   });
 
   it('clears token cookie and navigates to login upon clicking sign out', async () => {

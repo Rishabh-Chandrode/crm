@@ -31,10 +31,11 @@ src/
 │       ├── profile/page.tsx       # Profile editor — personal, job preferences (target roles, tech skills, locations, remote toggle, compensation, and criteria used for email job sync & scoring), work, education, documents, projects, skills. A typed target role becomes a chip on Enter, Add role, or leaving the field.
 │       ├── settings/page.tsx      # Appearance (Theme), Gmail connection, template variables, and Web Push notifications for scheduled email failures & expired authorizations
 │       ├── users/page.tsx         # Admin-only user management
-│       ├── logs/page.tsx          # Admin-only system logs & observability (telemetry, Gemini LLM API request & response payload inspector, latency metrics, query badges, source filters, stack traces, 30-day retention pruning)
+│       ├── admin/page.tsx         # Admin-only monitoring dashboard (app totals, cron jobs, 24h source telemetry, recent errors)
+│       ├── logs/page.tsx          # Admin-only system logs & observability (telemetry, Gemini/OpenAI LLM & third-party API payload inspector, latency metrics, query badges, source filters, stack traces, 30-day retention pruning)
 │       └── ai-settings/page.tsx   # Admin-only AI & LLM configuration — master toggle, provider selector, model selector, API key management, hyperparameters, and live diagnostics
 ├── components/
-│   ├── Sidebar.tsx                # Left nav with user info, sign-out, and theme switcher. The mobile close control sits beside the theme switcher.
+│   ├── Sidebar.tsx                # Left nav with role-isolated menus (monitoring-only for admin, outreach for users), sign-out, and theme switcher.
 │   ├── ServiceWorkerRegister.tsx  # Registers /sw.js so the site can be installed
 │   ├── PushNotificationCard.tsx   # Reusable device push notification subscription and test alert card (with Brave push messaging guidance)
 │   ├── ThemeProvider.tsx          # React Context Provider managing light, dark, and system theme
@@ -174,6 +175,9 @@ api.notifications.test()              // POST /api/notifications/test
 
 // AI Autofill Assistant
 api.autofill.aiFill(payload)          // POST /api/autofill/ai-fill
+
+// Admin Monitoring (Admin only)
+api.admin.monitoring()                // GET  /api/admin/monitoring
 ```
 
 ---

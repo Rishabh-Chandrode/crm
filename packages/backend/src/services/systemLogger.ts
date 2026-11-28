@@ -380,4 +380,15 @@ export class SystemLoggerService {
   }
 }
 
+let telemetryEnabledOverride: boolean | null = null;
+
+export function isAutoTelemetryEnabled(): boolean {
+  if (telemetryEnabledOverride !== null) return telemetryEnabledOverride;
+  return process.env.NODE_ENV !== 'test' && !process.env.VITEST;
+}
+
+export function setAutoTelemetryEnabled(enabled: boolean | null): void {
+  telemetryEnabledOverride = enabled;
+}
+
 export const systemLogger = new SystemLoggerService();

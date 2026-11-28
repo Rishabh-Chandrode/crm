@@ -115,11 +115,11 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   const userRes = schedule.created_by
     ? await pool.query(
-        `SELECT username, first_name, last_name, email, current_company, job_title, phone, website,
+      `SELECT username, first_name, last_name, email, current_company, job_title, phone, website,
                 gmail_user, gmail_refresh_token, gmail_app_password, from_name
          FROM users WHERE id = $1`,
-        [schedule.created_by]
-      )
+      [schedule.created_by]
+    )
     : { rows: [] };
 
   const userRow = userRes.rows[0];
@@ -174,21 +174,21 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
 
   const provider = hasOAuth
     ? getEmailProviderForUser({
-        method: 'oauth',
-        creds: {
-          gmailUser: userRow.gmail_user as string,
-          refreshToken: refreshToken ?? '',
-          fromName,
-          accessToken,
-          onTokenRefreshed: schedule.created_by
-            ? (token) => saveGmailToken(schedule.created_by!, token)
-            : undefined,
-        },
-      })
+      method: 'oauth',
+      creds: {
+        gmailUser: userRow.gmail_user as string,
+        refreshToken: refreshToken ?? '',
+        fromName,
+        accessToken,
+        onTokenRefreshed: schedule.created_by
+          ? (token) => saveGmailToken(schedule.created_by!, token)
+          : undefined,
+      },
+    })
     : getEmailProviderForUser({
-        method: 'app_password',
-        creds: { gmailUser: userRow.gmail_user as string, appPassword: userRow.gmail_app_password as string, fromName },
-      });
+      method: 'app_password',
+      creds: { gmailUser: userRow.gmail_user as string, appPassword: userRow.gmail_app_password as string, fromName },
+    });
 
   const attachments = await getAttachments(schedule.document_ids);
   if (schedule.job_id && schedule.created_by) {
@@ -219,7 +219,7 @@ async function processSchedule(schedule: ScheduleRow): Promise<void> {
       const rawSubject = template ? template.subject : (schedule.subject || '');
       const rawBody = template ? template.body : (schedule.body || '');
       const templateVars = template ? template.variables : [];
-      
+
       const subject = resolveTemplate(rawSubject, templateVars, ctx);
       const body = resolveTemplate(rawBody, templateVars, ctx);
 
@@ -374,15 +374,51 @@ export async function processDailyDocumentSync(): Promise<number> {
 }
 
 import { syncAllActiveUsers } from './jobEmailSync/syncOrchestrator.js';
-import { systemLogger } from './systemLogger.js';
+import { systemLogger, isAutoTelemetryEnabled } from './systemLogger.js';
+
+export async function runMonitoredCron<T>(
+  jobName: string,
+  fn: () => Promise<T>
+): Promise<T | undefined> {
+  const startTime = Date.now();
+  if (isAutoTelemetryEnabled()) {
+    void systemLogger.info(`Cron job started: ${jobName}`, {
+      source: 'cron',
+      skipGithubIssue: true,
+      context: { jobName, phase: 'started' },
+    });
+  }
+
+  try {
+    const result = await fn();
+    const durationMs = Date.now() - startTime;
+    if (isAutoTelemetryEnabled()) {
+      void systemLogger.info(`Cron job completed: ${jobName} (${durationMs}ms)`, {
+        source: 'cron',
+        skipGithubIssue: true,
+        context: { jobName, phase: 'completed', durationMs, result },
+      });
+    }
+    return result;
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    if (isAutoTelemetryEnabled()) {
+      systemLogger.error(`Cron job failed: ${jobName} (${durationMs}ms)`, err, {
+        source: 'cron',
+        context: { jobName, phase: 'failed', durationMs },
+      });
+    }
+    return undefined;
+  }
+}
 
 export function startScheduler(customCron?: string): void {
   const emailCron = customCron ?? EMAIL_SCHEDULER_CRON;
   cron.schedule(emailCron, async () => {
-    await refreshDueGmailTokens();
-    await processPendingSchedules();
-    await processDailyDocumentSync();
-    await syncAllActiveUsers();
+    await runMonitoredCron('gmail_token_refresh', refreshDueGmailTokens);
+    await runMonitoredCron('scheduled_emails', processPendingSchedules);
+    await runMonitoredCron('daily_document_sync', processDailyDocumentSync);
+    await runMonitoredCron('job_email_sync', syncAllActiveUsers);
   });
 
   console.log(`Email scheduler started (polling every 30 minutes with cron '${emailCron}')`);
@@ -390,11 +426,7 @@ export function startScheduler(customCron?: string): void {
 
 export function startLogRetentionScheduler(): void {
   cron.schedule('0 0 * * *', async () => {
-    try {
-      await systemLogger.pruneOldLogs(30);
-    } catch (err) {
-      console.error('[Scheduler] Failed to prune old system logs:', err);
-    }
+    await runMonitoredCron('log_retention_prune', () => systemLogger.pruneOldLogs(30));
   });
 }
 

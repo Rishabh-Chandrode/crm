@@ -1,5 +1,6 @@
 import { pool } from '../../db/index.js';
 import { CONFIG } from '../../config.js';
+import { loggedFetch } from '../httpClient.js';
 
 /** Refresh a stored access token when it will expire inside this window. */
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -32,7 +33,10 @@ export async function exchangeGmailRefreshToken(refreshToken: string): Promise<G
     grant_type: 'refresh_token',
   });
 
-  const res = await fetch('https://oauth2.googleapis.com/token', {
+  const res = await loggedFetch('https://oauth2.googleapis.com/token', {
+    source: 'gmail',
+    purpose: 'refresh_token',
+    logResponseBody: false,
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),

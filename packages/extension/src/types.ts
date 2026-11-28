@@ -573,6 +573,47 @@ export interface AiAutofillResponse {
   error?: string;
 }
 
+export interface CronJobStatusSummary {
+  jobName: string;
+  lastPhase: 'started' | 'completed' | 'failed';
+  lastRunAt: string;
+  durationMs: number | null;
+  lastMessage: string;
+  result?: unknown;
+}
+
+export interface SourceTelemetrySummary {
+  source: string;
+  total24h: number;
+  errors24h: number;
+  warnings24h: number;
+  avgDurationMs: number | null;
+  lastEventAt: string | null;
+}
+
+export interface AdminMonitoringOverview {
+  users: {
+    total: number;
+    active: number;
+    admins: number;
+    gmailConnected: number;
+    jobSyncEnabled: number;
+  };
+  applicationTotals: {
+    companies: number;
+    prospects: number;
+    templates: number;
+    emailsSent: number;
+    emailsFailed: number;
+    emailsPending: number;
+    jobs: number;
+    applications: number;
+  };
+  cronJobs: CronJobStatusSummary[];
+  sourceTelemetry: SourceTelemetrySummary[];
+  recentErrors: SystemLog[];
+}
+
 
 // Failed-send dismissals use email_sends.dismissed_at on the server.
 // The extension does not read email sends.

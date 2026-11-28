@@ -132,4 +132,17 @@ describe('Frontend API Client (src/lib/api.ts)', () => {
       fields: [{ id: 'q1', label: 'Eligible?', type: 'select', options: ['Yes', 'No'] }],
     });
   });
+
+  it('calls admin.monitoring and returns overview data', async () => {
+    const mockOverview = { data: { users: { total: 5 }, cronJobs: [], sourceTelemetry: [], recentErrors: [] } };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockOverview,
+    });
+    global.fetch = mockFetch;
+
+    const res = await api.admin.monitoring();
+    expect(res).toEqual(mockOverview);
+    expect(mockFetch.mock.calls[0]?.[0]).toContain('/admin/monitoring');
+  });
 });

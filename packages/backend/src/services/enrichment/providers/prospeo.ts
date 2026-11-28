@@ -2,6 +2,7 @@ import { CONFIG } from '../../../config.js';
 import type { EnrichmentProvider, EnrichmentRequest, EnrichmentResult, DiscoverPeopleResult } from '../types.js';
 import type { DiscoverPeopleRequest, DiscoveredPerson } from '../../../types/index.js';
 import { inferRoleCategory } from '../../roleCategory.js';
+import { loggedFetch } from '../../httpClient.js';
 
 function getTargetTitles(roleCategory?: string, customTitles?: string[]): string[] {
   if (customTitles && customTitles.length > 0) return customTitles;
@@ -65,7 +66,9 @@ export class ProspeoProvider implements EnrichmentProvider {
     if (request.company_name) payloadData.company_name = request.company_name;
     if (request.linkedin_url) payloadData.linkedin_url = request.linkedin_url;
 
-    const response = await fetch('https://api.prospeo.io/enrich-person', {
+    const response = await loggedFetch('https://api.prospeo.io/enrich-person', {
+      source: 'prospeo',
+      purpose: 'enrich_person',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -138,7 +141,7 @@ export class ProspeoProvider implements EnrichmentProvider {
     }
 
     const titles = getTargetTitles(request.role_category, request.job_titles);
-    
+
     const filters: Record<string, unknown> = {
       person_search: { include: [company] },
     };
@@ -147,7 +150,9 @@ export class ProspeoProvider implements EnrichmentProvider {
       filters['person_job_title'] = { include: titles };
     }
 
-    const response = await fetch('https://api.prospeo.io/search-person', {
+    const response = await loggedFetch('https://api.prospeo.io/search-person', {
+      source: 'prospeo',
+      purpose: 'discover_people',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -234,7 +239,9 @@ export class ProspeoProvider implements EnrichmentProvider {
     if (!CONFIG.prospeoApiKey) return null;
 
     try {
-      const response = await fetch('https://api.prospeo.io/account-information', {
+      const response = await loggedFetch('https://api.prospeo.io/account-information', {
+        source: 'prospeo',
+        purpose: 'get_credits',
         method: 'GET',
         headers: {
           'X-KEY': CONFIG.prospeoApiKey,
@@ -244,7 +251,7 @@ export class ProspeoProvider implements EnrichmentProvider {
       if (!response.ok) return null;
 
       const data = await response.json() as { error?: boolean, response?: { remaining_credits?: number } };
-      
+
       if (!data.error && data.response?.remaining_credits !== undefined) {
         return data.response.remaining_credits;
       }

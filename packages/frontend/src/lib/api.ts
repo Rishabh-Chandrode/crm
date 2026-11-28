@@ -666,4 +666,9 @@ export const api = {
         body: JSON.stringify(body),
       }),
   },
+
+  admin: {
+    monitoring: () =>
+      request<{ data: import('./types').AdminMonitoringOverview }>('/admin/monitoring'),
+  },
 };

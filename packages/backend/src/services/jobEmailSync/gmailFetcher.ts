@@ -1,5 +1,6 @@
 import { ensureFreshGmailToken } from '../email/gmailToken.js';
 import { htmlToPlainText } from './htmlUtils.js';
+import { loggedFetch } from '../httpClient.js';
 
 export interface FetchedEmailMessage {
   id: string;
@@ -63,7 +64,11 @@ export async function fetchJobAndStatusEmails(
 
   const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=25`;
 
-  const listRes = await fetch(listUrl, {
+  const listRes = await loggedFetch(listUrl, {
+    source: 'gmail',
+    purpose: 'list_job_emails',
+    userId,
+    logResponseBody: false,
     headers: { Authorization: `Bearer ${token.accessToken}` },
   });
 
@@ -86,7 +91,11 @@ export async function fetchJobAndStatusEmails(
   for (const item of messagesList.slice(0, 15)) {
     try {
       const msgUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${item.id}?format=full`;
-      const msgRes = await fetch(msgUrl, {
+      const msgRes = await loggedFetch(msgUrl, {
+        source: 'gmail',
+        purpose: 'fetch_job_email',
+        userId,
+        logResponseBody: false,
         headers: { Authorization: `Bearer ${token.accessToken}` },
       });
 

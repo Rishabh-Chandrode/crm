@@ -1,3 +1,5 @@
+import { loggedFetch } from '../httpClient.js';
+
 export interface ScrapedJobDetails {
   description: string;
   location?: string;
@@ -23,7 +25,10 @@ export async function scrapeJobDetails(jobUrl: string, fallbackSnippet?: string)
         const timeout = setTimeout(() => controller.abort(), 8000);
 
         try {
-          const res = await fetch(guestUrl, {
+          const res = await loggedFetch(guestUrl, {
+            source: 'scraper',
+            purpose: 'linkedin_guest_api',
+            logResponseBody: false,
             headers: {
               'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
               Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -35,7 +40,7 @@ export async function scrapeJobDetails(jobUrl: string, fallbackSnippet?: string)
             const html = await res.text();
             // Extract description container
             const descMatch = html.match(/<div class="show-more-less-html__markup[^>]*>(.*?)<\/div>/s) ||
-                              html.match(/<section class="description"[^>]*>(.*?)<\/section>/s);
+              html.match(/<section class="description"[^>]*>(.*?)<\/section>/s);
             if (descMatch && descMatch[1]) {
               const cleanText = descMatch[1]
                 .replace(/<br\s*\/?>/gi, '\n')
@@ -60,7 +65,10 @@ export async function scrapeJobDetails(jobUrl: string, fallbackSnippet?: string)
     const timeout = setTimeout(() => controller.abort(), 6000);
 
     try {
-      const res = await fetch(jobUrl, {
+      const res = await loggedFetch(jobUrl, {
+        source: 'scraper',
+        purpose: 'generic_job_fetch',
+        logResponseBody: false,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
@@ -71,11 +79,11 @@ export async function scrapeJobDetails(jobUrl: string, fallbackSnippet?: string)
         const html = await res.text();
         // Remove scripts and styles
         const withoutScripts = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-                                   .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
 
         // Match main article/content or body
         const mainMatch = withoutScripts.match(/<(?:main|article)[^>]*>(.*?)<\/(?:main|article)>/is) ||
-                          withoutScripts.match(/<body[^>]*>(.*?)<\/body>/is);
+          withoutScripts.match(/<body[^>]*>(.*?)<\/body>/is);
 
         const content = mainMatch ? mainMatch[1] : withoutScripts;
         const clean = (content || '')

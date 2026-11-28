@@ -49,9 +49,13 @@ src/
 │   ├── aiSettings.ts            # /ai-settings — admin-only LLM provider, credentials & model configuration
 │   ├── track.ts                 # /track — email open pixel (public, no auth)
 │   ├── autofill.ts              # /autofill — AI-assisted form filler & screening question resolution
+│   ├── admin.ts                 # /admin — admin-only monitoring overview (users, app totals, crons, 3rd-party/AI telemetry)
 │   ├── notifications.ts         # /notifications — Web Push VAPID key & browser subscriptions with systemLogger error tracking
 │   └── logs.ts                  # /logs — admin-only system logs, stats, and retention pruning
+├── middleware/
+│   └── requestLogger.ts         # Assigns x-request-id and logs HTTP API telemetry (method, path, statusCode, durationMs)
 ├── services/
+│   ├── httpClient.ts            # loggedFetch wrapper for third-party APIs (Prospeo, Apollo, OpenAI, Gmail, Scraper)
 │   ├── aiAutofillService.ts     # AI-driven screening question answers, option selection, and heuristic fallback
 │   ├── llm/
 │   │   ├── types.ts             # ILlmProvider interface & options
@@ -383,6 +387,7 @@ All routes require `authMiddleware` + `requireRole('admin')`.
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
+| `GET` | `/api/admin/monitoring` | — | `{ data: AdminMonitoringOverview }` — global user counts, application totals, cron job statuses, 24h telemetry by source, and recent errors. |
 | `GET` | `/api/logs` | **Query:** `level?` (`error` \| `warn` \| `info` \| `debug`), `source?`, `search?`, `startDate?`, `endDate?`, `page?`, `limit?` | `{ data: SystemLog[], total: number, page: number, limit: number, totalPages: number }` |
 | `GET` | `/api/logs/stats` | — | `{ total: number, errors: number, warnings: number, info: number, last24Hours: number }` |
 | `POST` | `/api/logs/ingest` | `{ level: 'error' \| 'warn' \| 'info' \| 'debug', message: string, source?: string, meta?: any }` | `{ success: true }` — client/extension error reporting (authenticated users). |

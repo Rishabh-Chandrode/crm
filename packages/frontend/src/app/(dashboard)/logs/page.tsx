@@ -12,8 +12,12 @@ export default function LogsPage() {
   const [error, setError] = useState('');
 
   // Filters
-  const [selectedLevel, setSelectedLevel] = useState<string>('');
-  const [selectedSource, setSelectedSource] = useState<string>('');
+  const [selectedLevel, setSelectedLevel] = useState<string>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('level') || '' : ''
+  );
+  const [selectedSource, setSelectedSource] = useState<string>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('source') || '' : ''
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -250,7 +254,15 @@ export default function LogsPage() {
           className="px-2.5 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 text-zinc-900 dark:text-zinc-100 focus:outline-hidden"
         >
           <option value="">All Sources</option>
+          <option value="cron">Cron Jobs</option>
+          <option value="http">HTTP Requests</option>
           <option value="gemini">Gemini LLM</option>
+          <option value="openai">OpenAI</option>
+          <option value="prospeo">Prospeo API</option>
+          <option value="apollo">Apollo API</option>
+          <option value="gmail">Gmail API</option>
+          <option value="scraper">Job Scraper</option>
+          <option value="extension">Extension</option>
           <option value="backend">Backend</option>
           <option value="scheduler">Scheduler</option>
           <option value="email_sync">Email Sync</option>
@@ -299,9 +311,8 @@ export default function LogsPage() {
                     <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
                       {/* Level Badge */}
                       <span
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border shrink-0 ${
-                          levelColors[log.level] || 'bg-zinc-100 text-zinc-700 border-zinc-200'
-                        }`}
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border shrink-0 ${levelColors[log.level] || 'bg-zinc-100 text-zinc-700 border-zinc-200'
+                          }`}
                       >
                         {log.level}
                       </span>
@@ -321,13 +332,12 @@ export default function LogsPage() {
                       {/* Status code */}
                       {log.status_code && (
                         <span
-                          className={`text-[11px] font-mono font-medium shrink-0 ${
-                            log.status_code >= 500
+                          className={`text-[11px] font-mono font-medium shrink-0 ${log.status_code >= 500
                               ? 'text-red-500'
                               : log.status_code >= 400
-                              ? 'text-amber-500'
-                              : 'text-emerald-500'
-                          }`}
+                                ? 'text-amber-500'
+                                : 'text-emerald-500'
+                            }`}
                         >
                           {log.status_code}
                         </span>

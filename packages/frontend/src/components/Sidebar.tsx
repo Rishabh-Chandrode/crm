@@ -111,6 +111,15 @@ const NAV = [
 
 const ADMIN_NAV = [
   {
+    href: '/admin',
+    label: 'Monitoring',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+  },
+  {
     href: '/users',
     label: 'Users',
     icon: (
@@ -184,12 +193,22 @@ function SidebarContent({ onNavClick, onClose }: { onNavClick?: () => void; onCl
   }
 
   const isAdmin = currentUser?.role === 'admin';
+  const isUserRoute = NAV.some(
+    ({ href }) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+  );
+
+  // Keep admin account strictly in monitoring/admin mode
+  useEffect(() => {
+    if (isAdmin && isUserRoute) {
+      router.replace('/admin');
+    }
+  }, [isAdmin, isUserRoute, router]);
 
   return (
     <>
       {/* Brand Header */}
       <div className="px-4 py-3.5 border-b border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group">
+        <Link href={isAdmin ? '/admin' : '/dashboard'} className="flex items-center gap-2.5 group">
           <div className="w-7 h-7 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-lg flex items-center justify-center flex-shrink-0 shadow-2xs font-bold text-xs">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -197,7 +216,9 @@ function SidebarContent({ onNavClick, onClose }: { onNavClick?: () => void; onCl
           </div>
           <div>
             <span className="text-zinc-900 dark:text-zinc-50 font-semibold text-xs tracking-tight block">Outreach CRM</span>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">Job Outreach</span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+              {isAdmin ? 'Admin Monitoring' : 'Job Outreach'}
+            </span>
           </div>
         </Link>
         <div className="flex items-center gap-0.5 shrink-0">
@@ -219,18 +240,17 @@ function SidebarContent({ onNavClick, onClose }: { onNavClick?: () => void; onCl
 
       {/* Navigation list */}
       <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-0.5">
-        {NAV.map(({ href, label, icon }) => {
+        {!isAdmin && currentUser && NAV.map(({ href, label, icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
             <Link
               key={href}
               href={href}
               onClick={onNavClick}
-              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                active
+              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${active
                   ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-100'
-              }`}
+                }`}
             >
               <span className={`flex-shrink-0 ${active ? 'text-white dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-400'}`}>
                 {icon}
@@ -242,7 +262,7 @@ function SidebarContent({ onNavClick, onClose }: { onNavClick?: () => void; onCl
 
         {isAdmin && (
           <>
-            <div className="pt-3 pb-1 px-2.5">
+            <div className="pt-1 pb-1 px-2.5">
               <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Admin</span>
             </div>
             {ADMIN_NAV.map(({ href, label, icon }) => {
@@ -252,11 +272,10 @@ function SidebarContent({ onNavClick, onClose }: { onNavClick?: () => void; onCl
                   key={href}
                   href={href}
                   onClick={onNavClick}
-                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    active
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${active
                       ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs'
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-100'
-                  }`}
+                    }`}
                 >
                   <span className="flex-shrink-0">{icon}</span>
                   <span>{label}</span>
